@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Kitchen Rush — Pickleball Smash Game</title>
+
+  <!-- SEO -->
+  <meta name="description"
+    content="A fast arcade game inspired by pickleball. Smash balls, stay out of the Kitchen, beat your best. No ads. No account.">
+  <meta name="author" content="Kitchen Rush">
+
+  <!-- Canonical Link -->
+  <link rel="canonical" href="https://kitchenrush.app/">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://kitchenrush.app/icons/kr-icon-512x512.png">
+  <meta name="twitter:url" content="https://kitchenrush.app/">
+  <meta name="twitter:title" content="Kitchen Rush — Pickleball Smash Game">
+  <meta name="twitter:description"
+    content="Smash balls, stay out of the Kitchen. 3 lives. How many can you smash?">
+
+  <!-- PWA & UI -->
+  <meta name="theme-color" content="#1a2332">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Kitchen Rush">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://kitchenrush.app/icons/kr-icon-512x512.png">
+  <meta property="og:url" content="https://kitchenrush.app/">
+  <meta property="og:title" content="Kitchen Rush — Pickleball Smash Game">
+  <meta property="og:description"
+    content="A fast arcade game inspired by pickleball. Smash balls, stay out of the Kitchen.">
+  <meta property="og:site_name" content="Kitchen Rush">
+
+  <!-- Icons & manifest -->
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icons/kr-favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="./icons/kr-favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/png" sizes="32x32" href="./icons/kr-icon-32x32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/kr-icon-192x192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/kr-icon-180x180.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="./icons/kr-icon-152x152.png">
+
+  <!-- Preconnect for Stripe (performance) -->
+  <link rel="preconnect" href="https://buy.stripe.com" crossorigin>
+  <link rel="preconnect" href="https://checkout.stripe.com" crossorigin>
+  <link rel="preconnect" href="https://js.stripe.com" crossorigin>
+
+  <!-- Styles -->
+  <link rel="preload" href="./style.css" as="style">
+  <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+  <!-- Fallback without JavaScript -->
+  <noscript>
+    <div class="kr-noscript">
+      <div class="kr-noscript-content">
+        <div class="kr-noscript-icon">&#x26A0;</div>
+        <h2>JavaScript Required</h2>
+        <p>Kitchen Rush requires JavaScript to run. Please enable JavaScript in your browser settings and reload this
+          page.</p>
+      </div>
+    </div>
+  </noscript>
+
+  <!-- Skip link for accessibility -->
+  <a href="#app" class="kr-skip-link">Skip to main content</a>
+
+  <!-- App shell -->
+  <div class="kr-app">
+    <main class="kr-main">
+      <div class="kr-container">
+        <div id="app" tabindex="-1" aria-live="off" aria-label="Kitchen Rush game content"></div>
+      </div>
+    </main>
+
+    <footer class="kr-footer" role="contentinfo">
+      <div class="kr-container">
+        <div class="kr-footer-inner">
+          <!-- Line 1: Branding -->
+          <div class="kr-footer-row kr-footer-row--brand">
+            <span class="kr-footer-creator" data-kr-brand="creatorLine"></span>
+          </div>
+
+          <!-- Line 2: Utility links -->
+          <div class="kr-footer-row kr-footer-row--links">
+            <a id="kr-contact-link" class="kr-footer-link" href="#" data-kr-wording="footer.contact"></a>
+            <span class="kr-footer-sep" aria-hidden="true">·</span>
+            <a id="kr-privacy-link" class="kr-footer-link" href="./privacy.html" target="_blank" rel="noopener"
+              data-kr-wording="footer.privacy"></a>
+            <span class="kr-footer-sep" aria-hidden="true">·</span>
+            <a id="kr-terms-link" class="kr-footer-link" href="./terms.html" target="_blank" rel="noopener"
+              data-kr-wording="footer.terms"></a>
+            <span class="kr-footer-sep" aria-hidden="true">·</span>
+            <span class="kr-footer-version" data-kr-version></span>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Modal shell -->
+    <div id="kr-modal-overlay" class="kr-backdrop kr-hidden" role="dialog" aria-modal="true" aria-hidden="true"
+      data-action="close-modal">
+      <div id="kr-modal-content" class="kr-modal kr-anim-in" role="document"></div>
+    </div>
+  </div>
+
+  <!-- Toast containers -->
+  <div id="kr-toast" class="kr-toast" role="status" aria-live="polite"></div>
+
+  <div id="update-toast" class="kr-toast" role="status" aria-live="polite">
+    <div class="kr-row kr-row--spaced kr-row--tight">
+      <span data-kr-update-text data-kr-wording="system.updateAvailable"></span>
+      <button class="kr-btn kr-btn--ghost" data-action="dismiss-update" data-kr-aria-label="system.dismiss"
+        data-kr-wording="system.closeIcon"></button>
+    </div>
+  </div>
+
+  <!-- Scripts (defer for performance) -->
+  <script defer src="./config.js"></script>
+  <script defer src="./storage.js"></script>
+  <script defer src="./game.js"></script>
+  <script defer src="./audio.js"></script>
+  <script defer src="./ui.js"></script>
+  <script defer src="./pwa.js"></script>
+  <script defer src="./email.js"></script>
+  <script defer src="./main.js"></script>
+
+  <script>
+    (() => {
+      function getByPath(root, path) {
+        const p = String(path || "").trim();
+        if (!p) return null;
+        const parts = p.split(".");
+        let cur = root;
+        for (const k of parts) {
+          if (!cur || typeof cur !== "object") return null;
+          cur = cur[k];
+        }
+        return (typeof cur === "string") ? cur : null;
+      }
+
+      function applyWordingToDom() {
+        const w = window.KR_WORDING;
+        if (!w || typeof w !== "object") return;
+
+        try {
+          document.querySelectorAll("[data-kr-wording]").forEach((el) => {
+            const key = el ? el.getAttribute("data-kr-wording") : "";
+            const text = getByPath(w, key);
+            if (typeof text === "string") el.textContent = text;
+          });
+        } catch (_) { }
+
+        try {
+          document.querySelectorAll("[data-kr-aria-label]").forEach((el) => {
+            const key = el ? el.getAttribute("data-kr-aria-label") : "";
+            const text = getByPath(w, key);
+            if (typeof text === "string") el.setAttribute("aria-label", text);
+          });
+        } catch (_) { }
+      }
+
+      document.addEventListener("DOMContentLoaded", applyWordingToDom);
+    })();
+  </script>
+</body>
+
+</html>

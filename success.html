@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Payment successful. Your Kitchen Rush code is ready.">
+  <meta name="robots" content="noindex, nofollow">
+
+  <!-- PWA & UI (match index.html) -->
+  <meta name="theme-color" content="#1a2332">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Kitchen Rush">
+
+  <!-- Icons & manifest (match index.html) -->
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/kr-icon-192x192.png">
+  <link rel="apple-touch-icon" href="./icons/kr-icon-192x192.png">
+
+  <title>Premium Access Ready - Kitchen Rush</title>
+
+  <!-- Styles -->
+  <link rel="preload" href="./style.css" as="style">
+  <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+  <div class="kr-app">
+    <main class="kr-main">
+      <div class="kr-container">
+
+        <!-- Header (branding) -->
+        <div class="kr-card kr-card--hero">
+          <div class="kr-row kr-row--spaced" style="align-items:center; gap:var(--gap-2)">
+            <a class="kr-branding" href="./index.html" id="kr-success-branding" aria-label="">
+              <img id="kr-success-logo" src="" alt="" class="kr-branding-logo" style="display:none" />
+              <span id="kr-success-name" class="kr-branding-name"></span>
+            </a>
+            <div class="kr-badge">THIS DEVICE</div>
+          </div>
+
+          <div style="margin-top:var(--space-10)">
+            <h1 class="kr-h1" data-kr-wording="success.title"></h1>
+            <p class="kr-sub" data-kr-wording="success.subtitle"></p>
+          </div>
+        </div>
+
+        <!-- Premium code -->
+        <div class="kr-card">
+          <div class="kr-row kr-row--spaced">
+            <div class="kr-meta">
+              <strong data-kr-wording="success.codeLabel"></strong>
+            </div>
+            <button class="kr-btn kr-btn--secondary" id="copy-btn" type="button" data-kr-wording="success.copyCta">
+            </button>
+          </div>
+
+          <div class="kr-code" id="code" style="margin-top:var(--gap-2)">KR-XXXX-XXXX</div>
+
+          <div id="copy-status" class="kr-live kr-hidden" role="status" aria-live="polite"
+            style="margin-top:var(--space-10)">
+          </div>
+
+          <div class="kr-divider"></div>
+
+          <p class="kr-muted" style="margin-top:0">
+            <span data-kr-wording="success.txtSaveLine"></span>
+            <span data-kr-wording="success.txtNoRecoverLine"></span>
+          </p>
+          <p class="kr-muted" style="margin-top:var(--space-6)" data-kr-wording="success.clearDataWarning"></p>
+        </div>
+
+        <!-- Benefits -->
+        <div class="kr-card">
+          <div class="kr-meta"><strong data-kr-wording="success.benefitsTitle"></strong></div>
+          <ul class="kr-list">
+            <li data-kr-wording="success.benefitUnlimitedRuns"></li>
+            <li data-kr-wording="success.benefitSprint"></li>
+            <li data-kr-wording="success.benefitPersonalBest"></li>
+          </ul>
+        </div>
+
+        <!-- Actions -->
+        <div class="kr-card">
+          <div class="kr-row kr-row--spaced">
+            <a href="./index.html" class="kr-btn kr-btn--primary" data-kr-wording="success.ctaBackToGame">
+            </a>
+
+            <div class="kr-row kr-row--tight kr-row--end">
+              <button id="download-code" class="kr-btn kr-btn--secondary" type="button"
+                data-kr-wording="success.ctaDownload">
+              </button>
+
+              <button id="copy-again" class="kr-btn kr-btn--secondary" type="button"
+                data-kr-wording="success.copyAgainCta">
+              </button>
+            </div>
+          </div>
+
+          <p class="kr-muted" data-kr-wording="success.shortcutHint"></p>
+        </div>
+
+        <!-- Footer note -->
+        <p class="kr-muted" style="text-align:center; margin-top:var(--gap-3)" data-kr-wording="success.thankYouLine">
+        </p>
+
+        <!-- Support (obfuscated) -->
+        <p class="kr-muted" style="text-align:center; margin-top:var(--gap-2); font-size:var(--fs-xs)">
+          <span data-kr-wording="success.supportLabel"></span>
+          <a href="#" data-user="bonjour" data-domain="kitchenrush.app">Contact us</a>
+        </p>
+
+      </div>
+    </main>
+
+    <footer id="kr-footer-root" class="kr-footer" role="contentinfo"></footer>
+  </div>
+
+  <!-- Scripts: config non-defer for inline success logic -->
+  <script src="./config.js"></script>
+  <script src="./email.js"></script>
+  <script src="./footer.js"></script>
+
+  <script>
+    // success.js inline - Kitchen Rush
+    (() => {
+      const cfg = window.KR_CONFIG || {};
+      const STORAGE_KEY = String(
+        (cfg.storage && cfg.storage.vanityCodeStorageKey) || ""
+      ).trim();
+
+      const COUNTER_KEY = String(
+        (cfg.storage && cfg.storage.storageKey) || ""
+      ).trim();
+
+      // Fail-closed: if keys not configured, page renders but code generation is blocked
+      if (!STORAGE_KEY || !COUNTER_KEY) return;
+
+      function rand4() {
+        return Math.random()
+          .toString(36)
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "")
+          .slice(0, 4)
+          .padEnd(4, "X");
+      }
+
+      function generateCode() {
+        return "KR-" + rand4() + "-" + rand4();
+      }
+
+      function getOrCreateCode() {
+        const rawRe = String(cfg.premiumCodeRegex || "").trim();
+        if (!rawRe) return "";
+
+        let re = null;
+        try { re = new RegExp(rawRe); } catch (_) { re = null; }
+        if (!re) return "";
+
+        let code = "";
+        try { code = String(localStorage.getItem(STORAGE_KEY) || "").trim(); } catch (_) { return ""; }
+
+        // If storage is polluted, regenerate (fail-closed + self-heal)
+        if (!code || !re.test(code)) {
+          code = generateCode();
+          if (!re.test(code)) return "";
+          try { localStorage.setItem(STORAGE_KEY, code); } catch (_) { return ""; }
+        }
+
+        return code;
+      }
+
+      function markCodeGeneratedBestEffort() {
+        try {
+          const raw = localStorage.getItem(COUNTER_KEY);
+          const data = raw ? JSON.parse(raw) : null;
+          if (!data || typeof data !== "object") return;
+          data.counters = data.counters || {};
+          data.counters.codeGenerated = Number(data.counters.codeGenerated || 0) + 1;
+          data.updatedAt = Date.now();
+          localStorage.setItem(COUNTER_KEY, JSON.stringify(data));
+        } catch (_) { }
+      }
+
+      function renderCode(code) {
+        const codeEl = document.getElementById("code");
+        if (codeEl) codeEl.textContent = code;
+      }
+
+      function showStatus(msg) {
+        const statusEl = document.getElementById("copy-status");
+        if (!statusEl) return;
+        const dur = Number(cfg?.ui?.toast?.default?.durationMs);
+        if (!Number.isFinite(dur) || dur < 600 || dur > 4000) return;
+        statusEl.textContent = msg;
+        statusEl.classList.remove("kr-hidden");
+        setTimeout(() => { statusEl.classList.add("kr-hidden"); }, Math.floor(dur));
+      }
+
+      function fallbackCopy(text) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.top = "-1000px";
+        document.body.appendChild(ta);
+        ta.select();
+        let ok = false;
+        try { ok = document.execCommand("copy"); } catch (_) { ok = false; }
+        document.body.removeChild(ta);
+        return ok;
+      }
+
+      async function copyCode() {
+        const codeEl = document.getElementById("code");
+        const code = codeEl ? codeEl.textContent.trim() : "";
+        if (!code) return;
+        const copiedText = window.KR_WORDING?.system?.copied;
+        const failedText = window.KR_WORDING?.system?.copyFailed;
+        if (!copiedText || !failedText) return;
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(code);
+            showStatus(copiedText);
+            return;
+          }
+        } catch (_) { }
+        if (fallbackCopy(code)) { showStatus(copiedText); } else { showStatus(failedText); }
+      }
+
+      function downloadCodeTxt() {
+        const codeEl = document.getElementById("code");
+        const code = codeEl ? codeEl.textContent.trim() : "";
+        if (!code) return;
+        const downloadedText = window.KR_WORDING?.system?.downloaded;
+        if (!downloadedText) return;
+        const w = window.KR_WORDING?.success;
+        if (!w?.txtTitle || !w?.txtSaveLine || !w?.txtNoRecoverLine) return;
+        const content = [w.txtTitle, "", code, "", w.txtSaveLine, w.txtNoRecoverLine].join("\n");
+        try {
+          const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+          if (!window.URL || typeof URL.createObjectURL !== "function") { copyCode(); return; }
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "kitchen-rush-code-" + code + ".txt";
+          a.style.display = "none";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) { } }, 0);
+          showStatus(downloadedText);
+        } catch (_) { copyCode(); }
+      }
+
+      function applyWording() {
+        function getByPath(root, path) {
+          const p = String(path || "").trim();
+          if (!p) return null;
+          const parts = p.split(".");
+          let cur = root;
+          for (const k of parts) {
+            if (!cur || typeof cur !== "object") return null;
+            cur = cur[k];
+          }
+          return (typeof cur === "string") ? cur : null;
+        }
+        try {
+          const w = window.KR_WORDING;
+          if (!w || typeof w !== "object") return;
+          document.querySelectorAll("[data-kr-wording]").forEach((el) => {
+            const key = el ? el.getAttribute("data-kr-wording") : "";
+            const text = getByPath(w, key);
+            if (typeof text === "string") el.textContent = text;
+          });
+        } catch (_) { }
+      }
+
+      function applyBrand() {
+        try {
+          const brand = window.KR_WORDING?.brand?.creatorLine;
+          if (!brand) return;
+          document.querySelectorAll('[data-kr-brand="creatorLine"]')
+            .forEach((el) => { if (el) el.textContent = brand; });
+        } catch (_) { }
+      }
+
+      function applySuccessBranding() {
+        try {
+          const logoUrl = String(cfg?.identity?.uiLogoUrl || "").trim();
+          const appName = String(cfg?.identity?.appName || "").trim();
+          const img = document.getElementById("kr-success-logo");
+          const name = document.getElementById("kr-success-name");
+          const link = document.getElementById("kr-success-branding");
+          if (!img || !name || !link) return;
+          if (!appName) { name.textContent = ""; link.setAttribute("aria-label", ""); }
+          else { name.textContent = appName; link.setAttribute("aria-label", appName); }
+          if (!logoUrl) { img.style.display = "none"; img.removeAttribute("src"); img.setAttribute("alt", ""); return; }
+          img.src = logoUrl; img.setAttribute("alt", appName || ""); img.style.display = "";
+        } catch (_) { }
+      }
+
+      function applyVersion() {
+        try {
+          const version = String(cfg?.version || "").trim();
+          const prefix = String(window.KR_WORDING?.system?.versionPrefix || "").trim();
+          const el = document.querySelector(".kr-footer-version");
+          if (el) el.textContent = version ? (prefix + version) : "";
+        } catch (_) { }
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        const code = getOrCreateCode();
+        if (!code) {
+          const codeEl = document.getElementById("code");
+          if (codeEl) codeEl.textContent = "";
+          return;
+        }
+
+        renderCode(code);
+        markCodeGeneratedBestEffort();
+
+        applyWording();
+        applyBrand();
+        applySuccessBranding();
+        applyVersion();
+
+        const copyBtn = document.getElementById("copy-btn");
+        const copyAgain = document.getElementById("copy-again");
+        const downloadBtn = document.getElementById("download-code");
+
+        if (copyBtn) copyBtn.addEventListener("click", copyCode);
+        if (copyAgain) copyAgain.addEventListener("click", copyCode);
+        if (downloadBtn) downloadBtn.addEventListener("click", downloadCodeTxt);
+
+        // Obfuscated email links
+        if (window.KR_Email && typeof window.KR_Email.initEmailLinks === "function") {
+          window.KR_Email.initEmailLinks();
+        }
+      });
+    })();
+  </script>
+</body>
+
+</html>
