@@ -537,8 +537,8 @@ void function () {
   };
 
   UI.prototype._handleSprintAgain = function () {
-    this._runtime.runMode = MODES.SPRINT;
-    this._startGameplay(MODES.SPRINT, MODES.SPRINT);
+    // Route through startSprintRun() to enforce sprint free limit gate
+    this.startSprintRun();
   };
 
   UI.prototype.startSprintRun = function () {
