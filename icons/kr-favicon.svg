@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background: dark court blue-green -->
+  <rect width="512" height="512" rx="96" fill="#1a2332"/>
+  
+  <!-- Kitchen zone: warm coral stripe at bottom -->
+  <rect y="332" width="512" height="180" fill="#E04840"/>
+  <!-- Round bottom corners -->
+  <path d="M0 332h512v84c0 53-43 96-96 96H96c-53 0-96-43-96-96v-84z" fill="#E04840"/>
+  
+  <!-- Kitchen dashed line -->
+  <line x1="36" y1="332" x2="476" y2="332" stroke="#fff" stroke-width="5" stroke-dasharray="18,12" opacity="0.5"/>
+  
+  <!-- Pickleball (wiffle ball — realistic 26-hole pattern, evenly distributed) -->
+  <circle cx="256" cy="195" r="115" fill="#B8D830"/>
+  
+  <!-- Row 1 (top) — 3 holes -->
+  <circle cx="225" cy="120" r="11" fill="#1a2332" opacity="0.28"/>
+  <circle cx="258" cy="112" r="11" fill="#1a2332" opacity="0.28"/>
+  <circle cx="290" cy="120" r="11" fill="#1a2332" opacity="0.28"/>
+  
+  <!-- Row 2 — 5 holes -->
+  <circle cx="190" cy="148" r="12" fill="#1a2332" opacity="0.30"/>
+  <circle cx="222" cy="145" r="12" fill="#1a2332" opacity="0.30"/>
+  <circle cx="256" cy="142" r="12" fill="#1a2332" opacity="0.30"/>
+  <circle cx="290" cy="145" r="12" fill="#1a2332" opacity="0.30"/>
+  <circle cx="322" cy="148" r="12" fill="#1a2332" opacity="0.30"/>
+  
+  <!-- Row 3 — 6 holes (widest) -->
+  <circle cx="172" cy="180" r="12" fill="#1a2332" opacity="0.30"/>
+  <circle cx="206" cy="177" r="12" fill="#1a2332" opacity="0.30"/>
+  <circle cx="240" cy="175" r="12" fill="#1a2332" opacity="0.30"/>
+  <circle cx="274" cy="175" r="12" fill="#1a2332" opacity="0.30"/>
+  <circle cx="308" cy="177" r="12" fill="#1a2332" opacity="0.30"/>
+  <circle cx="340" cy="180" r="12" fill="#1a2332" opacity="0.30"/>
+  
+  <!-- Row 4 — 5 holes -->
+  <circle cx="190" cy="212" r="12" fill="#1a2332" opacity="0.30"/>
+  <circle cx="222" cy="210" r="12" fill="#1a2332" opacity="0.30"/>
+  <circle cx="256" cy="208" r="12" fill="#1a2332" opacity="0.30"/>
+  <circle cx="290" cy="210" r="12" fill="#1a2332" opacity="0.30"/>
+  <circle cx="322" cy="212" r="12" fill="#1a2332" opacity="0.30"/>
+  
+  <!-- Row 5 — 4 holes -->
+  <circle cx="205" cy="242" r="11" fill="#1a2332" opacity="0.28"/>
+  <circle cx="238" cy="240" r="11" fill="#1a2332" opacity="0.28"/>
+  <circle cx="274" cy="240" r="11" fill="#1a2332" opacity="0.28"/>
+  <circle cx="307" cy="242" r="11" fill="#1a2332" opacity="0.28"/>
+  
+  <!-- Row 6 (bottom) — 3 holes -->
+  <circle cx="225" cy="270" r="10" fill="#1a2332" opacity="0.25"/>
+  <circle cx="258" cy="268" r="10" fill="#1a2332" opacity="0.25"/>
+  <circle cx="290" cy="270" r="10" fill="#1a2332" opacity="0.25"/>
+  
+  <!-- "KR" text mark in Kitchen zone -->
+  <text x="256" y="448" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="76" fill="#ffffff" letter-spacing="6">KR</text>
+</svg>
