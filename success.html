@@ -151,7 +151,7 @@
         return "KR-" + rand4() + "-" + rand4();
       }
 
-      function getOrCreateCode() {
+      function getStoredCodeStrict() {
         const rawRe = String(cfg.premiumCodeRegex || "").trim();
         if (!rawRe) return "";
 
@@ -161,14 +161,7 @@
 
         let code = "";
         try { code = String(localStorage.getItem(STORAGE_KEY) || "").trim(); } catch (_) { return ""; }
-
-        // If storage is polluted, regenerate (fail-closed + self-heal)
-        if (!code || !re.test(code)) {
-          code = generateCode();
-          if (!re.test(code)) return "";
-          try { localStorage.setItem(STORAGE_KEY, code); } catch (_) { return ""; }
-        }
-
+        if (!code || !re.test(code)) return "";
         return code;
       }
 
@@ -312,7 +305,7 @@
       }
 
       document.addEventListener("DOMContentLoaded", () => {
-        const code = getOrCreateCode();
+        const code = getStoredCodeStrict();
         if (!code) {
           const codeEl = document.getElementById("code");
           if (codeEl) codeEl.textContent = "";

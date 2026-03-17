@@ -9,8 +9,16 @@
   const EVT = "storage-updated";
   const EVT_SAVE_FAILED = "storage-save-failed";
 
-  // Game modes (from KR_ENUMS, fail-closed to literals if unavailable)
-  var MODES = (window.KR_ENUMS && window.KR_ENUMS.GAME_MODES) || { RUN: "RUN", SPRINT: "SPRINT" };
+  function getModes() {
+    const modes = window.KR_ENUMS && window.KR_ENUMS.GAME_MODES;
+    if (!modes || typeof modes !== "object") {
+      throw new Error("StorageManager: KR_ENUMS.GAME_MODES missing");
+    }
+    if (!modes.RUN || !modes.SPRINT) {
+      throw new Error("StorageManager: KR_ENUMS.GAME_MODES invalid");
+    }
+    return modes;
+  }
 
 
   // ============================================
@@ -33,6 +41,14 @@
     const x = Number(n);
     if (!Number.isFinite(x)) return 0;
     return Math.max(0, Math.floor(x));
+  }
+
+  function requiredNonNegativeInt(value, name) {
+    const n = Number(value);
+    if (!Number.isFinite(n) || Math.floor(n) !== n || n < 0) {
+      throw new Error(name + " must be a non-negative integer");
+    }
+    return n;
   }
 
   function deepCopy(obj) {
@@ -66,17 +82,15 @@
     // Cache compiled regex (premium codes)
     this._premiumCodeRe = undefined;
 
-    const schemaVersion = String(
-      (config.storageSchemaVersion != null ? config.storageSchemaVersion : "") ||
-      (config.version != null ? config.version : "")
-    ).trim();
+    const schemaVersion = String(config.storageSchemaVersion == null ? "" : config.storageSchemaVersion).trim();
 
-    if (!schemaVersion) throw new Error("StorageManager: missing config.storageSchemaVersion (or config.version)");
+    if (!schemaVersion) throw new Error("StorageManager: missing config.storageSchemaVersion");
 
     this.schemaVersion = schemaVersion;
 
     // freeRuns is read from config at init time (not live-synced).
-    const freeRuns = clampNonNegativeInt(config?.limits?.freeRuns);
+    const freeRuns = requiredNonNegativeInt(config?.limits?.freeRuns, "StorageManager: config.limits.freeRuns");
+    this.modes = getModes();
 
     const gameId = String(config.identity?.appName || "").trim();
     if (!gameId) throw new Error("StorageManager: missing config.identity.appName");
@@ -280,7 +294,7 @@
 
     // Harden runs (sync with config)
     const r = this.data.runs;
-    const freeRunsCfg = clampNonNegativeInt(cfg?.limits?.freeRuns);
+    const freeRunsCfg = requiredNonNegativeInt(cfg?.limits?.freeRuns, "StorageManager._wipeAndReset(): config.limits.freeRuns");
     const isPrem = (this.data && this.data.isPremium === true);
 
     r.freeRuns = freeRunsCfg;
@@ -549,7 +563,7 @@
   StorageManager.prototype.getEarlyPriceState = function () {
     const ep = this.data?.earlyPrice || {};
     const startedAt = clampNonNegativeInt(ep.startedAt);
-    const windowMs = clampNonNegativeInt(this.config?.earlyPriceWindowMs);
+    const windowMs = requiredNonNegativeInt(this.config?.earlyPriceWindowMs, "StorageManager.getEarlyPriceState(): config.earlyPriceWindowMs");
 
     if (!startedAt || windowMs <= 0) {
       return { phase: "STANDARD", remainingMs: 0, startedAt };
@@ -565,6 +579,38 @@
   // ============================================
   // Economy (Runs)
   // ============================================
+
+  StorageManager.prototype.getRunAccessState = function () {
+    if (!this.data) return { ok: false, reason: "NO_DATA", balance: 0, runType: "" };
+    if (this.isPremium()) {
+      return { ok: true, reason: "PREMIUM", balance: this.getRunsBalance(), runType: "UNLIMITED" };
+    }
+    const balance = this.getRunsBalance();
+    if (balance > 0) {
+      return { ok: true, reason: "AVAILABLE", balance: balance, runType: (balance === 1 ? "LAST_FREE" : "FREE") };
+    }
+    return { ok: false, reason: "NO_RUNS", balance: 0, runType: "" };
+  };
+
+  StorageManager.prototype.canStartRun = function () {
+    const state = this.getRunAccessState();
+    return state.ok === true;
+  };
+
+  StorageManager.prototype.getSprintAccessState = function () {
+    if (!this.data) return { ok: false, reason: "NO_DATA", used: 0, limit: 0 };
+    const limit = requiredNonNegativeInt(this.config?.sprint?.freeRunsLimit, "StorageManager.getSprintAccessState(): config.sprint.freeRunsLimit");
+    if (this.isPremium()) return { ok: true, reason: "PREMIUM", used: this.getSprintFreeRunsUsed(), limit };
+    const used = this.getSprintFreeRunsUsed();
+    if (limit <= 0 || used < limit) return { ok: true, reason: "AVAILABLE", used, limit };
+    return { ok: false, reason: "LIMIT_REACHED", used, limit };
+  };
+
+  StorageManager.prototype.canStartSprint = function () {
+    const state = this.getSprintAccessState();
+    return state.ok === true;
+  };
+
   StorageManager.prototype.consumeRunOrBlock = function () {
     if (!this.data) return { ok: false, reason: "NO_DATA", balance: 0 };
 

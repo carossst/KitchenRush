@@ -543,7 +543,7 @@
   // - No "AMAZING!" / "INCREDIBLE!" / "AWESOME!"
   // - No motivational coach tone
   // - No guilt ("You're missing out!")
-  // - No streak vocabulary
+  // - Avoid empty hype vocabulary; prefer concrete rally language
   // - No "level", "stage", "round", "match", "points"
 
   window.KR_WORDING = {
@@ -974,12 +974,12 @@
       // Jardim = Simone Jardim (Brazilian legend, Hall of Fame 2024)
       // Devilliers = Jay "The Flying Frenchman" (French #1 on US tour)
       // Johns = Ben Johns (GOAT, 167 titles)
-      streakStart: "3 in a row!",
-      streakBuilding: "6 streak — keep it clean",
-      streakStrong: "10 streak — Jardim vibes",
-      streakElite: "15 streak — banger rally",
-      streakLegendary: "20 streak — Waters-level",
-      streakAgain: "{streak} streak",
+      streakStart: "3 clean in a row",
+      streakBuilding: "6 clean - keep it clean",
+      streakStrong: "10 clean - Jardim vibes",
+      streakElite: "15 clean - banger rally",
+      streakLegendary: "20 clean - Waters level",
+      streakAgain: "{streak} clean",
 
       // One-shot moments
       kitchenMaster: "Kitchen master!",
@@ -1057,6 +1057,136 @@
 
       if (cfg.support && !cfg.support.emailObfuscated) warn("support.emailObfuscated missing");
       if (cfg.waitlist && cfg.waitlist.enabled && !cfg.waitlist.toEmailObfuscated) warn("waitlist.enabled true but toEmailObfuscated missing");
+    },
+
+    validateConfigStrict: function () {
+      const cfg = window.KR_CONFIG;
+      const enums = window.KR_ENUMS;
+      const fail = (msg) => { throw new Error("KR_CONFIG strict validation failed: " + msg); };
+      const reqObj = (obj, name) => {
+        if (!obj || typeof obj !== "object" || Array.isArray(obj)) fail(name + " missing or invalid");
+        return obj;
+      };
+      const reqStr = (value, name) => {
+        const s = String(value == null ? "" : value).trim();
+        if (!s) fail(name + " missing or empty");
+        return s;
+      };
+      const reqNum = (value, name, opts) => {
+        const n = Number(value);
+        if (!Number.isFinite(n)) fail(name + " must be a finite number");
+        if (opts && Number.isFinite(opts.min) && n < opts.min) fail(name + " must be >= " + opts.min);
+        if (opts && Number.isFinite(opts.max) && n > opts.max) fail(name + " must be <= " + opts.max);
+        if (opts && opts.integer === true && Math.floor(n) !== n) fail(name + " must be an integer");
+        return n;
+      };
+      const reqBool = (value, name) => {
+        if (typeof value !== "boolean") fail(name + " must be a boolean");
+        return value;
+      };
+
+      reqObj(cfg, "KR_CONFIG");
+      reqObj(enums, "KR_ENUMS");
+      reqObj(enums.UI_STATES, "KR_ENUMS.UI_STATES");
+      reqObj(enums.GAME_MODES, "KR_ENUMS.GAME_MODES");
+
+      reqStr(enums.UI_STATES.LANDING, "KR_ENUMS.UI_STATES.LANDING");
+      reqStr(enums.UI_STATES.PLAYING, "KR_ENUMS.UI_STATES.PLAYING");
+      reqStr(enums.UI_STATES.END, "KR_ENUMS.UI_STATES.END");
+      reqStr(enums.UI_STATES.PAYWALL, "KR_ENUMS.UI_STATES.PAYWALL");
+      reqStr(enums.GAME_MODES.RUN, "KR_ENUMS.GAME_MODES.RUN");
+      reqStr(enums.GAME_MODES.SPRINT, "KR_ENUMS.GAME_MODES.SPRINT");
+
+      reqObj(cfg.identity, "KR_CONFIG.identity");
+      reqStr(cfg.identity.appName, "KR_CONFIG.identity.appName");
+      reqStr(cfg.version, "KR_CONFIG.version");
+      reqStr(cfg.storageSchemaVersion, "KR_CONFIG.storageSchemaVersion");
+
+      reqObj(cfg.storage, "KR_CONFIG.storage");
+      reqStr(cfg.storage.storageKey, "KR_CONFIG.storage.storageKey");
+      reqStr(cfg.storage.vanityCodeStorageKey, "KR_CONFIG.storage.vanityCodeStorageKey");
+
+      const game = reqObj(cfg.game, "KR_CONFIG.game");
+      reqNum(game.lives, "KR_CONFIG.game.lives", { min: 1, integer: true });
+      reqNum(game.onboardingShield, "KR_CONFIG.game.onboardingShield", { min: 0, integer: true });
+      reqNum(game.reboundDelayMs, "KR_CONFIG.game.reboundDelayMs", { min: 1, integer: true });
+      reqObj(game.speed, "KR_CONFIG.game.speed");
+      reqNum(game.speed.base, "KR_CONFIG.game.speed.base", { min: 0.1 });
+      reqNum(game.speed.accelPerSec, "KR_CONFIG.game.speed.accelPerSec", { min: 0 });
+      reqObj(game.spawn, "KR_CONFIG.game.spawn");
+      reqNum(game.spawn.initialMs, "KR_CONFIG.game.spawn.initialMs", { min: 1, integer: true });
+      reqNum(game.spawn.decayPerSec, "KR_CONFIG.game.spawn.decayPerSec", { min: 0 });
+      reqNum(game.spawn.minMs, "KR_CONFIG.game.spawn.minMs", { min: 1, integer: true });
+      reqObj(game.window, "KR_CONFIG.game.window");
+      reqNum(game.window.initialMs, "KR_CONFIG.game.window.initialMs", { min: 1, integer: true });
+      reqNum(game.window.decayPerSec, "KR_CONFIG.game.window.decayPerSec", { min: 0 });
+      reqNum(game.window.minMs, "KR_CONFIG.game.window.minMs", { min: 1, integer: true });
+      reqObj(game.kitchenRatio, "KR_CONFIG.game.kitchenRatio");
+      reqNum(game.kitchenRatio.base, "KR_CONFIG.game.kitchenRatio.base", { min: 0, max: 1 });
+      reqNum(game.kitchenRatio.growthPerSec, "KR_CONFIG.game.kitchenRatio.growthPerSec", { min: 0 });
+      reqNum(game.kitchenRatio.max, "KR_CONFIG.game.kitchenRatio.max", { min: 0, max: 1 });
+      if (game.ballTypes != null) {
+        reqObj(game.ballTypes, "KR_CONFIG.game.ballTypes");
+        Object.keys(game.ballTypes).forEach((key) => {
+          const bt = reqObj(game.ballTypes[key], "KR_CONFIG.game.ballTypes." + key);
+          reqNum(bt.unlockAfterSec, "KR_CONFIG.game.ballTypes." + key + ".unlockAfterSec", { min: 0 });
+          reqNum(bt.weight, "KR_CONFIG.game.ballTypes." + key + ".weight", { min: 0 });
+          reqNum(bt.speedMultiplier, "KR_CONFIG.game.ballTypes." + key + ".speedMultiplier", { min: 0.01 });
+          reqNum(bt.tapWindowMultiplier, "KR_CONFIG.game.ballTypes." + key + ".tapWindowMultiplier", { min: 0.01 });
+          reqNum(bt.radiusMultiplier, "KR_CONFIG.game.ballTypes." + key + ".radiusMultiplier", { min: 0.01 });
+          reqBool(bt.forceKitchen, "KR_CONFIG.game.ballTypes." + key + ".forceKitchen");
+        });
+      }
+
+      const daily = reqObj(cfg.daily, "KR_CONFIG.daily");
+      reqBool(daily.enabled, "KR_CONFIG.daily.enabled");
+      reqStr(daily.mode, "KR_CONFIG.daily.mode");
+      if (daily.mode !== enums.GAME_MODES.RUN) fail("KR_CONFIG.daily.mode must equal KR_ENUMS.GAME_MODES.RUN");
+
+      const canvas = reqObj(cfg.canvas, "KR_CONFIG.canvas");
+      reqNum(canvas.kitchenLineY, "KR_CONFIG.canvas.kitchenLineY", { min: 0.01, max: 0.99 });
+      reqNum(canvas.ballRadius, "KR_CONFIG.canvas.ballRadius", { min: 1, integer: true });
+      reqNum(canvas.hitTolerancePx, "KR_CONFIG.canvas.hitTolerancePx", { min: 0, integer: true });
+      reqNum(canvas.shadowGrowthFactor, "KR_CONFIG.canvas.shadowGrowthFactor", { min: 0, max: 1 });
+
+      const limits = reqObj(cfg.limits, "KR_CONFIG.limits");
+      reqNum(limits.freeRuns, "KR_CONFIG.limits.freeRuns", { min: 0, integer: true });
+
+      const sprint = reqObj(cfg.sprint, "KR_CONFIG.sprint");
+      reqNum(sprint.durationMs, "KR_CONFIG.sprint.durationMs", { min: 1, integer: true });
+      reqNum(sprint.faultPenaltyMs, "KR_CONFIG.sprint.faultPenaltyMs", { min: 1, integer: true });
+      reqNum(sprint.freeRunsLimit, "KR_CONFIG.sprint.freeRunsLimit", { min: 0, integer: true });
+
+      const juice = reqObj(cfg.juice, "KR_CONFIG.juice");
+      reqNum(juice.smashFlashMs, "KR_CONFIG.juice.smashFlashMs", { min: 1, integer: true });
+      reqNum(juice.faultFlashMs, "KR_CONFIG.juice.faultFlashMs", { min: 1, integer: true });
+      reqNum(juice.faultShakeMs, "KR_CONFIG.juice.faultShakeMs", { min: 1, integer: true });
+      reqNum(juice.faultShakeIntensity, "KR_CONFIG.juice.faultShakeIntensity", { min: 0 });
+      reqNum(juice.bounceRingMs, "KR_CONFIG.juice.bounceRingMs", { min: 1, integer: true });
+      reqNum(juice.sprintPenaltyMs, "KR_CONFIG.juice.sprintPenaltyMs", { min: 1, integer: true });
+      reqNum(juice.milestoneGlowMs, "KR_CONFIG.juice.milestoneGlowMs", { min: 1, integer: true });
+      reqNum(juice.firstFaultOverlayMs, "KR_CONFIG.juice.firstFaultOverlayMs", { min: 1, integer: true });
+      reqNum(juice.repeatFaultOverlayMs, "KR_CONFIG.juice.repeatFaultOverlayMs", { min: 1, integer: true });
+
+      const ui = reqObj(cfg.ui, "KR_CONFIG.ui");
+      reqBool(ui.toastDismissOnTap, "KR_CONFIG.ui.toastDismissOnTap");
+      reqNum(ui.runStartOverlayMs, "KR_CONFIG.ui.runStartOverlayMs", { min: 1, integer: true });
+      reqNum(ui.lifeLostOverlayMs, "KR_CONFIG.ui.lifeLostOverlayMs", { min: 1, integer: true });
+      reqNum(ui.gameplayPulseMs, "KR_CONFIG.ui.gameplayPulseMs", { min: 1, integer: true });
+      reqNum(ui.endRecordMomentMs, "KR_CONFIG.ui.endRecordMomentMs", { min: 1, integer: true });
+      reqNum(ui.paywallTickerMs, "KR_CONFIG.ui.paywallTickerMs", { min: 1, integer: true });
+      reqObj(ui.toast, "KR_CONFIG.ui.toast");
+      reqObj(ui.toast.default, "KR_CONFIG.ui.toast.default");
+      reqNum(ui.toast.default.delayMs, "KR_CONFIG.ui.toast.default.delayMs", { min: 0, integer: true });
+      reqNum(ui.toast.default.durationMs, "KR_CONFIG.ui.toast.default.durationMs", { min: 1, integer: true });
+      reqObj(ui.toast.positive, "KR_CONFIG.ui.toast.positive");
+      reqNum(ui.toast.positive.delayMs, "KR_CONFIG.ui.toast.positive.delayMs", { min: 0, integer: true });
+      reqNum(ui.toast.positive.durationMs, "KR_CONFIG.ui.toast.positive.durationMs", { min: 1, integer: true });
+
+      reqStr(cfg.premiumCodeRegex, "KR_CONFIG.premiumCodeRegex");
+      try { new RegExp(cfg.premiumCodeRegex); } catch (_) { fail("KR_CONFIG.premiumCodeRegex invalid"); }
+      reqStr(cfg.stripeEarlyPaymentUrl, "KR_CONFIG.stripeEarlyPaymentUrl");
+      reqStr(cfg.stripeStandardPaymentUrl, "KR_CONFIG.stripeStandardPaymentUrl");
     },
 
     applyBrandText: function () {

@@ -15,16 +15,23 @@ void function () {
   function escapeHtml(str) {
     const fn = window.KR_UTILS && typeof window.KR_UTILS.escapeHtml === "function"
       ? window.KR_UTILS.escapeHtml : null;
-    if (fn) try { return String(fn(str)); } catch (_) { }
-    return String(str == null ? "" : str)
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    if (!fn) throw new Error("KR_UI: KR_UTILS.escapeHtml missing");
+    return String(fn(str));
   }
 
   function clampInt(n, min, max) {
     const x = Number(n);
     if (!Number.isFinite(x)) return min;
     return Math.max(min, Math.min(max, Math.floor(x)));
+  }
+
+  function requiredConfigNumber(value, name, opts) {
+    var n = Number(value);
+    if (!Number.isFinite(n)) throw new Error(name + " must be a finite number");
+    if (opts && Number.isFinite(opts.min) && n < opts.min) throw new Error(name + " must be >= " + opts.min);
+    if (opts && Number.isFinite(opts.max) && n > opts.max) throw new Error(name + " must be <= " + opts.max);
+    if (opts && opts.integer === true && Math.floor(n) !== n) throw new Error(name + " must be an integer");
+    return n;
   }
 
   function formatCents(cents, currency) {
@@ -79,9 +86,16 @@ void function () {
   // ============================================
   // States
   // ============================================
-  const ENUMS = window.KR_ENUMS || {};
-  const STATES = ENUMS.UI_STATES || { LANDING: "LANDING", PLAYING: "PLAYING", END: "END", PAYWALL: "PAYWALL" };
-  const MODES = ENUMS.GAME_MODES || { RUN: "RUN", SPRINT: "SPRINT" };
+  const ENUMS = window.KR_ENUMS;
+  if (!ENUMS || typeof ENUMS !== "object") throw new Error("KR_UI: KR_ENUMS missing");
+  const STATES = ENUMS.UI_STATES;
+  const MODES = ENUMS.GAME_MODES;
+  if (!STATES || !STATES.LANDING || !STATES.PLAYING || !STATES.END || !STATES.PAYWALL) {
+    throw new Error("KR_UI: KR_ENUMS.UI_STATES invalid");
+  }
+  if (!MODES || !MODES.RUN || !MODES.SPRINT) {
+    throw new Error("KR_UI: KR_ENUMS.GAME_MODES invalid");
+  }
 
 
   // ============================================
@@ -91,9 +105,13 @@ void function () {
 
   function getToastTiming(cfg, key) {
     const t = cfg?.ui?.toast;
-    if (!t) return { delayMs: 0, durationMs: 1400 };
-    const bucket = t[key] || t["default"] || {};
-    return { delayMs: clampInt(bucket.delayMs, 0, 5000), durationMs: clampInt(bucket.durationMs, 600, 4000) };
+    if (!t || typeof t !== "object") throw new Error("KR_UI: config.ui.toast missing");
+    const bucket = (t[key] && typeof t[key] === "object") ? t[key] : t["default"];
+    if (!bucket || typeof bucket !== "object") throw new Error("KR_UI: toast timing bucket missing for " + String(key || "default"));
+    return {
+      delayMs: requiredConfigNumber(bucket.delayMs, "KR_CONFIG.ui.toast." + String(key || "default") + ".delayMs", { min: 0, integer: true }),
+      durationMs: requiredConfigNumber(bucket.durationMs, "KR_CONFIG.ui.toast." + String(key || "default") + ".durationMs", { min: 1, integer: true })
+    };
   }
 
   function showToast(message, opts) {
@@ -103,7 +121,7 @@ void function () {
     node.className = "kr-toast kr-toast--visible";
     if (opts?.variant) node.classList.add("kr-toast--" + opts.variant);
     if (_toastTimerId) { clearTimeout(_toastTimerId); _toastTimerId = null; }
-    const dur = (opts && Number.isFinite(opts.durationMs)) ? opts.durationMs : 1400;
+    const dur = requiredConfigNumber(opts && opts.durationMs, "KR_UI.showToast().durationMs", { min: 1, integer: true });
     _toastTimerId = setTimeout(function () { node.classList.remove("kr-toast--visible"); _toastTimerId = null; }, dur);
   }
 
@@ -129,7 +147,7 @@ void function () {
     node.className = "kr-gameplay-overlay kr-gameplay-overlay--visible";
     if (opts?.variant) node.classList.add("kr-gameplay-overlay--" + opts.variant);
     if (_gameplayOverlayTimerId) { clearTimeout(_gameplayOverlayTimerId); _gameplayOverlayTimerId = null; }
-    var dur = (opts && Number.isFinite(opts.durationMs)) ? opts.durationMs : 1200;
+    var dur = requiredConfigNumber(opts && opts.durationMs, "KR_UI.showGameplayOverlay().durationMs", { min: 1, integer: true });
     _gameplayOverlayTimerId = setTimeout(function () {
       node.classList.remove("kr-gameplay-overlay--visible");
       _gameplayOverlayTimerId = null;
@@ -147,11 +165,18 @@ void function () {
   // UI Constructor
   // ============================================
   function UI(deps) {
-    var d = (deps && typeof deps === "object") ? deps : {};
+    var d = (deps && typeof deps === "object") ? deps : null;
+    if (!d) throw new Error("KR_UI: deps object is required");
+    if (!d.storage || typeof d.storage !== "object") throw new Error("KR_UI: deps.storage is required");
+    if (!d.game || typeof d.game !== "object" || typeof d.game.start !== "function" || typeof d.game.getState !== "function") {
+      throw new Error("KR_UI: deps.game is required and must expose start() and getState()");
+    }
+    if (!d.config || typeof d.config !== "object") throw new Error("KR_UI: deps.config is required");
+    if (!d.wording || typeof d.wording !== "object") throw new Error("KR_UI: deps.wording is required");
     this.storage = d.storage;
     this.game = d.game;
-    this.config = d.config || {};
-    this.wording = d.wording || {};
+    this.config = d.config;
+    this.wording = d.wording;
     this.state = STATES.LANDING;
 
     this.appEl = el("app");
@@ -197,7 +222,7 @@ void function () {
       supportEmail: "",
 
       // Current run
-      runMode: "RUN",           // "RUN" | "SPRINT"
+      runMode: MODES.RUN,           // MODES.RUN | MODES.SPRINT
       runType: "",              // "FREE" | "LAST_FREE" | "UNLIMITED" | ""
       finishingRun: false,
 
@@ -497,29 +522,29 @@ void function () {
     this._store("markLandingPlayClicked");
 
     var premium = !!(this._store("isPremium"));
+    var runType = "";
 
     // Run economy gate (free runs)
     if (!premium) {
-      if (!this.storage || typeof this.storage.consumeRunOrBlock !== "function") {
+      if (!this.storage || typeof this.storage.getRunAccessState !== "function" || typeof this.storage.consumeRunOrBlock !== "function") {
+        throw new Error("KR_UI._handlePlay(): storage gating API missing");
+      }
+      var access = this.storage.getRunAccessState();
+      if (!access || access.ok !== true) {
         if (this._nav) this._nav.paywallFromState = this.state;
         this.setState(STATES.PAYWALL);
         return;
       }
+      runType = String(access.runType == null ? "" : access.runType).trim();
+      if (!runType) throw new Error("KR_UI._handlePlay(): access.runType missing");
       var gate = this.storage.consumeRunOrBlock();
       if (!gate || gate.ok !== true) {
         if (this._nav) this._nav.paywallFromState = this.state;
         this.setState(STATES.PAYWALL);
         return;
       }
-    }
-
-    // Determine run type AFTER consuming
-    var runType = "";
-    if (premium) {
-      runType = "UNLIMITED";
     } else {
-      var balance = (typeof this.storage.getRunsBalance === "function") ? Number(this.storage.getRunsBalance()) : 0;
-      runType = (balance === 0) ? "LAST_FREE" : "FREE";
+      runType = "UNLIMITED";
     }
     this._runtime.runType = runType;
     this._runtime.runMode = MODES.RUN;
@@ -542,13 +567,14 @@ void function () {
   };
 
   UI.prototype.startSprintRun = function () {
-    var cfg = this.config;
     var premium = !!(this._store("isPremium"));
 
     if (!premium) {
-      var used = this._store("getSprintFreeRunsUsed") || 0;
-      var limit = Number(cfg?.sprint?.freeRunsLimit) || 0;
-      if (limit > 0 && used >= limit) {
+      if (!this.storage || typeof this.storage.getSprintAccessState !== "function") {
+        throw new Error("KR_UI.startSprintRun(): storage sprint gating API missing");
+      }
+      var sprintAccess = this.storage.getSprintAccessState();
+      if (!sprintAccess || sprintAccess.ok !== true) {
         this._showSprintFreeLimitReached();
         return;
       }
@@ -615,7 +641,9 @@ void function () {
   UI.prototype._showRunStartOverlay = function (mode, runType) {
     var cfg = this.config;
     var w = this.wording;
-    var ms = Number(cfg?.ui?.runStartOverlayMs) || 2400;
+    var premium = !!(this._store("isPremium"));
+    var ms = Number(cfg?.ui?.runStartOverlayMs);
+    if (!Number.isFinite(ms) || ms <= 0) throw new Error("KR_UI._showRunStartOverlay(): invalid config.ui.runStartOverlayMs");
 
     var line1 = "";
     var line2 = "";
@@ -628,7 +656,8 @@ void function () {
       // Sprint free runs remaining
       if (!premium) {
         var spUsed = this._store("getSprintFreeRunsUsed") || 0;
-        var spLimit = Number(cfg?.sprint?.freeRunsLimit) || 0;
+        var spLimit = Number(cfg?.sprint?.freeRunsLimit);
+        if (!Number.isFinite(spLimit) || spLimit < 0) throw new Error("KR_UI._showRunStartOverlay(): invalid config.sprint.freeRunsLimit");
         var spRemaining = Math.max(0, spLimit - spUsed);
         var spLine = String(sw.startOverlayFreeRunsLimitLine || "").trim();
         if (spLine && spLimit > 0 && spRemaining > 0) {
@@ -800,7 +829,7 @@ void function () {
     ctx.fillRect(0, kitchenLineY, w, h - kitchenLineY);
 
     // Milestone glow: brief flash when milestone first reached
-    var msGlowMs = Number(this.config?.juice?.milestoneGlowMs) || 500;
+    var msGlowMs = requiredConfigNumber(this.config?.juice?.milestoneGlowMs, "KR_CONFIG.juice.milestoneGlowMs", { min: 1, integer: true });
     if (state.lastMilestoneAt && (n - state.lastMilestoneAt) < msGlowMs) {
       var glowAlpha = Math.max(0, 0.15 * (1 - (n - state.lastMilestoneAt) / msGlowMs));
       ctx.fillStyle = "rgba(255,255,255," + glowAlpha + ")";
@@ -881,7 +910,7 @@ void function () {
       // Bounce flash: bright ring at exact moment of bounce (Kitchen balls)
       if (b.state === "BOUNCING" && b.bouncedAt > 0) {
         var sinceBounce = n - b.bouncedAt;
-        var bounceMs = Number(this.config?.juice?.bounceRingMs) || 200;
+        var bounceMs = requiredConfigNumber(this.config?.juice?.bounceRingMs, "KR_CONFIG.juice.bounceRingMs", { min: 1, integer: true });
         if (sinceBounce < bounceMs) {
           var bounceAlpha = Math.max(0, 1 - sinceBounce / bounceMs);
           var bounceRad = b.radius + 4 + (sinceBounce / bounceMs) * 8;
@@ -999,7 +1028,7 @@ void function () {
   // HUD pulse scheduling: after a delta display (+1, -1, -2s), schedule cleanup render
   UI.prototype._scheduleHudPulseCleanup = function () {
     if (this._runtime.hudPulseCleanupTimerId) clearTimeout(this._runtime.hudPulseCleanupTimerId);
-    var ms = Number(this.config?.ui?.gameplayPulseMs) || 600;
+    var ms = requiredConfigNumber(this.config?.ui?.gameplayPulseMs, "KR_CONFIG.ui.gameplayPulseMs", { min: 1, integer: true });
     var self = this;
     this._runtime.hudPulseCleanupTimerId = setTimeout(function () {
       self._runtime.hudPulseCleanupTimerId = null;
@@ -1040,7 +1069,7 @@ void function () {
       this._playSound("smash");
       // Flash effect at ball position
       juice.flashType = "smash";
-      juice.flashUntil = n + (Number(this.config?.juice?.smashFlashMs) || 60);
+      juice.flashUntil = n + requiredConfigNumber(this.config?.juice?.smashFlashMs, "KR_CONFIG.juice.smashFlashMs", { min: 1, integer: true });
       juice.flashX = result.ball ? result.ball.x : 0;
       juice.flashY = result.ball ? result.ball.y : 0;
     }
@@ -1049,15 +1078,15 @@ void function () {
       this._playSound("fault");
       // Flash + shake
       juice.flashType = "fault";
-      juice.flashUntil = n + (Number(this.config?.juice?.faultFlashMs) || 120);
+      juice.flashUntil = n + requiredConfigNumber(this.config?.juice?.faultFlashMs, "KR_CONFIG.juice.faultFlashMs", { min: 1, integer: true });
       juice.flashX = result.ball ? result.ball.x : 0;
       juice.flashY = result.ball ? result.ball.y : 0;
-      juice.shakeUntil = n + (Number(this.config?.juice?.faultShakeMs) || 150);
-      juice.shakeIntensity = Number(this.config?.juice?.faultShakeIntensity) || 4;
+      juice.shakeUntil = n + requiredConfigNumber(this.config?.juice?.faultShakeMs, "KR_CONFIG.juice.faultShakeMs", { min: 1, integer: true });
+      juice.shakeIntensity = requiredConfigNumber(this.config?.juice?.faultShakeIntensity, "KR_CONFIG.juice.faultShakeIntensity", { min: 0 });
 
       // Sprint: penalty flash "-2s"
       if (this._runtime.runMode === MODES.SPRINT) {
-        juice.sprintPenaltyUntil = n + (Number(this.config?.juice?.sprintPenaltyMs) || 400);
+        juice.sprintPenaltyUntil = n + requiredConfigNumber(this.config?.juice?.sprintPenaltyMs, "KR_CONFIG.juice.sprintPenaltyMs", { min: 1, integer: true });
       }
     }
 
@@ -1070,8 +1099,7 @@ void function () {
   // Audio & Haptic
   // ============================================
   UI.prototype._haptic = function (type) {
-    var settings = this._store("getSettings") || {};
-    if (settings.haptics === false) return;
+    if (this._store("getHapticsEnabled") === false) return;
     var cfg = this.config.haptic || {};
     if (!cfg.enabled) return;
     var pattern = (type === "smash") ? cfg.smashPattern : cfg.faultPattern;
@@ -1080,8 +1108,7 @@ void function () {
   };
 
   UI.prototype._playSound = function (type, opts) {
-    var settings = this._store("getSettings") || {};
-    if (settings.sound === false) return;
+    if (this._store("getSoundEnabled") === false) return;
     var cfg = this.config.audio || {};
     if (!cfg.enabled) return;
     if (!window.KR_Audio || typeof window.KR_Audio.play !== "function") return;
@@ -1124,19 +1151,21 @@ void function () {
 
     var cfg = this.config;
     var mfw = (this.wording && this.wording.microFeedback) ? this.wording.microFeedback : {};
-    var mfCfg = cfg?.microFeedback || {};
+    var mfCfg = cfg?.microFeedback;
+    if (!mfCfg || typeof mfCfg !== "object") throw new Error("KR_CONFIG.microFeedback missing");
 
     var gameState = (this.game && typeof this.game.getState === "function") ? (this.game.getState() || {}) : {};
     var totalSmashes = gameState.smashes || 0;
-    var cooldown = Number(mfCfg.cooldownSmashes) || 3;
+    var cooldown = requiredConfigNumber(mfCfg.cooldownSmashes, "KR_CONFIG.microFeedback.cooldownSmashes", { min: 0, integer: true });
     var timing = getToastTiming(cfg, "positive");
 
-    var th = mfCfg.streakThresholds || {};
-    var tStart = Number(th.start) || 3;
-    var tBuilding = Number(th.building) || 6;
-    var tStrong = Number(th.strong) || 10;
-    var tElite = Number(th.elite) || 15;
-    var tLegendary = Number(th.legendary) || 20;
+    var th = mfCfg.streakThresholds;
+    if (!th || typeof th !== "object") throw new Error("KR_CONFIG.microFeedback.streakThresholds missing");
+    var tStart = requiredConfigNumber(th.start, "KR_CONFIG.microFeedback.streakThresholds.start", { min: 1, integer: true });
+    var tBuilding = requiredConfigNumber(th.building, "KR_CONFIG.microFeedback.streakThresholds.building", { min: 1, integer: true });
+    var tStrong = requiredConfigNumber(th.strong, "KR_CONFIG.microFeedback.streakThresholds.strong", { min: 1, integer: true });
+    var tElite = requiredConfigNumber(th.elite, "KR_CONFIG.microFeedback.streakThresholds.elite", { min: 1, integer: true });
+    var tLegendary = requiredConfigNumber(th.legendary, "KR_CONFIG.microFeedback.streakThresholds.legendary", { min: 1, integer: true });
 
     function tryShowOverlay(msg, variant) {
       var m = String(msg || "").trim();
@@ -1225,8 +1254,8 @@ void function () {
       }
       if (tooEarlyMsg) {
         var faultDur = ((gameState.totalFaulted || 0) <= 1)
-          ? (Number(this.config?.juice?.firstFaultOverlayMs) || 1400)
-          : (Number(this.config?.juice?.repeatFaultOverlayMs) || 800);
+          ? requiredConfigNumber(this.config?.juice?.firstFaultOverlayMs, "KR_CONFIG.juice.firstFaultOverlayMs", { min: 1, integer: true })
+          : requiredConfigNumber(this.config?.juice?.repeatFaultOverlayMs, "KR_CONFIG.juice.repeatFaultOverlayMs", { min: 1, integer: true });
         showGameplayOverlay(tooEarlyMsg, { durationMs: faultDur, variant: "danger" });
         mf.lastOverlayAtSmash = totalSmashes;
       }
@@ -1236,7 +1265,7 @@ void function () {
         mf.lastLifeShown = true;
         var llMsg = String(mfw.lastLife || "").trim();
         if (llMsg) {
-          showGameplayOverlay(llMsg, { durationMs: Number(cfg?.ui?.lifeLostOverlayMs) || 2000, variant: "danger" });
+          showGameplayOverlay(llMsg, { durationMs: requiredConfigNumber(cfg?.ui?.lifeLostOverlayMs, "KR_CONFIG.ui.lifeLostOverlayMs", { min: 1, integer: true }), variant: "danger" });
           mf.lastOverlayAtSmash = totalSmashes;
         }
         setEndHighlight(String(mfw.closeCall || "").trim(), "info", 55);
@@ -1382,7 +1411,7 @@ void function () {
   // Paywall
   // ============================================
   UI.prototype._startPaywallTicker = function () {
-    var ms = Number(this.config?.ui?.paywallTickerMs);
+    var ms = requiredConfigNumber(this.config?.ui?.paywallTickerMs, "KR_CONFIG.ui.paywallTickerMs", { min: 1, integer: true });
     if (!Number.isFinite(ms) || ms < 200) return;
     if (this._paywallTickerId) return;
     var self = this;
@@ -1838,8 +1867,8 @@ void function () {
     var cfg = this.config;
     if (!cfg?.sprint?.enabled) return;
 
-    var tapWindowMs = Number(cfg.sprint.tapWindowMs) || 900;
-    var tapsRequired = Number(cfg.sprint.tapsRequired) || 1;
+    var tapWindowMs = requiredConfigNumber(cfg.sprint.tapWindowMs, "KR_CONFIG.sprint.tapWindowMs", { min: 1, integer: true });
+    var tapsRequired = requiredConfigNumber(cfg.sprint.tapsRequired, "KR_CONFIG.sprint.tapsRequired", { min: 1, integer: true });
     var chest = this._runtime.sprintChest;
     var now = Date.now();
 
@@ -1881,7 +1910,7 @@ void function () {
 
   UI.prototype._showSprintFreeLimitReached = function () {
     var w = this.wording?.sprint || {};
-    var limit = Number(this.config?.sprint?.freeRunsLimit) || 0;
+    var limit = requiredConfigNumber(this.config?.sprint?.freeRunsLimit, "KR_CONFIG.sprint.freeRunsLimit", { min: 0, integer: true });
     var h = '<h2 class="kr-h2">' + escapeHtml(w.freeLimitReachedTitle || "") + '</h2>';
     h += '<p>' + escapeHtml(fillTemplate(w.freeLimitReachedBody || "", { limit: limit })) + '</p>';
     h += '<div class="kr-actions kr-actions--stack">';
@@ -1896,8 +1925,10 @@ void function () {
     if (!cfg?.sprint?.enabled) return false;
     var gates = cfg.sprint.gates || {};
     var rc = ((this._store("getCounters") || {}).runCompletes || 0);
-    if (screen === "END") return rc >= (Number(gates.endAfterRuns) || 0);
-    if (screen === "LANDING") return rc >= (Number(gates.landingAfterRuns) || 0);
+    var endAfterRuns = requiredConfigNumber(gates.endAfterRuns, "KR_CONFIG.sprint.gates.endAfterRuns", { min: 0, integer: true });
+    var landingAfterRuns = requiredConfigNumber(gates.landingAfterRuns, "KR_CONFIG.sprint.gates.landingAfterRuns", { min: 0, integer: true });
+    if (screen === STATES.END) return rc >= endAfterRuns;
+    if (screen === STATES.LANDING) return rc >= landingAfterRuns;
     return false;
   };
 
@@ -2093,7 +2124,7 @@ void function () {
       : escapeHtml(lw.ctaPlay || "");
 
     // Chest
-    var showChest = this._canShowChest("LANDING");
+    var showChest = this._canShowChest(STATES.LANDING);
     var solved = !!(this._store("hasSprintChestHintSolved"));
     var chestHtml = showChest
       ? '<button class="kr-btn-icon' + (solved ? "" : " kr-btn-icon--tease") + '" data-kr-secret="chest" aria-label="' + escapeHtml((w?.sprint || {}).chestAria || "") + '">\uD83C\uDF81</button>' : "";
@@ -2391,7 +2422,7 @@ void function () {
     // Free runs left
     var freeRunHtml = "";
     if (!premium && !isSprint && balance > 0) {
-      var totalFree = Number(cfg?.limits?.freeRuns) || 0;
+      var totalFree = requiredConfigNumber(cfg?.limits?.freeRuns, "KR_CONFIG.limits.freeRuns", { min: 0, integer: true });
       freeRunHtml = '<p class="kr-muted">' + escapeHtml(fillTemplate(ew.freeRunLeft || "", { remaining: balance, total: totalFree })) + '</p>';
     }
 
@@ -2429,14 +2460,14 @@ void function () {
     var sprintFreeHtml = "";
     if (isSprint && !premium) {
       var used = this._store("getSprintFreeRunsUsed") || 0;
-      var limit = Number(cfg?.sprint?.freeRunsLimit) || 0;
+      var limit = requiredConfigNumber(cfg?.sprint?.freeRunsLimit, "KR_CONFIG.sprint.freeRunsLimit", { min: 0, integer: true });
       if (limit > 0 && used < limit) {
         sprintFreeHtml = '<p class="kr-muted">' + escapeHtml(fillTemplate(sw.freeRunsLeftLine || "", { remaining: limit - used, limit: limit })) + '</p>';
       }
     }
 
     // Chest
-    var showChest = this._canShowChest("END");
+    var showChest = this._canShowChest(STATES.END);
     var solvedChest = !!(this._store("hasSprintChestHintSolved"));
     var chestHtml = showChest
       ? '<button class="kr-btn-icon' + (solvedChest ? "" : " kr-btn-icon--tease") + '" data-kr-secret="chest" aria-label="' + escapeHtml(sw.chestAria || "") + '">\uD83C\uDF81</button>' : "";

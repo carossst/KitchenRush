@@ -9,8 +9,23 @@
   // ============================================
   // Helpers
   // ============================================
-  // Game modes (from KR_ENUMS, fail-closed to literals if unavailable)
-  var MODES = (window.KR_ENUMS && window.KR_ENUMS.GAME_MODES) || { RUN: "RUN", SPRINT: "SPRINT" };
+  function getModes() {
+    const modes = window.KR_ENUMS && window.KR_ENUMS.GAME_MODES;
+    if (!modes || typeof modes !== "object") throw new Error("KR_Game: KR_ENUMS.GAME_MODES missing");
+    if (!modes.RUN || !modes.SPRINT) throw new Error("KR_Game: KR_ENUMS.GAME_MODES invalid");
+    return modes;
+  }
+
+  const MODES = getModes();
+
+  function requiredNumber(value, name, opts) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) throw new Error(name + " must be a finite number");
+    if (opts && Number.isFinite(opts.min) && n < opts.min) throw new Error(name + " must be >= " + opts.min);
+    if (opts && Number.isFinite(opts.max) && n > opts.max) throw new Error(name + " must be <= " + opts.max);
+    if (opts && opts.integer === true && Math.floor(n) !== n) throw new Error(name + " must be an integer");
+    return n;
+  }
 
   function clamp(v, lo, hi) {
     return Math.max(lo, Math.min(hi, v));
@@ -56,9 +71,9 @@
       if (!types.hasOwnProperty(key)) continue;
       var t = types[key];
       if (!t || typeof t !== "object") continue;
-      var unlock = Number(t.unlockAfterSec) || 0;
+      var unlock = requiredNumber(t.unlockAfterSec, "KR_CONFIG.game.ballTypes." + key + ".unlockAfterSec", { min: 0 });
       if (elapsedSec >= unlock) {
-        var w = Number(t.weight) || 0;
+        var w = requiredNumber(t.weight, "KR_CONFIG.game.ballTypes." + key + ".weight", { min: 0 });
         if (w > 0) {
           candidates.push({ type: key, weight: w });
           totalWeight += w;
@@ -94,27 +109,28 @@
     // V2: Ball type
     var ballType = pickBallType(config, elapsedSec, rng);
     var typeConfig = (cfg.ballTypes && cfg.ballTypes[ballType]) || null;
-    var speedMul = (typeConfig && Number(typeConfig.speedMultiplier)) || 1;
-    var tapMul = (typeConfig && Number(typeConfig.tapWindowMultiplier)) || 1;
-    var radiusMul = (typeConfig && Number(typeConfig.radiusMultiplier)) || 1;
+    var speedMul = typeConfig ? requiredNumber(typeConfig.speedMultiplier, "KR_CONFIG.game.ballTypes." + ballType + ".speedMultiplier", { min: 0.01 }) : 1;
+    var tapMul = typeConfig ? requiredNumber(typeConfig.tapWindowMultiplier, "KR_CONFIG.game.ballTypes." + ballType + ".tapWindowMultiplier", { min: 0.01 }) : 1;
+    var radiusMul = typeConfig ? requiredNumber(typeConfig.radiusMultiplier, "KR_CONFIG.game.ballTypes." + ballType + ".radiusMultiplier", { min: 0.01 }) : 1;
     var forceKitchen = !!(typeConfig && typeConfig.forceKitchen);
 
     // Kitchen line Y (fraction of canvas height)
-    const kitchenLineYFrac = Number(canvasCfg.kitchenLineY) || 0.65;
+    const kitchenLineYFrac = requiredNumber(canvasCfg.kitchenLineY, "KR_CONFIG.canvas.kitchenLineY", { min: 0.01, max: 0.99 });
     const kitchenLineY = kitchenLineYFrac * canvasH;
 
     // Kitchen ratio at current time
     const kr = cfg.kitchenRatio || {};
     const kitchenRatio = clamp(
-      (Number(kr.base) || 0.3) + (Number(kr.growthPerSec) || 0.01) * elapsedSec,
-      0, Number(kr.max) || 0.7
+      requiredNumber(kr.base, "KR_CONFIG.game.kitchenRatio.base", { min: 0, max: 1 }) + requiredNumber(kr.growthPerSec, "KR_CONFIG.game.kitchenRatio.growthPerSec", { min: 0 }) * elapsedSec,
+      0,
+      requiredNumber(kr.max, "KR_CONFIG.game.kitchenRatio.max", { min: 0, max: 1 })
     );
 
     // Decide if ball lands in Kitchen
     const inKitchen = forceKitchen || (rand() < kitchenRatio);
 
     // Ball radius (V2: type modifier)
-    const radius = Math.round((Number(canvasCfg.ballRadius) || 12) * radiusMul);
+    const radius = Math.round(requiredNumber(canvasCfg.ballRadius, "KR_CONFIG.canvas.ballRadius", { min: 1 }) * radiusMul);
 
     // Random X position (avoid edges)
     const margin = radius * 2;
@@ -122,13 +138,13 @@
 
     // Speed at current time (V2: type modifier)
     const spd = cfg.speed || {};
-    const speed = ((Number(spd.base) || 2.2) + (Number(spd.accelPerSec) || 0.04) * elapsedSec) * speedMul;
+    const speed = (requiredNumber(spd.base, "KR_CONFIG.game.speed.base", { min: 0.1 }) + requiredNumber(spd.accelPerSec, "KR_CONFIG.game.speed.accelPerSec", { min: 0 }) * elapsedSec) * speedMul;
 
     // Tap window at current time (V2: type modifier)
     const win = cfg.window || {};
     const tapWindowMs = Math.max(
-      Number(win.minMs) || 80,
-      ((Number(win.initialMs) || 140) - (Number(win.decayPerSec) || 1.2) * elapsedSec) * tapMul
+      requiredNumber(win.minMs, "KR_CONFIG.game.window.minMs", { min: 1 }),
+      (requiredNumber(win.initialMs, "KR_CONFIG.game.window.initialMs", { min: 1 }) - requiredNumber(win.decayPerSec, "KR_CONFIG.game.window.decayPerSec", { min: 0 }) * elapsedSec) * tapMul
     );
 
     // Landing Y: if inKitchen, land between kitchenLineY and bottom; else above kitchenLineY
@@ -176,35 +192,28 @@
       }
 
       const config = p.config;
-      const canvasW = Number(p.canvasW) || 360;
-      const canvasH = Number(p.canvasH) || 640;
-
+      const canvasW = requiredNumber(p.canvasW, "GameEngine.start().canvasW", { min: 1 });
+      const canvasH = requiredNumber(p.canvasH, "GameEngine.start().canvasH", { min: 1 });
       // Mode
-      const modeRaw = String(p.mode || "").trim().toUpperCase();
+      const modeRaw = String(p.mode == null ? "" : p.mode).trim().toUpperCase();
       const VALID_MODES = [MODES.RUN, MODES.SPRINT];
-      let mode = MODES.RUN;
-
-      if (modeRaw && VALID_MODES.includes(modeRaw)) {
-        mode = modeRaw;
-      } else if (modeRaw) {
-        if (window.Logger && window.Logger.error) {
-          window.Logger.error(`Invalid game mode "${modeRaw}". Falling back to RUN.`);
-        }
+      if (!modeRaw || !VALID_MODES.includes(modeRaw)) {
+        throw new Error('GameEngine.start(): invalid mode "' + modeRaw + '"');
       }
+      const mode = modeRaw;
 
       // Lives (RUN only; SPRINT has no lives)
-      const livesCfg = Number(config.game && config.game.lives);
-      const lives = (mode === MODES.RUN && Number.isFinite(livesCfg) && livesCfg > 0)
-        ? Math.floor(livesCfg)
+      const lives = (mode === MODES.RUN)
+        ? Math.floor(requiredNumber(config.game && config.game.lives, "KR_CONFIG.game.lives", { min: 1 }))
         : null;
 
       // Sprint timer
       const sprintDurationMs = (mode === MODES.SPRINT)
-        ? (Number(config.sprint && config.sprint.durationMs) || 20000)
+        ? Math.floor(requiredNumber(config.sprint && config.sprint.durationMs, "KR_CONFIG.sprint.durationMs", { min: 1 }))
         : null;
 
       // Onboarding shield (first N balls always outside Kitchen)
-      const onboardingShield = Number(config.game && config.game.onboardingShield) || 0;
+      const onboardingShield = Math.floor(requiredNumber(config.game && config.game.onboardingShield, "KR_CONFIG.game.onboardingShield", { min: 0 }));
 
       this.run = {
         mode: mode,
@@ -288,7 +297,7 @@
       }
 
       // Rebound delay config
-      const reboundDelayMs = Number(gameCfg.reboundDelayMs) || 150;
+      const reboundDelayMs = requiredNumber(gameCfg.reboundDelayMs, "KR_CONFIG.game.reboundDelayMs", { min: 1 });
 
       // Update existing balls
       for (let i = r.balls.length - 1; i >= 0; i--) {
@@ -341,8 +350,8 @@
       // Spawn new balls
       const spawnCfg = gameCfg.spawn || {};
       const spawnInterval = Math.max(
-        Number(spawnCfg.minMs) || 400,
-        (Number(spawnCfg.initialMs) || 1200) - (Number(spawnCfg.decayPerSec) || 12) * elapsedSec
+        requiredNumber(spawnCfg.minMs, "KR_CONFIG.game.spawn.minMs", { min: 1 }),
+        requiredNumber(spawnCfg.initialMs, "KR_CONFIG.game.spawn.initialMs", { min: 1 }) - requiredNumber(spawnCfg.decayPerSec, "KR_CONFIG.game.spawn.decayPerSec", { min: 0 }) * elapsedSec
       );
 
       if (r.elapsedMs - r.lastSpawnAt >= spawnInterval) {
@@ -355,7 +364,7 @@
           ball.inKitchen = false;
           // Recalculate landing Y for non-kitchen
           const canvasCfg = cfg.canvas || {};
-          const kitchenLineYFrac = Number(canvasCfg.kitchenLineY) || 0.65;
+          const kitchenLineYFrac = requiredNumber(canvasCfg.kitchenLineY, "KR_CONFIG.canvas.kitchenLineY", { min: 0.01, max: 0.99 });
           const kitchenLineY = kitchenLineYFrac * r.canvasH;
           var shieldRand = (typeof r.rng === "function") ? r.rng : Math.random;
           ball.landingY = ball.radius + shieldRand() * (kitchenLineY - ball.radius * 2);
@@ -386,7 +395,7 @@
       if (!this.run || this.run.done) return null;
 
       const r = this.run;
-      const hitTolerance = Number(r.config.canvas && r.config.canvas.hitTolerancePx) || 30;
+      const hitTolerance = requiredNumber(r.config.canvas && r.config.canvas.hitTolerancePx, "KR_CONFIG.canvas.hitTolerancePx", { min: 0 });
 
       // Find closest tappable ball
       let bestBall = null;
@@ -420,7 +429,7 @@
           this._loseLife(r);
         } else if (r.mode === MODES.SPRINT) {
           // Sprint: accumulate penalty (applied by update() next frame)
-          const penalty = Number(r.config.sprint && r.config.sprint.faultPenaltyMs) || 2000;
+          const penalty = Math.floor(requiredNumber(r.config.sprint && r.config.sprint.faultPenaltyMs, "KR_CONFIG.sprint.faultPenaltyMs", { min: 1 }));
           r.penaltyAccumulatedMs += penalty;
 
           // Immediate end check (penalty may exceed remaining time)
