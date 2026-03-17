@@ -148,9 +148,14 @@
     );
 
     // Landing Y: if inKitchen, land between kitchenLineY and bottom; else above kitchenLineY
+    // Non-kitchen: enforce minimum landing Y so balls don't stop near top of screen
+    var minLandingYFrac = Number(canvasCfg.minLandingYFrac);
+    if (!Number.isFinite(minLandingYFrac) || minLandingYFrac < 0) minLandingYFrac = 0;
+    var minLandingY = kitchenLineY * minLandingYFrac;
+
     const landingY = inKitchen
       ? kitchenLineY + rand() * (canvasH - kitchenLineY - radius)
-      : radius + rand() * (kitchenLineY - radius * 2);
+      : Math.max(minLandingY, radius) + rand() * (kitchenLineY - Math.max(minLandingY, radius) - radius);
 
     return {
       id: ++_nextBallId,
@@ -367,7 +372,11 @@
           const kitchenLineYFrac = requiredNumber(canvasCfg.kitchenLineY, "KR_CONFIG.canvas.kitchenLineY", { min: 0.01, max: 0.99 });
           const kitchenLineY = kitchenLineYFrac * r.canvasH;
           var shieldRand = (typeof r.rng === "function") ? r.rng : Math.random;
-          ball.landingY = ball.radius + shieldRand() * (kitchenLineY - ball.radius * 2);
+          // Enforce minimum landing Y so balls don't stop near top of screen
+          var minFrac = Number(canvasCfg.minLandingYFrac);
+          if (!Number.isFinite(minFrac) || minFrac < 0) minFrac = 0;
+          var minY = Math.max(kitchenLineY * minFrac, ball.radius);
+          ball.landingY = minY + shieldRand() * (kitchenLineY - minY - ball.radius);
         }
 
         // Track first Kitchen ball (for reinforced signal)

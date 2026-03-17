@@ -111,8 +111,8 @@
 
       // Tap window: windowMs(t) = max(minMs, initialMs - decayPerSec * t)
       window: {
-        initialMs: 140,
-        decayPerSec: 1.2,
+        initialMs: 350,
+        decayPerSec: 2.5,
         minMs: 80
       },
 
@@ -194,6 +194,10 @@
 
       // Kitchen line position (% from top of court area)
       kitchenLineY: 0.65,
+
+      // Minimum landing Y for non-kitchen balls (fraction of kitchenLineY)
+      // Prevents balls from landing near the very top of the screen
+      minLandingYFrac: 0.30,
 
       // Ball
       ballRadius: 12,
@@ -500,8 +504,8 @@
     // DEBUG
     // ============================================
     debug: {
-      enabled: isLocalhost,
-      logLevel: isLocalhost ? "debug" : "warn"
+      enabled: isLocalhost || isGitHubPages,
+      logLevel: isLocalhost ? "debug" : (isGitHubPages ? "log" : "warn")
     },
 
     // ============================================
@@ -1145,6 +1149,7 @@
 
       const canvas = reqObj(cfg.canvas, "KR_CONFIG.canvas");
       reqNum(canvas.kitchenLineY, "KR_CONFIG.canvas.kitchenLineY", { min: 0.01, max: 0.99 });
+      reqNum(canvas.minLandingYFrac, "KR_CONFIG.canvas.minLandingYFrac", { min: 0, max: 0.99 });
       reqNum(canvas.ballRadius, "KR_CONFIG.canvas.ballRadius", { min: 1, integer: true });
       reqNum(canvas.hitTolerancePx, "KR_CONFIG.canvas.hitTolerancePx", { min: 0, integer: true });
       reqNum(canvas.shadowGrowthFactor, "KR_CONFIG.canvas.shadowGrowthFactor", { min: 0, max: 1 });

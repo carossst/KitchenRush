@@ -80,6 +80,8 @@
     const w = window.KR_WORDING?.system;
     const errorMsg = event.message || event.error?.message || "";
     showFatal(isDev ? `JavaScript Error: ${errorMsg}` : (w?.fatalGeneric || ""));
+    // Also log to console even in production for debugging
+    if (!isDev) console.error("[KR Fatal]", errorMsg, event.error);
   });
 
   window.addEventListener("unhandledrejection", (event) => {
@@ -88,6 +90,8 @@
     const w = window.KR_WORDING?.system;
     const errorMsg = event.reason?.message || "";
     showFatal(isDev ? `Promise Error: ${errorMsg}` : (w?.fatalPromise || ""));
+    // Also log to console even in production for debugging
+    if (!isDev) console.error("[KR Fatal]", errorMsg, event.reason);
   });
 
 
