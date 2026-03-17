@@ -39,8 +39,9 @@
   // ============================================
 
   /**
-   * Smash — short bright "pop" (pickleball paddle sound)
-   * White noise burst + high-pass filter + fast decay
+   * Smash — realistic pickleball "pop/crack" (65-75dB feel)
+   * Layered: sharp noise crack + midrange resonant pop + bass thump
+   * The signature pop-pop-pop sound of a hard paddle hitting plastic ball
    */
   function playSmash(volume, pitch) {
     var ctx = getCtx();
@@ -49,44 +50,76 @@
     var p = Number(pitch) || 1;
     var t = ctx.currentTime;
 
-    // Noise burst (40ms)
-    var dur = 0.04;
-    var bufLen = Math.ceil(ctx.sampleRate * dur);
-    var buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-    var data = buf.getChannelData(0);
-    for (var i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1);
+    // Layer 1: Sharp noise crack (the "hit" transient — 15ms, very short)
+    var crackDur = 0.015;
+    var crackLen = Math.ceil(ctx.sampleRate * crackDur);
+    var crackBuf = ctx.createBuffer(1, crackLen, ctx.sampleRate);
+    var crackData = crackBuf.getChannelData(0);
+    for (var i = 0; i < crackLen; i++) {
+      // Shaped noise: loud start, instant decay
+      crackData[i] = (Math.random() * 2 - 1) * (1 - i / crackLen);
+    }
+    var crackSrc = ctx.createBufferSource();
+    crackSrc.buffer = crackBuf;
 
-    var src = ctx.createBufferSource();
-    src.buffer = buf;
+    // Band-pass to focus on the "crack" frequencies (2-6kHz)
+    var crackBp = ctx.createBiquadFilter();
+    crackBp.type = "bandpass";
+    crackBp.frequency.value = 3500 * p;
+    crackBp.Q.value = 1.2;
 
-    // High-pass filter (makes it sound like plastic impact)
-    var hp = ctx.createBiquadFilter();
-    hp.type = "highpass";
-    hp.frequency.value = 2000 * p;
+    var crackGain = ctx.createGain();
+    crackGain.gain.setValueAtTime(vol * 0.9, t);
+    crackGain.gain.exponentialRampToValueAtTime(0.001, t + crackDur);
 
-    // Envelope
-    var gain = ctx.createGain();
-    gain.gain.setValueAtTime(vol, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    crackSrc.connect(crackBp);
+    crackBp.connect(crackGain);
+    crackGain.connect(ctx.destination);
+    crackSrc.start(t);
+    crackSrc.stop(t + crackDur + 0.01);
 
-    src.connect(hp);
-    hp.connect(gain);
-    gain.connect(ctx.destination);
-    src.start(t);
-    src.stop(t + dur);
+    // Layer 2: Midrange resonant "pop" (the body of the sound — 30ms)
+    var popOsc = ctx.createOscillator();
+    popOsc.type = "sine";
+    popOsc.frequency.setValueAtTime(1800 * p, t);
+    popOsc.frequency.exponentialRampToValueAtTime(600 * p, t + 0.03);
 
-    // Tonal "click" layered on top (adds the satisfying snap)
-    var osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(1200 * p, t);
-    osc.frequency.exponentialRampToValueAtTime(400 * p, t + 0.03);
-    var oscGain = ctx.createGain();
-    oscGain.gain.setValueAtTime(vol * 0.4, t);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
-    osc.connect(oscGain);
-    oscGain.connect(ctx.destination);
-    osc.start(t);
-    osc.stop(t + 0.04);
+    var popGain = ctx.createGain();
+    popGain.gain.setValueAtTime(vol * 0.55, t);
+    popGain.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+
+    popOsc.connect(popGain);
+    popGain.connect(ctx.destination);
+    popOsc.start(t);
+    popOsc.stop(t + 0.04);
+
+    // Layer 3: Second harmonic click (adds the "plastic" character)
+    var clickOsc = ctx.createOscillator();
+    clickOsc.type = "triangle";
+    clickOsc.frequency.setValueAtTime(2800 * p, t);
+    clickOsc.frequency.exponentialRampToValueAtTime(1000 * p, t + 0.02);
+
+    var clickGain = ctx.createGain();
+    clickGain.gain.setValueAtTime(vol * 0.3, t);
+    clickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.025);
+
+    clickOsc.connect(clickGain);
+    clickGain.connect(ctx.destination);
+    clickOsc.start(t);
+    clickOsc.stop(t + 0.03);
+
+    // Layer 4: Sub bass thump (gives physical weight)
+    var sub = ctx.createOscillator();
+    sub.type = "sine";
+    sub.frequency.setValueAtTime(100 * p, t);
+    sub.frequency.exponentialRampToValueAtTime(50, t + 0.06);
+    var subGain = ctx.createGain();
+    subGain.gain.setValueAtTime(vol * 0.3, t);
+    subGain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    sub.connect(subGain);
+    subGain.connect(ctx.destination);
+    sub.start(t);
+    sub.stop(t + 0.09);
   }
 
   /**
@@ -121,7 +154,7 @@
   }
 
   /**
-   * Bounce — soft short "toc" (ball hitting ground)
+   * Bounce — bright "ping" (ball hitting ground, signals "NOW you can hit")
    */
   function playBounce(volume) {
     var ctx = getCtx();
@@ -131,17 +164,30 @@
 
     var osc = ctx.createOscillator();
     osc.type = "sine";
-    osc.frequency.setValueAtTime(600, t);
-    osc.frequency.exponentialRampToValueAtTime(200, t + 0.05);
+    osc.frequency.setValueAtTime(880, t);
+    osc.frequency.exponentialRampToValueAtTime(440, t + 0.08);
 
     var gain = ctx.createGain();
-    gain.gain.setValueAtTime(vol, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+    gain.gain.setValueAtTime(vol * 0.7, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start(t);
-    osc.stop(t + 0.07);
+    osc.stop(t + 0.11);
+
+    // Second harmonic for richness
+    var osc2 = ctx.createOscillator();
+    osc2.type = "sine";
+    osc2.frequency.setValueAtTime(1320, t);
+    osc2.frequency.exponentialRampToValueAtTime(660, t + 0.06);
+    var gain2 = ctx.createGain();
+    gain2.gain.setValueAtTime(vol * 0.25, t);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(t);
+    osc2.stop(t + 0.08);
   }
 
   /**

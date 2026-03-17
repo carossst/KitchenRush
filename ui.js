@@ -215,7 +215,8 @@ void function () {
         firstKitchenPulseUntil: 0,
         bounceFlashBalls: {},   // ballId → until timestamp
         lastPlayedBounceAt: 0,
-        sprintPenaltyUntil: 0
+        sprintPenaltyUntil: 0,
+        scorePopups: []         // [{ x, y, at }]
       },
 
       // Support modal cache
@@ -614,6 +615,7 @@ void function () {
     juice.bounceFlashBalls = {};
     juice.lastPlayedBounceAt = 0;
     juice.sprintPenaltyUntil = 0;
+    juice.scorePopups = [];
 
     this._runtime.tapLocked = false;
     this._runtime.finishingRun = false;
@@ -795,10 +797,17 @@ void function () {
     var juice = this._runtime.juice;
     var n = performance.now();
 
+    // Bounce animation config
+    var bounceHeight = requiredConfigNumber(canvasCfg.bounceHeight, "KR_CONFIG.canvas.bounceHeight", { min: 0 });
+    var bounceAnimMs = requiredConfigNumber(canvasCfg.bounceAnimMs, "KR_CONFIG.canvas.bounceAnimMs", { min: 1, integer: true });
+    var smashOutMs = requiredConfigNumber(canvasCfg.smashOutMs, "KR_CONFIG.canvas.smashOutMs", { min: 1, integer: true });
+    var smashOutDistance = requiredConfigNumber(canvasCfg.smashOutDistance, "KR_CONFIG.canvas.smashOutDistance", { min: 1 });
+    var scorePopupMs = requiredConfigNumber(canvasCfg.scorePopupMs, "KR_CONFIG.canvas.scorePopupMs", { min: 1, integer: true });
+
     // Screen shake offset
     var shakeX = 0, shakeY = 0;
     if (juice.shakeUntil > n) {
-      var intensity = juice.shakeIntensity || 4;
+      var intensity = juice.shakeIntensity || 6;
       shakeX = (Math.random() - 0.5) * intensity * 2;
       shakeY = (Math.random() - 0.5) * intensity * 2;
     }
@@ -828,6 +837,15 @@ void function () {
     ctx.fillStyle = kitchenColor;
     ctx.fillRect(0, kitchenLineY, w, h - kitchenLineY);
 
+    // Kitchen label text
+    if (colors.kitchenLabelColor) {
+      ctx.font = "bold " + Math.round(w * 0.05) + "px system-ui, sans-serif";
+      ctx.fillStyle = colors.kitchenLabelColor;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("KITCHEN", w / 2, kitchenLineY + (h - kitchenLineY) / 2);
+    }
+
     // Milestone glow: brief flash when milestone first reached
     var msGlowMs = requiredConfigNumber(this.config?.juice?.milestoneGlowMs, "KR_CONFIG.juice.milestoneGlowMs", { min: 1, integer: true });
     if (state.lastMilestoneAt && (n - state.lastMilestoneAt) < msGlowMs) {
@@ -841,17 +859,24 @@ void function () {
       }
     }
 
-    // Kitchen line (dashed)
+    // Kitchen line (solid, prominent)
     ctx.strokeStyle = colors.kitchenLine;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([8, 6]);
+    ctx.lineWidth = 3;
+    ctx.setLineDash([]);
     ctx.beginPath();
     ctx.moveTo(0, kitchenLineY);
     ctx.lineTo(w, kitchenLineY);
     ctx.stroke();
-    ctx.setLineDash([]);
 
-    // First Kitchen ball: pulse the kitchen line
+    // Net at top (subtle)
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.02);
+    ctx.lineTo(w, h * 0.02);
+    ctx.stroke();
+
+    // First Kitchen ball: pulse the kitchen line + zone
     var balls = state.balls || [];
     var hasFirstKitchen = false;
     for (var fi = 0; fi < balls.length; fi++) {
@@ -860,10 +885,11 @@ void function () {
       }
     }
     if (hasFirstKitchen) {
-      var pulseAlpha = 0.3 + 0.3 * Math.sin(n / 150);
-      ctx.strokeStyle = "rgba(255,204,0," + pulseAlpha + ")";
+      var pulseAlpha = 0.15 + 0.15 * Math.sin(n / 150);
+      ctx.fillStyle = "rgba(255,204,0," + pulseAlpha + ")";
+      ctx.fillRect(0, kitchenLineY, w, h - kitchenLineY);
+      ctx.strokeStyle = "rgba(255,204,0," + (pulseAlpha + 0.2) + ")";
       ctx.lineWidth = 4;
-      ctx.setLineDash([]);
       ctx.beginPath();
       ctx.moveTo(0, kitchenLineY);
       ctx.lineTo(w, kitchenLineY);
@@ -874,51 +900,187 @@ void function () {
     for (var i = 0; i < balls.length; i++) {
       var b = balls[i];
 
-      // Shadow (falling only)
-      if (b.state === "FALLING" && b.landingY > 0) {
-        var progress = b.y / b.landingY;
+      // Calculate visual Y (with bounce animation)
+      var visualY = b.y;
+      var visualRadius = b.radius;
+      var bounceOffset = 0;
+
+      // Bounce animation: ball jumps up after landing
+      if (b.state === "BOUNCING" && b.bouncedAt > 0) {
+        var sinceBounce = n - b.bouncedAt;
+        if (sinceBounce < bounceAnimMs) {
+          var t_bounce = sinceBounce / bounceAnimMs;
+          // Parabolic bounce: up then down
+          bounceOffset = Math.sin(t_bounce * Math.PI) * bounceHeight * h;
+          visualY = b.y - bounceOffset;
+          // Slight squash at start, stretch at peak
+          if (t_bounce < 0.2) {
+            visualRadius = b.radius * (1 + 0.15 * (1 - t_bounce / 0.2));
+          }
+        }
+      }
+
+      // Landed squash effect (brief)
+      if (b.state === "LANDED" && b.landedAt > 0) {
+        var sinceLand = n - b.landedAt;
+        if (sinceLand < 100) {
+          var squashT = sinceLand / 100;
+          visualRadius = b.radius * (1 + 0.2 * (1 - squashT));
+        }
+      }
+
+      // Smash-out animation: ball flies away
+      if (b.state === "SMASHED" && b.smashedAt > 0) {
+        var sinceSmash = n - b.smashedAt;
+        if (sinceSmash < smashOutMs) {
+          var smashT = sinceSmash / smashOutMs;
+          var eased = 1 - Math.pow(1 - smashT, 3); // ease-out cubic
+          var angle = b.smashOutAngle || -Math.PI / 2;
+          visualY = b.y + Math.sin(angle) * smashOutDistance * eased;
+          var visualX_offset = Math.cos(angle) * smashOutDistance * eased;
+          b._renderX = b.x + visualX_offset;
+          visualRadius = b.radius * (1 - smashT * 0.5);
+          ctx.globalAlpha = Math.max(0, 1 - smashT);
+          ctx.fillStyle = colors.ballSmashed;
+          ctx.beginPath();
+          ctx.arc(b._renderX || b.x, visualY, Math.max(1, visualRadius), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          continue; // Skip normal rendering for smash-out balls
+        } else {
+          ctx.globalAlpha = 0;
+          continue; // Fully faded
+        }
+      }
+
+      // Faulted flash
+      if (b.state === "FAULTED") {
+        var sinceFault = n - (b.faultedAt || 0);
+        if (sinceFault < 300) {
+          ctx.globalAlpha = Math.max(0, 0.7 * (1 - sinceFault / 300));
+          ctx.fillStyle = colors.ballFaulted;
+          // Expand ring
+          var faultRad = b.radius + (sinceFault / 300) * 20;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, faultRad, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        continue;
+      }
+
+      // Missed fade
+      if (b.state === "MISSED") {
+        var sinceMiss = n - (b.missedAt || 0);
+        if (sinceMiss < 400) {
+          ctx.globalAlpha = Math.max(0, 0.4 * (1 - sinceMiss / 400));
+          ctx.fillStyle = colors.ballMissed;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        continue;
+      }
+
+      // Trail (falling balls only)
+      if (b.state === "FALLING" && b.trail && b.trail.length > 0) {
+        for (var ti = 0; ti < b.trail.length; ti++) {
+          var trailAlpha = 0.05 + 0.05 * (ti / b.trail.length);
+          var trailRadius = b.radius * (0.3 + 0.4 * (ti / b.trail.length));
+          ctx.globalAlpha = trailAlpha;
+          ctx.fillStyle = b.inKitchen ? colors.ballKitchen : colors.ballDefault;
+          ctx.beginPath();
+          ctx.arc(b.trail[ti].x, b.trail[ti].y, trailRadius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // Shadow (falling + landed + bouncing)
+      if ((b.state === "FALLING" || b.state === "LANDED" || b.state === "BOUNCING") && b.landingY > 0) {
+        var progress = Math.min(1, b.y / b.landingY);
         var sf = Number(canvasCfg.shadowGrowthFactor);
-        var sr = b.radius * (0.3 + progress * (Number.isFinite(sf) ? sf : 0));
-        ctx.globalAlpha = 0.15 * progress;
+        var sr = b.radius * (0.4 + progress * (Number.isFinite(sf) ? sf : 0));
+        // Shadow is always at ground level (landingY), size increases with height
+        var shadowAlpha = 0.2 * progress;
+        if (b.state === "BOUNCING" && bounceOffset > 0) {
+          sr = b.radius * (0.6 + 0.4 * (1 - bounceOffset / (bounceHeight * h)));
+          shadowAlpha = 0.25;
+        }
+        ctx.globalAlpha = shadowAlpha;
         ctx.fillStyle = colors.shadow;
         ctx.beginPath();
-        ctx.ellipse(b.x, b.landingY + b.radius * 0.5, sr, sr * 0.4, 0, 0, Math.PI * 2);
+        ctx.ellipse(b.x, b.landingY + b.radius * 0.3, sr, sr * 0.35, 0, 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      // "WAIT!" text above Kitchen balls while falling
+      if (b.inKitchen && b.state === "FALLING" && b.y > h * 0.15) {
+        var waitAlpha = 0.4 + 0.3 * Math.sin(n / 200);
+        ctx.globalAlpha = waitAlpha;
+        ctx.font = "bold " + Math.round(b.radius * 1.1) + "px system-ui, sans-serif";
+        ctx.fillStyle = colors.waitIndicator || "#ffd60a";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText("WAIT", b.x, b.y - b.radius - 6);
+        ctx.globalAlpha = 1;
       }
 
       // Ball color by state
-      if (b.state === "SMASHED") { ctx.globalAlpha = 0.3; ctx.fillStyle = colors.ballSmashed; }
-      else if (b.state === "FAULTED") { ctx.globalAlpha = 0.5; ctx.fillStyle = colors.ballFaulted; }
-      else if (b.state === "MISSED") { ctx.globalAlpha = 0.3; ctx.fillStyle = colors.ballMissed; }
-      else {
-        ctx.globalAlpha = 1;
-        // V2: ball type color takes priority (player must learn to distinguish types)
-        // Normal Kitchen balls stay yellow. Typed balls get their own color even in Kitchen.
-        var bt = b.ballType || "normal";
-        if (bt === "dink" && colors.ballDink) ctx.fillStyle = colors.ballDink;
-        else if (bt === "lob" && colors.ballLob) ctx.fillStyle = colors.ballLob;
-        else if (bt === "fast" && colors.ballFast) ctx.fillStyle = colors.ballFast;
-        else if (b.inKitchen) ctx.fillStyle = colors.ballKitchen;
-        else ctx.fillStyle = colors.ballDefault;
-      }
+      ctx.globalAlpha = 1;
+      var bt = b.ballType || "normal";
+      if (bt === "dink" && colors.ballDink) ctx.fillStyle = colors.ballDink;
+      else if (bt === "lob" && colors.ballLob) ctx.fillStyle = colors.ballLob;
+      else if (bt === "fast" && colors.ballFast) ctx.fillStyle = colors.ballFast;
+      else if (b.inKitchen) ctx.fillStyle = colors.ballKitchen;
+      else ctx.fillStyle = colors.ballDefault;
+
+      // Ball glow (outer ring for visibility)
+      var glowColor = ctx.fillStyle;
+      ctx.save();
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = 12;
 
       // Ball body
       ctx.beginPath();
-      ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+      ctx.arc(b.x, visualY, visualRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Inner highlight (gives 3D feel)
+      var grad = ctx.createRadialGradient(b.x - visualRadius * 0.3, visualY - visualRadius * 0.3, visualRadius * 0.1, b.x, visualY, visualRadius);
+      grad.addColorStop(0, "rgba(255,255,255,0.4)");
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(b.x, visualY, visualRadius, 0, Math.PI * 2);
       ctx.fill();
 
       // Bounce flash: bright ring at exact moment of bounce (Kitchen balls)
       if (b.state === "BOUNCING" && b.bouncedAt > 0) {
-        var sinceBounce = n - b.bouncedAt;
-        var bounceMs = requiredConfigNumber(this.config?.juice?.bounceRingMs, "KR_CONFIG.juice.bounceRingMs", { min: 1, integer: true });
-        if (sinceBounce < bounceMs) {
-          var bounceAlpha = Math.max(0, 1 - sinceBounce / bounceMs);
-          var bounceRad = b.radius + 4 + (sinceBounce / bounceMs) * 8;
-          ctx.strokeStyle = "rgba(255,255,255," + bounceAlpha.toFixed(2) + ")";
+        var sinceBounceFlash = n - b.bouncedAt;
+        var bounceFlashMs = requiredConfigNumber(this.config?.juice?.bounceRingMs, "KR_CONFIG.juice.bounceRingMs", { min: 1, integer: true });
+        if (sinceBounceFlash < bounceFlashMs) {
+          var bounceAlpha = Math.max(0, 1 - sinceBounceFlash / bounceFlashMs);
+          var bounceRad = visualRadius + 6 + (sinceBounceFlash / bounceFlashMs) * 15;
+          ctx.strokeStyle = "rgba(6,214,160," + bounceAlpha.toFixed(2) + ")";
           ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.arc(b.x, b.y, bounceRad, 0, Math.PI * 2);
+          ctx.arc(b.x, visualY, bounceRad, 0, Math.PI * 2);
           ctx.stroke();
+
+          // "NOW!" text briefly
+          if (sinceBounceFlash < bounceFlashMs * 0.6) {
+            ctx.globalAlpha = bounceAlpha;
+            ctx.font = "bold " + Math.round(b.radius * 1.2) + "px system-ui, sans-serif";
+            ctx.fillStyle = "#06d6a0";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "bottom";
+            ctx.fillText("NOW!", b.x, visualY - visualRadius - 8);
+            ctx.globalAlpha = 1;
+          }
 
           // Play bounce sound once per ball
           if (!juice.bounceFlashBalls[b.id]) {
@@ -928,14 +1090,16 @@ void function () {
         }
       }
 
-      // Bounce indicator ring (Kitchen balls post-bounce = smashable, steady)
+      // Bounce indicator ring (Kitchen balls post-bounce = smashable, pulsing)
       if (b.state === "BOUNCING") {
+        var pulseScale = 1 + 0.1 * Math.sin(n / 80);
         ctx.strokeStyle = colors.bounceRing;
         ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.7;
+        ctx.globalAlpha = 0.8;
         ctx.beginPath();
-        ctx.arc(b.x, b.y, b.radius + 4, 0, Math.PI * 2);
+        ctx.arc(b.x, visualY, (visualRadius + 5) * pulseScale, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.globalAlpha = 1;
       }
 
       // Miss sound (when ball transitions to MISSED)
@@ -947,34 +1111,72 @@ void function () {
       ctx.globalAlpha = 1;
     }
 
-    // Smash flash: white burst at tap point
+    // Score popups (+1 floating up)
+    if (juice.scorePopups) {
+      for (var sp = juice.scorePopups.length - 1; sp >= 0; sp--) {
+        var popup = juice.scorePopups[sp];
+        var popElapsed = n - popup.at;
+        if (popElapsed > scorePopupMs) {
+          juice.scorePopups.splice(sp, 1);
+          continue;
+        }
+        var popT = popElapsed / scorePopupMs;
+        var popAlpha = Math.max(0, 1 - popT);
+        var popY = popup.y - popT * 60;
+        ctx.globalAlpha = popAlpha;
+        ctx.font = "bold " + Math.round(24 + (1 - popT) * 8) + "px system-ui, sans-serif";
+        ctx.fillStyle = colors.scorePopup || "#06d6a0";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("+1", popup.x, popY);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // Smash flash: bright burst at tap point (larger, more particles)
     if (juice.flashType === "smash" && juice.flashUntil > n) {
-      var flashProgress = 1 - (juice.flashUntil - n) / 60;
-      var flashAlpha = Math.max(0, 0.8 * (1 - flashProgress));
-      var flashRad = 20 + flashProgress * 30;
-      ctx.fillStyle = "rgba(255,255,255," + flashAlpha.toFixed(2) + ")";
+      var smashFlashDur = requiredConfigNumber(this.config?.juice?.smashFlashMs, "KR_CONFIG.juice.smashFlashMs", { min: 1, integer: true });
+      var flashProgress = 1 - (juice.flashUntil - n) / smashFlashDur;
+      var flashAlpha = Math.max(0, 0.9 * (1 - flashProgress));
+      var flashRad = 25 + flashProgress * 50;
+      ctx.fillStyle = "rgba(6,214,160," + flashAlpha.toFixed(2) + ")";
       ctx.beginPath();
       ctx.arc(juice.flashX, juice.flashY, flashRad, 0, Math.PI * 2);
       ctx.fill();
 
-      // Micro-particles (4 expanding dots)
-      for (var pi = 0; pi < 4; pi++) {
-        var angle = (Math.PI * 2 / 4) * pi + flashProgress * 0.5;
-        var dist = 15 + flashProgress * 25;
+      // Ring expanding outward
+      ctx.strokeStyle = "rgba(255,255,255," + (flashAlpha * 0.6).toFixed(2) + ")";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(juice.flashX, juice.flashY, flashRad * 1.3, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Micro-particles (8 expanding dots)
+      for (var pi = 0; pi < 8; pi++) {
+        var angle = (Math.PI * 2 / 8) * pi + flashProgress * 0.8;
+        var dist = 20 + flashProgress * 40;
         var px = juice.flashX + Math.cos(angle) * dist;
         var py = juice.flashY + Math.sin(angle) * dist;
-        ctx.fillStyle = "rgba(255,255,255," + (flashAlpha * 0.6).toFixed(2) + ")";
-        ctx.beginPath();
-        ctx.arc(px, py, 2.5 - flashProgress * 2, 0, Math.PI * 2);
-        ctx.fill();
+        var pSize = 3 - flashProgress * 2.5;
+        if (pSize > 0) {
+          ctx.fillStyle = "rgba(255,255,255," + (flashAlpha * 0.7).toFixed(2) + ")";
+          ctx.beginPath();
+          ctx.arc(px, py, pSize, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
 
-    // Fault flash: red burst at tap point
+    // Fault flash: red vignette
     if (juice.flashType === "fault" && juice.flashUntil > n) {
-      var faultProgress = 1 - (juice.flashUntil - n) / 120;
-      var faultAlpha = Math.max(0, 0.4 * (1 - faultProgress));
-      ctx.fillStyle = "rgba(255,68,68," + faultAlpha.toFixed(2) + ")";
+      var faultFlashDur = requiredConfigNumber(this.config?.juice?.faultFlashMs, "KR_CONFIG.juice.faultFlashMs", { min: 1, integer: true });
+      var faultProgress = 1 - (juice.flashUntil - n) / faultFlashDur;
+      var faultAlpha = Math.max(0, 0.35 * (1 - faultProgress));
+      // Red vignette from edges
+      var vigGrad = ctx.createRadialGradient(w / 2, h / 2, w * 0.3, w / 2, h / 2, w * 0.8);
+      vigGrad.addColorStop(0, "rgba(239,71,111,0)");
+      vigGrad.addColorStop(1, "rgba(239,71,111," + faultAlpha.toFixed(2) + ")");
+      ctx.fillStyle = vigGrad;
       ctx.fillRect(0, 0, w, h);
     }
 
@@ -983,11 +1185,29 @@ void function () {
       var penProgress = 1 - (juice.sprintPenaltyUntil - n) / 400;
       var penAlpha = Math.max(0, 0.9 * (1 - penProgress));
       ctx.font = "bold 32px system-ui, sans-serif";
-      ctx.fillStyle = "rgba(255,68,68," + penAlpha.toFixed(2) + ")";
+      ctx.fillStyle = "rgba(239,71,111," + penAlpha.toFixed(2) + ")";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       var penText = String(this.wording?.sprint?.penaltyFlash || "").trim();
       if (penText) ctx.fillText(penText, w / 2, h * 0.3 - penProgress * 20);
+    }
+
+    // Paddle (bottom area visual indicator)
+    if (colors.paddle) {
+      var paddleY = h * 0.92;
+      var paddleW = w * 0.25;
+      var paddleH = 6;
+      var paddleX = w / 2 - paddleW / 2;
+      ctx.fillStyle = colors.paddle;
+      ctx.globalAlpha = 0.4;
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(paddleX, paddleY, paddleW, paddleH, 3);
+      } else {
+        ctx.rect(paddleX, paddleY, paddleW, paddleH);
+      }
+      ctx.fill();
+      ctx.globalAlpha = 1;
     }
 
     ctx.restore();
@@ -1072,6 +1292,13 @@ void function () {
       juice.flashUntil = n + requiredConfigNumber(this.config?.juice?.smashFlashMs, "KR_CONFIG.juice.smashFlashMs", { min: 1, integer: true });
       juice.flashX = result.ball ? result.ball.x : 0;
       juice.flashY = result.ball ? result.ball.y : 0;
+      // Score popup
+      if (!juice.scorePopups) juice.scorePopups = [];
+      juice.scorePopups.push({
+        x: result.ball ? result.ball.x : w / 2,
+        y: result.ball ? result.ball.y : h / 2,
+        at: n
+      });
     }
     if (result.fault) {
       this._haptic("fault");
@@ -1132,7 +1359,7 @@ void function () {
       pitch = 1 + Math.min(streak * 0.02, 0.3);
     }
 
-    window.KR_Audio.play(type, Number(volMap[type]) || 0.4, pitch);
+    window.KR_Audio.play(type, requiredConfigNumber(volMap[type], "KR_CONFIG.audio volume for " + type, { min: 0, max: 1 }), pitch);
   };
 
 
@@ -1596,6 +1823,10 @@ void function () {
     var hashtagPrefix = String(w.hashtagPrefix || "").trim();
     var hashtag = hashtagPrefix ? hashtagPrefix + (last.smashes || 0) : "";
 
+    // Date string for daily
+    var dp = todayDateParts();
+    var dateStr = dp.month + " " + dp.day;
+
     var tpl = "";
     if (isDaily) tpl = w.templateDaily || w.templateDefault || "";
     else if (last.mode === MODES.SPRINT) tpl = w.templateSprint || "";
@@ -1603,7 +1834,7 @@ void function () {
     else if (last.totalFaulted > 0) tpl = w.templateFault || "";
     else tpl = w.templateDefault || "";
 
-    var raw = fillTemplate(tpl, { score: last.smashes || 0, best: last.bestSmashes || 0, url: url, hashtag: hashtag });
+    var raw = fillTemplate(tpl, { score: last.smashes || 0, best: last.bestSmashes || 0, url: url, hashtag: hashtag, date: dateStr });
     // Clean trailing spaces per line (when {hashtag} resolves to "")
     return raw.split("\n").map(function (l) { return l.trimEnd(); }).join("\n");
   };
@@ -2263,10 +2494,15 @@ void function () {
         var dp = todayDateParts();
         var dateTpl = String(lw.dailyDateTemplate || "").trim();
         var dateStr = dateTpl ? fillTemplate(dateTpl, dp) : "";
-        dailyHtml = '<div class="kr-daily-badge">';
+        var dailyExplain = String(lw.dailyExplain || "").trim();
+        dailyHtml = '<div class="kr-daily-badge" data-action="daily-info" role="button" tabindex="0">';
+        dailyHtml += '<span class="kr-daily-badge-icon">\uD83D\uDCC5</span>';
         dailyHtml += '<span class="kr-daily-badge-label">' + escapeHtml(dailyLabel) + '</span>';
         if (dateStr) dailyHtml += '<span class="kr-daily-badge-date">' + escapeHtml(dateStr) + '</span>';
         dailyHtml += '</div>';
+        if (dailyExplain) {
+          dailyHtml += '<p class="kr-daily-explain kr-muted">' + escapeHtml(dailyExplain) + '</p>';
+        }
       }
     }
 
@@ -2436,12 +2672,12 @@ void function () {
       var cF = last.totalFaulted || 0;
       var cA = Math.round((last.smashes / last.totalSpawned) * 100);
       var cS = last.bestStreak || 0;
-      var sT = Number(chCfg.streakThreshold) || 8;
-      var sB = Number(chCfg.streakTargetBonus) || 3;
-      var fT = Number(chCfg.faultThreshold) || 2;
-      var aP = Number(chCfg.lowAccuracyPct) || 60;
-      var aM = Number(chCfg.lowAccuracyMinSmashes) || 3;
-      var cM = Number(chCfg.cleanRunMinSmashes) || 5;
+      var sT = requiredConfigNumber(chCfg.streakThreshold, "KR_CONFIG.challenges.streakThreshold", { min: 1, integer: true });
+      var sB = requiredConfigNumber(chCfg.streakTargetBonus, "KR_CONFIG.challenges.streakTargetBonus", { min: 1, integer: true });
+      var fT = requiredConfigNumber(chCfg.faultThreshold, "KR_CONFIG.challenges.faultThreshold", { min: 0, integer: true });
+      var aP = requiredConfigNumber(chCfg.lowAccuracyPct, "KR_CONFIG.challenges.lowAccuracyPct", { min: 0, max: 100, integer: true });
+      var aM = requiredConfigNumber(chCfg.lowAccuracyMinSmashes, "KR_CONFIG.challenges.lowAccuracyMinSmashes", { min: 1, integer: true });
+      var cM = requiredConfigNumber(chCfg.cleanRunMinSmashes, "KR_CONFIG.challenges.cleanRunMinSmashes", { min: 1, integer: true });
 
       challengeHtml = isSprint
         ? pickChallenge([
@@ -2496,17 +2732,26 @@ void function () {
 
     // Share
     var shareHtml = "";
+    var isDaily = !!(cfg?.daily?.enabled && last.mode === MODES.RUN);
     if (cfg?.share?.enabled) {
+      // Make share button primary for daily challenge (viral loop)
+      var shareBtnClass = isDaily ? "kr-btn kr-btn--primary" : "kr-btn kr-btn--secondary";
+      var shareLabel = isDaily
+        ? ("Share daily score")
+        : escapeHtml((w?.share || {}).ctaLabel || "");
       shareHtml = '<div class="kr-share-row">' +
-        '<button class="kr-btn kr-btn--secondary" data-action="share">' + escapeHtml((w?.share || {}).ctaLabel || "") + '</button>' +
+        '<button class="' + shareBtnClass + '" data-action="share">' + shareLabel + '</button>' +
         '<button class="kr-btn kr-btn--secondary" data-action="share-email" aria-label="' + escapeHtml((w?.share || {}).emailAria || "") + '">\u2709</button>' +
       '</div>';
     }
 
-    // Reco 3: Auto-show share card after new best (delay to let celebration land)
-    if (newBest && cfg?.share?.enabled && last.smashes >= 5) {
-      var self = this;
-      setTimeout(function () { self._showShareCardModal(); }, 1200);
+    // Auto-show share card after new best OR after any daily run with decent score
+    if (cfg?.share?.enabled) {
+      var autoShareScore = newBest ? 5 : (isDaily ? 3 : 999999);
+      if (last.smashes >= autoShareScore) {
+        var self = this;
+        setTimeout(function () { self._showShareCardModal(); }, 1200);
+      }
     }
 
     this.appEl.innerHTML =

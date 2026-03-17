@@ -149,8 +149,7 @@
 
     // Landing Y: if inKitchen, land between kitchenLineY and bottom; else above kitchenLineY
     // Non-kitchen: enforce minimum landing Y so balls don't stop near top of screen
-    var minLandingYFrac = Number(canvasCfg.minLandingYFrac);
-    if (!Number.isFinite(minLandingYFrac) || minLandingYFrac < 0) minLandingYFrac = 0;
+    var minLandingYFrac = requiredNumber(canvasCfg.minLandingYFrac, "KR_CONFIG.canvas.minLandingYFrac", { min: 0, max: 0.99 });
     var minLandingY = kitchenLineY * minLandingYFrac;
 
     const landingY = inKitchen
@@ -172,7 +171,11 @@
       bouncedAt: 0,
       smashedAt: 0,
       faultedAt: 0,
-      missedAt: 0
+      missedAt: 0,
+      // Smash-out animation direction
+      smashOutAngle: 0,
+      // Trail positions (ring buffer)
+      trail: []
     };
   }
 
@@ -309,6 +312,10 @@
         const b = r.balls[i];
 
         if (b.state === "FALLING") {
+          // Record trail position before moving
+          if (b.trail.length >= 5) b.trail.shift();
+          b.trail.push({ x: b.x, y: b.y });
+
           b.y += b.speed * (dtMs / 16.67); // normalize to ~60fps baseline
 
           if (b.y >= b.landingY) {
@@ -373,8 +380,7 @@
           const kitchenLineY = kitchenLineYFrac * r.canvasH;
           var shieldRand = (typeof r.rng === "function") ? r.rng : Math.random;
           // Enforce minimum landing Y so balls don't stop near top of screen
-          var minFrac = Number(canvasCfg.minLandingYFrac);
-          if (!Number.isFinite(minFrac) || minFrac < 0) minFrac = 0;
+          var minFrac = requiredNumber(canvasCfg.minLandingYFrac, "KR_CONFIG.canvas.minLandingYFrac", { min: 0, max: 0.99 });
           var minY = Math.max(kitchenLineY * minFrac, ball.radius);
           ball.landingY = minY + shieldRand() * (kitchenLineY - minY - ball.radius);
         }
@@ -404,6 +410,7 @@
       if (!this.run || this.run.done) return null;
 
       const r = this.run;
+      const tapAnywhere = !!(r.config.canvas && r.config.canvas.tapAnywhere);
       const hitTolerance = requiredNumber(r.config.canvas && r.config.canvas.hitTolerancePx, "KR_CONFIG.canvas.hitTolerancePx", { min: 0 });
 
       // Find closest tappable ball
@@ -413,13 +420,27 @@
       for (const b of r.balls) {
         if (b.state !== "FALLING" && b.state !== "LANDED" && b.state !== "BOUNCING") continue;
 
-        const dx = b.x - x;
-        const dy = b.y - y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (tapAnywhere) {
+          // In tap-anywhere mode, find the most urgent ball (closest to expiring)
+          // Priority: BOUNCING > LANDED > FALLING (closest to landing)
+          var urgency;
+          if (b.state === "BOUNCING") urgency = 0;
+          else if (b.state === "LANDED") urgency = 1;
+          else urgency = 2 + (1 - b.y / (b.landingY || 1));
 
-        if (dist <= b.radius + hitTolerance && dist < bestDist) {
-          bestDist = dist;
-          bestBall = b;
+          if (urgency < bestDist) {
+            bestDist = urgency;
+            bestBall = b;
+          }
+        } else {
+          const dx = b.x - x;
+          const dy = b.y - y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist <= b.radius + hitTolerance && dist < bestDist) {
+            bestDist = dist;
+            bestBall = b;
+          }
         }
       }
 
@@ -458,6 +479,7 @@
       // Currently identical. Will diverge if score multipliers are added.
       b.state = "SMASHED";
       b.smashedAt = now();
+      b.smashOutAngle = -Math.PI / 2 + (Math.random() - 0.5) * 0.8; // mostly upward
       r.smashes++;
       r.totalSmashed++;
 
@@ -523,7 +545,13 @@
           state: b.state,
           landingY: b.landingY,
           isFirstKitchen: !!b.isFirstKitchen,
-          bouncedAt: b.bouncedAt || 0
+          bouncedAt: b.bouncedAt || 0,
+          landedAt: b.landedAt || 0,
+          smashedAt: b.smashedAt || 0,
+          faultedAt: b.faultedAt || 0,
+          missedAt: b.missedAt || 0,
+          smashOutAngle: b.smashOutAngle || 0,
+          trail: b.trail ? b.trail.slice() : []
         })),
         elapsedMs: r.elapsedMs,
         endReason: r.endReason,

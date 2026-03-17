@@ -98,8 +98,8 @@
 
       // Speed curve: speed(t) = base + accelPerSec * t
       speed: {
-        base: 2.2,
-        accelPerSec: 0.04
+        base: 2.8,
+        accelPerSec: 0.05
       },
 
       // Spawn interval: spawnInterval(t) = max(minMs, initialMs - decayPerSec * t)
@@ -173,13 +173,13 @@
     // JUICE — visual effect timings (Canvas, ms)
     // ============================================
     juice: {
-      smashFlashMs: 60,
-      faultFlashMs: 120,
-      faultShakeMs: 150,
-      faultShakeIntensity: 4,
-      bounceRingMs: 200,
+      smashFlashMs: 120,
+      faultFlashMs: 200,
+      faultShakeMs: 200,
+      faultShakeIntensity: 6,
+      bounceRingMs: 300,
       sprintPenaltyMs: 400,
-      milestoneGlowMs: 500,
+      milestoneGlowMs: 600,
       firstFaultOverlayMs: 1400,
       repeatFaultOverlayMs: 800
     },
@@ -200,31 +200,60 @@
       minLandingYFrac: 0.30,
 
       // Ball
-      ballRadius: 12,
+      ballRadius: 18,
 
       // Hit tolerance (pixels) — tap doesn't need pixel-perfect precision
-      hitTolerancePx: 30,
+      hitTolerancePx: 50,
+
+      // Tap anywhere: if true, tap hits the closest active ball regardless of position
+      tapAnywhere: true,
 
       // Shadow growth factor (0..1 range relative to ball y-position)
-      shadowGrowthFactor: 0.6,
+      shadowGrowthFactor: 0.7,
+
+      // Bounce animation: ball jumps up visually after landing
+      bounceHeight: 0.08,      // fraction of canvas height
+      bounceAnimMs: 250,       // duration of bounce animation
+
+      // Smash-out animation: ball flies away after being smashed
+      smashOutMs: 300,         // duration of fly-away animation
+      smashOutDistance: 200,    // pixels the ball flies upward
+
+      // Score popup: "+1" floats up from smash point
+      scorePopupMs: 600,
+
+      // Trail: number of trail segments behind falling ball
+      trailSegments: 4,
 
       // Canvas colors (non-DOM: CSS cannot style canvas content)
       colors: {
-        courtBg: "#1a3a2a",
-        kitchenBg: "#0f2a1a",
-        kitchenLine: "#ffffff44",
-        ballDefault: "#ffffff",
-        ballKitchen: "#ffcc00",
-        ballSmashed: "#44ff44",
-        ballFaulted: "#ff4444",
-        ballMissed: "#888888",
-        bounceRing: "#44ff44",
+        courtBg: "#1b4332",
+        kitchenBg: "#081c15",
+        kitchenLine: "#ffffff66",
+        kitchenLabelColor: "#ffffff33",
+
+        ballDefault: "#e0fbfc",
+        ballKitchen: "#ffd60a",
+        ballSmashed: "#06d6a0",
+        ballFaulted: "#ef476f",
+        ballMissed: "#6c757d",
+        bounceRing: "#06d6a0",
         shadow: "#000000",
 
+        // Paddle
+        paddle: "#e0fbfc",
+        paddleGlow: "rgba(224,251,252,0.3)",
+
+        // Score popup
+        scorePopup: "#06d6a0",
+
+        // "WAIT" indicator on kitchen balls
+        waitIndicator: "#ffd60a",
+
         // V2: Ball type colors
-        ballDink: "#88ccff",      // soft blue — "slow, wait"
-        ballLob: "#ff88ff",       // pink — "big, floaty"
-        ballFast: "#ff8844",      // orange — "speed, danger"
+        ballDink: "#98c1d9",      // soft blue — "slow, wait"
+        ballLob: "#e0aaff",       // lavender — "big, floaty"
+        ballFast: "#ff8800",      // orange — "speed, danger"
 
         // Milestone tint colors (court + kitchen at 25/50/100 Smashes)
         milestone1CourtBg: "#1a3a3a",
@@ -647,11 +676,12 @@
     landing: {
       title: "Kitchen Rush",
       tagline: "Stay out of the Kitchen.",
-      subtitle: "Tap to smash. Wait in the Kitchen.",
+      subtitle: "Tap anywhere to smash. Yellow ball? Wait for the bounce.",
 
       // Daily challenge badge (shown when daily.enabled)
       dailyBadge: "Daily Challenge",
       dailyDateTemplate: "{month} {day}",
+      dailyExplain: "Same balls for everyone today. Beat your friends.",
 
       ctaPlay: "Play",
       ctaPlayAfterFirstRun: "Play again",
@@ -781,10 +811,10 @@
 
     firstRun: {
       trustLine: "No ads. No tricks. Just you and the court.",
-      kitchenHint: "Yellow ball? Wait for the bounce.",
-      rule1: "Tap to smash",
-      rule2: "Yellow = wait for bounce",
-      rule3: "Miss 3 = game over"
+      kitchenHint: "Yellow ball in the Kitchen? Wait for the bounce, then tap.",
+      rule1: "Tap anywhere to smash the ball",
+      rule2: "Yellow ball = Kitchen = wait for bounce first",
+      rule3: "3 lives — miss or fault = life lost"
     },
 
 
@@ -877,11 +907,11 @@
       ctaLabel: "Share score",
       emailAria: "Share via email",
       toastCopied: "Copied!",
-      templateDefault: "Kitchen Rush — {score} Smashes {hashtag}\nStay out of the Kitchen.\n{url}",
-      templateFault: "Kitchen Rush — {score} Smashes {hashtag}\nThe Kitchen got me.\n{url}",
-      templateNewBest: "Kitchen Rush — New best: {score} Smashes {hashtag}\nCome get me.\n{url}",
-      templateSprint: "Kitchen Rush Sprint — {score} Smashes in 20s {hashtag}\nPure banger mode.\n{url}",
-      templateDaily: "Kitchen Rush Daily — {score} Smashes {hashtag}\nSame balls, same court. Beat that.\n{url}",
+      templateDefault: "Kitchen Rush — {score} Smashes {hashtag}\nCan you beat that?\n{url}",
+      templateFault: "Kitchen Rush — {score} Smashes {hashtag}\nThe Kitchen got me. Your turn.\n{url}",
+      templateNewBest: "Kitchen Rush — NEW BEST: {score} Smashes {hashtag}\nCome get me.\n{url}",
+      templateSprint: "Kitchen Rush Sprint — {score} in 20s {hashtag}\nPure speed. Beat that.\n{url}",
+      templateDaily: "Kitchen Rush Daily ({date}) — {score} Smashes {hashtag}\nSame balls for everyone. Can you beat {score}?\n{url}",
 
       // Hashtag (dynamic: #KitchenRush{score})
       hashtagPrefix: "#KitchenRush",
@@ -989,8 +1019,8 @@
       kitchenMaster: "Kitchen master!",
       lastLife: "Last life — match point.",
       closeCall: "Close call!",
-      tooEarly: "Foot fault!",
-      firstFaultExplain: "Wait for the bounce!"
+      tooEarly: "Too early!",
+      firstFaultExplain: "Yellow ball = wait for BOUNCE first!"
     },
 
 
@@ -1153,6 +1183,11 @@
       reqNum(canvas.ballRadius, "KR_CONFIG.canvas.ballRadius", { min: 1, integer: true });
       reqNum(canvas.hitTolerancePx, "KR_CONFIG.canvas.hitTolerancePx", { min: 0, integer: true });
       reqNum(canvas.shadowGrowthFactor, "KR_CONFIG.canvas.shadowGrowthFactor", { min: 0, max: 1 });
+      reqNum(canvas.bounceHeight, "KR_CONFIG.canvas.bounceHeight", { min: 0 });
+      reqNum(canvas.bounceAnimMs, "KR_CONFIG.canvas.bounceAnimMs", { min: 1, integer: true });
+      reqNum(canvas.smashOutMs, "KR_CONFIG.canvas.smashOutMs", { min: 1, integer: true });
+      reqNum(canvas.smashOutDistance, "KR_CONFIG.canvas.smashOutDistance", { min: 1 });
+      reqNum(canvas.scorePopupMs, "KR_CONFIG.canvas.scorePopupMs", { min: 1, integer: true });
 
       const limits = reqObj(cfg.limits, "KR_CONFIG.limits");
       reqNum(limits.freeRuns, "KR_CONFIG.limits.freeRuns", { min: 0, integer: true });
@@ -1161,6 +1196,20 @@
       reqNum(sprint.durationMs, "KR_CONFIG.sprint.durationMs", { min: 1, integer: true });
       reqNum(sprint.faultPenaltyMs, "KR_CONFIG.sprint.faultPenaltyMs", { min: 1, integer: true });
       reqNum(sprint.freeRunsLimit, "KR_CONFIG.sprint.freeRunsLimit", { min: 0, integer: true });
+
+      const audio = reqObj(cfg.audio, "KR_CONFIG.audio");
+      reqBool(audio.enabled, "KR_CONFIG.audio.enabled");
+      reqNum(audio.smashVolume, "KR_CONFIG.audio.smashVolume", { min: 0, max: 1 });
+      reqNum(audio.faultVolume, "KR_CONFIG.audio.faultVolume", { min: 0, max: 1 });
+      reqNum(audio.bounceVolume, "KR_CONFIG.audio.bounceVolume", { min: 0, max: 1 });
+
+      const challenges = reqObj(cfg.challenges, "KR_CONFIG.challenges");
+      reqNum(challenges.cleanRunMinSmashes, "KR_CONFIG.challenges.cleanRunMinSmashes", { min: 1, integer: true });
+      reqNum(challenges.streakThreshold, "KR_CONFIG.challenges.streakThreshold", { min: 1, integer: true });
+      reqNum(challenges.streakTargetBonus, "KR_CONFIG.challenges.streakTargetBonus", { min: 1, integer: true });
+      reqNum(challenges.faultThreshold, "KR_CONFIG.challenges.faultThreshold", { min: 0, integer: true });
+      reqNum(challenges.lowAccuracyPct, "KR_CONFIG.challenges.lowAccuracyPct", { min: 0, max: 100, integer: true });
+      reqNum(challenges.lowAccuracyMinSmashes, "KR_CONFIG.challenges.lowAccuracyMinSmashes", { min: 1, integer: true });
 
       const juice = reqObj(cfg.juice, "KR_CONFIG.juice");
       reqNum(juice.smashFlashMs, "KR_CONFIG.juice.smashFlashMs", { min: 1, integer: true });

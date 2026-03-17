@@ -880,8 +880,19 @@ body {
   background: rgba(255, 204, 0, 0.15);
   border: 1px solid rgba(255, 204, 0, 0.3);
   border-radius: 20px;
-  padding: 4px 14px;
-  margin-bottom: var(--gap-2);
+  padding: 6px 16px;
+  margin-bottom: var(--gap-1);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+.kr-daily-badge:hover,
+.kr-daily-badge:active {
+  background: rgba(255, 204, 0, 0.25);
+  transform: scale(1.03);
+}
+
+.kr-daily-badge-icon {
+  font-size: var(--fs-base);
 }
 
 .kr-daily-badge-label {
@@ -893,6 +904,12 @@ body {
 .kr-daily-badge-date {
   font-size: var(--fs-xs);
   color: rgb(var(--text-muted));
+}
+
+.kr-daily-explain {
+  font-size: var(--fs-xs);
+  margin-bottom: var(--gap-2);
+  opacity: 0.7;
 }
 
 
