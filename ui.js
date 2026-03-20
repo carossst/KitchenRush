@@ -192,6 +192,7 @@ void function () {
     this._ctx = null;
     this._rafId = null;
     this._lastFrameTs = 0;
+    this._resizeObserver = null;
 
     // beforeunload guard
     this._beforeUnloadHandler = null;
@@ -349,8 +350,9 @@ void function () {
   // ============================================
   UI.prototype._dispatchAction = function (action) {
     switch (action) {
-      case "play":              this._handlePlay(); break;
-      case "play-again":        this._handlePlay(); break;
+      case "play":              this._handlePlay("classic"); break;
+      case "play-again":        this._handlePlay("classic"); break;
+      case "play-daily":        this._handlePlay("daily"); break;
       case "sprint-again":      this._handleSprintAgain(); break;
       case "back-to-runs":      this.setState(STATES.LANDING); break;
       case "show-paywall":      this.setState(STATES.PAYWALL); break;
@@ -472,6 +474,16 @@ void function () {
         clearTimeout(this._runtime.hudPulseCleanupTimerId);
         this._runtime.hudPulseCleanupTimerId = null;
       }
+      // T5: Disconnect ResizeObserver
+      if (this._resizeObserver) {
+        this._resizeObserver.disconnect();
+        this._resizeObserver = null;
+      }
+      // T1: Remove visibility handler
+      if (this._visibilityHandler) {
+        document.removeEventListener("visibilitychange", this._visibilityHandler);
+        this._visibilityHandler = null;
+      }
     }
 
     this.render();
@@ -519,7 +531,10 @@ void function () {
   // ============================================
   // Play / Sprint handlers
   // ============================================
-  UI.prototype._handlePlay = function () {
+  UI.prototype._handlePlay = function (entryKind) {
+    var kind = String(entryKind == null ? "classic" : entryKind).trim().toLowerCase();
+    if (kind !== "daily" && kind !== "classic") throw new Error("KR_UI._handlePlay(): invalid entry kind");
+
     this._store("markLandingPlayClicked");
 
     var premium = !!(this._store("isPremium"));
@@ -547,19 +562,28 @@ void function () {
     } else {
       runType = "UNLIMITED";
     }
-    this._runtime.runType = runType;
-    this._runtime.runMode = MODES.RUN;
 
-    // First run framing (one-shot: trust line before very first run)
-    var counters = this._store("getCounters") || {};
-    if (!this._store("hasFirstRunFramingSeen") && (counters.runCompletes || 0) === 0) {
-      this._store("markFirstRunFramingSeen");
-      var self = this;
-      this._showFirstRunFraming(function () { self._startGameplay(MODES.RUN, runType); });
-      return;
-    }
-
+    this._runtime.currentRunIsDaily = (kind === "daily");
     this._startGameplay(MODES.RUN, runType);
+  };
+
+  UI.prototype._hasCompletedDailyToday = function () {
+    var runs = this._store("getLastRuns", 20) || [];
+    var now = new Date();
+    var y = now.getFullYear();
+    var m = now.getMonth();
+    var d = now.getDate();
+
+    for (var i = 0; i < runs.length; i += 1) {
+      var run = runs[i] || {};
+      var meta = (run.meta && typeof run.meta === "object") ? run.meta : {};
+      if (meta.isDaily !== true) continue;
+      var endedAt = Number(run.endedAt || 0);
+      if (!Number.isFinite(endedAt) || endedAt <= 0) continue;
+      var rd = new Date(endedAt);
+      if (rd.getFullYear() === y && rd.getMonth() === m && rd.getDate() === d) return true;
+    }
+    return false;
   };
 
   UI.prototype._handleSprintAgain = function () {
@@ -621,7 +645,8 @@ void function () {
     this._runtime.finishingRun = false;
 
     // Start engine
-    this.game.start({ config: this.config, mode: mode, canvasW: appW, canvasH: appH });
+    var isDaily = !!(this._runtime.currentRunIsDaily);
+    this.game.start({ config: this.config, mode: mode, canvasW: appW, canvasH: appH, isDaily: isDaily });
 
     // beforeunload guard (warn on accidental tab close during gameplay)
     if (!this._beforeUnloadHandler) {
@@ -796,6 +821,9 @@ void function () {
 
     var juice = this._runtime.juice;
     var n = performance.now();
+    // Game-time clock for ball animation comparisons.
+    // Ball timestamps (bouncedAt, smashedAt, etc.) are in game-time, not wall-time.
+    var gt = state.elapsedMs;
 
     // Bounce animation config
     var bounceHeight = requiredConfigNumber(canvasCfg.bounceHeight, "KR_CONFIG.canvas.bounceHeight", { min: 0 });
@@ -848,8 +876,8 @@ void function () {
 
     // Milestone glow: brief flash when milestone first reached
     var msGlowMs = requiredConfigNumber(this.config?.juice?.milestoneGlowMs, "KR_CONFIG.juice.milestoneGlowMs", { min: 1, integer: true });
-    if (state.lastMilestoneAt && (n - state.lastMilestoneAt) < msGlowMs) {
-      var glowAlpha = Math.max(0, 0.15 * (1 - (n - state.lastMilestoneAt) / msGlowMs));
+    if (state.lastMilestoneAt && (gt - state.lastMilestoneAt) < msGlowMs) {
+      var glowAlpha = Math.max(0, 0.15 * (1 - (gt - state.lastMilestoneAt) / msGlowMs));
       ctx.fillStyle = "rgba(255,255,255," + glowAlpha + ")";
       ctx.fillRect(0, 0, w, h);
       // Play milestone sound once
@@ -907,7 +935,7 @@ void function () {
 
       // Bounce animation: ball jumps up after landing
       if (b.state === "BOUNCING" && b.bouncedAt > 0) {
-        var sinceBounce = n - b.bouncedAt;
+        var sinceBounce = gt - b.bouncedAt;
         if (sinceBounce < bounceAnimMs) {
           var t_bounce = sinceBounce / bounceAnimMs;
           // Parabolic bounce: up then down
@@ -922,7 +950,7 @@ void function () {
 
       // Landed squash effect (brief)
       if (b.state === "LANDED" && b.landedAt > 0) {
-        var sinceLand = n - b.landedAt;
+        var sinceLand = gt - b.landedAt;
         if (sinceLand < 100) {
           var squashT = sinceLand / 100;
           visualRadius = b.radius * (1 + 0.2 * (1 - squashT));
@@ -931,7 +959,7 @@ void function () {
 
       // Smash-out animation: ball flies away
       if (b.state === "SMASHED" && b.smashedAt > 0) {
-        var sinceSmash = n - b.smashedAt;
+        var sinceSmash = gt - b.smashedAt;
         if (sinceSmash < smashOutMs) {
           var smashT = sinceSmash / smashOutMs;
           var eased = 1 - Math.pow(1 - smashT, 3); // ease-out cubic
@@ -955,7 +983,7 @@ void function () {
 
       // Faulted flash
       if (b.state === "FAULTED") {
-        var sinceFault = n - (b.faultedAt || 0);
+        var sinceFault = gt - (b.faultedAt || 0);
         if (sinceFault < 300) {
           ctx.globalAlpha = Math.max(0, 0.7 * (1 - sinceFault / 300));
           ctx.fillStyle = colors.ballFaulted;
@@ -971,7 +999,7 @@ void function () {
 
       // Missed fade
       if (b.state === "MISSED") {
-        var sinceMiss = n - (b.missedAt || 0);
+        var sinceMiss = gt - (b.missedAt || 0);
         if (sinceMiss < 400) {
           ctx.globalAlpha = Math.max(0, 0.4 * (1 - sinceMiss / 400));
           ctx.fillStyle = colors.ballMissed;
@@ -1060,7 +1088,7 @@ void function () {
 
       // Bounce flash: bright ring at exact moment of bounce (Kitchen balls)
       if (b.state === "BOUNCING" && b.bouncedAt > 0) {
-        var sinceBounceFlash = n - b.bouncedAt;
+        var sinceBounceFlash = gt - b.bouncedAt;
         var bounceFlashMs = requiredConfigNumber(this.config?.juice?.bounceRingMs, "KR_CONFIG.juice.bounceRingMs", { min: 1, integer: true });
         if (sinceBounceFlash < bounceFlashMs) {
           var bounceAlpha = Math.max(0, 1 - sinceBounceFlash / bounceFlashMs);
@@ -1535,6 +1563,7 @@ void function () {
       var nextRunNumber = Math.max(0, Math.floor(prevRunNumber)) + 1;
       var meta = {
         mode: MODES.RUN,
+        isDaily: !!(this._runtime && this._runtime.currentRunIsDaily),
         endReason: result.endReason,
         endedFrom: "ui",
         totalFaulted: result.totalFaulted || 0,
@@ -1551,6 +1580,7 @@ void function () {
 
     this._runtime.lastRun = {
       mode: mode,
+      isDaily: !!(this._runtime && this._runtime.currentRunIsDaily),
       smashes: result.smashes,
       lives: result.lives,
       maxLives: result.maxLives,
@@ -1704,7 +1734,7 @@ void function () {
     var score = last.smashes || 0;
     var best = last.bestSmashes || 0;
     var isSprint = (last.mode === MODES.SPRINT);
-    var isDaily = !!(this.config?.daily?.enabled && last.mode === MODES.RUN);
+    var isDaily = !!(last && last.isDaily === true);
     var colors = this.config?.canvas?.colors;
     if (!colors) return null;
 
@@ -1817,7 +1847,7 @@ void function () {
     var w = (this.wording && this.wording.share) ? this.wording.share : {};
     var last = (this._runtime && this._runtime.lastRun) ? this._runtime.lastRun : {};
     var url = String(this.config?.identity?.appUrl || "").trim();
-    var isDaily = !!(this.config?.daily?.enabled && last.mode === MODES.RUN);
+    var isDaily = !!(last && last.isDaily === true);
 
     // Dynamic hashtag: #KitchenRush{score}
     var hashtagPrefix = String(w.hashtagPrefix || "").trim();
@@ -2486,8 +2516,9 @@ void function () {
       houseAdHtml += '</div></div>';
     }
 
-    // Daily challenge badge
+    // Daily challenge primary CTA / Classic unlock after Daily
     var dailyHtml = "";
+    var classicHtml = "";
     if (this.config?.daily?.enabled) {
       var dailyLabel = String(lw.dailyBadge || "").trim();
       if (dailyLabel) {
@@ -2495,15 +2526,28 @@ void function () {
         var dateTpl = String(lw.dailyDateTemplate || "").trim();
         var dateStr = dateTpl ? fillTemplate(dateTpl, dp) : "";
         var dailyExplain = String(lw.dailyExplain || "").trim();
-        dailyHtml = '<div class="kr-daily-badge" data-action="daily-info" role="button" tabindex="0">';
-        dailyHtml += '<span class="kr-daily-badge-icon">\uD83D\uDCC5</span>';
+        var dailyCta = String(lw.ctaPlayDaily || "").trim() || dailyLabel;
+        dailyHtml = '<button class="kr-daily-badge kr-daily-badge--cta" data-action="play-daily" aria-label="' + escapeHtml(dailyCta) + '">';
+        dailyHtml += '<span class="kr-daily-badge-icon">📅</span>';
         dailyHtml += '<span class="kr-daily-badge-label">' + escapeHtml(dailyLabel) + '</span>';
         if (dateStr) dailyHtml += '<span class="kr-daily-badge-date">' + escapeHtml(dateStr) + '</span>';
-        dailyHtml += '</div>';
+        dailyHtml += '</button>';
         if (dailyExplain) {
           dailyHtml += '<p class="kr-daily-explain kr-muted">' + escapeHtml(dailyExplain) + '</p>';
         }
       }
+      if (this._hasCompletedDailyToday()) {
+        classicHtml = '<div class="kr-actions">' +
+          '<button class="kr-btn kr-btn--primary" data-action="play">' + ctaLabel + '</button>' +
+        '</div>';
+      } else {
+        var classicHint = String(lw.classicUnlockHint || "").trim();
+        if (classicHint) classicHtml = '<p class="kr-landing-classic-hint kr-muted">' + escapeHtml(classicHint) + '</p>';
+      }
+    } else {
+      classicHtml = '<div class="kr-actions">' +
+        '<button class="kr-btn kr-btn--primary" data-action="play">' + ctaLabel + '</button>' +
+      '</div>';
     }
 
     this.appEl.innerHTML =
@@ -2516,6 +2560,7 @@ void function () {
           '<h1 class="kr-h1">' + escapeHtml(lw.tagline || "") + '</h1>' +
           '<p class="kr-subtitle">' + escapeHtml(lw.subtitle || "") + '</p>' +
           dailyHtml +
+          classicHtml +
           bestHtml +
           landingChallengeHtml +
           premiumLabelHtml +
@@ -2523,9 +2568,6 @@ void function () {
           lifetimeHtml +
           chestHintHtml +
           earlyTickerHtml +
-          '<div class="kr-actions">' +
-            '<button class="kr-btn kr-btn--primary" data-action="play">' + ctaLabel + '</button>' +
-          '</div>' +
           postPaywallHtml +
           houseAdHtml +
         '</div>' +
@@ -2560,6 +2602,37 @@ void function () {
 
       var self = this;
       canvas.addEventListener("pointerdown", function (e) { self._handleCanvasTap(e); });
+
+      // T5: Resize canvas on orientation change / window resize
+      if (typeof ResizeObserver !== "undefined") {
+        this._resizeObserver = new ResizeObserver(function (entries) {
+          for (var i = 0; i < entries.length; i++) {
+            var entry = entries[i];
+            var newW = Math.round(entry.contentRect.width);
+            var newH = Math.round(entry.contentRect.height);
+            if (newW > 0 && newH > 0 && (canvas.width !== newW || canvas.height !== newH)) {
+              canvas.width = newW;
+              canvas.height = newH;
+              // Update game engine canvas dimensions
+              if (self.game && self.game.run) {
+                self.game.run.canvasW = newW;
+                self.game.run.canvasH = newH;
+              }
+            }
+          }
+        });
+        this._resizeObserver.observe(this.appEl);
+      }
+
+      // T1: Pause game when tab loses focus (prevents clock drift)
+      this._visibilityHandler = function () {
+        if (document.hidden && self.state === STATES.PLAYING) {
+          self._stopGameLoop();
+        } else if (!document.hidden && self.state === STATES.PLAYING && !self._rafId) {
+          self._startGameLoop();
+        }
+      };
+      document.addEventListener("visibilitychange", this._visibilityHandler);
     }
 
     // Start game loop after DOM is ready
@@ -2732,7 +2805,7 @@ void function () {
 
     // Share
     var shareHtml = "";
-    var isDaily = !!(cfg?.daily?.enabled && last.mode === MODES.RUN);
+    var isDaily = !!(last && last.isDaily === true);
     if (cfg?.share?.enabled) {
       // Make share button primary for daily challenge (viral loop)
       var shareBtnClass = isDaily ? "kr-btn kr-btn--primary" : "kr-btn kr-btn--secondary";

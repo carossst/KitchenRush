@@ -217,9 +217,34 @@
 
     const loaded = this._load();
 
-    // No legacy support: mismatch => reset
+    // Schema version check with basic migration support.
+    // Mismatch: wipe and reset, but preserve critical user data.
     if (!loaded || typeof loaded !== "object" || String(loaded.version || "") !== schemaVersion) {
+      var oldData = (loaded && typeof loaded === "object") ? deepCopy(loaded) : null;
       this._wipeAndReset();
+
+      // Migrate critical user data from old schema (fail-closed: any error → fresh data)
+      if (oldData) {
+        try {
+          if (oldData.codes && Array.isArray(oldData.codes.accepted) && oldData.codes.accepted.length > 0) {
+            this.data.codes.accepted = oldData.codes.accepted.slice();
+          }
+          if (oldData.personalBest && Number.isFinite(oldData.personalBest.bestSmashes) && oldData.personalBest.bestSmashes > 0) {
+            this.data.personalBest = deepCopy(oldData.personalBest);
+          }
+          if (oldData.sprintBest && Number.isFinite(oldData.sprintBest.bestSmashes) && oldData.sprintBest.bestSmashes > 0) {
+            this.data.sprintBest = deepCopy(oldData.sprintBest);
+          }
+          if (oldData.counters && Number.isFinite(oldData.counters.totalLifetimeSmashes)) {
+            this.data.counters.totalLifetimeSmashes = clampNonNegativeInt(oldData.counters.totalLifetimeSmashes);
+          }
+          if (oldData.flags && typeof oldData.flags === "object") {
+            if (oldData.flags.sprintChestHintSolved === true) this.data.flags.sprintChestHintSolved = true;
+            if (oldData.flags.sprintChestWelcomeShown === true) this.data.flags.sprintChestWelcomeShown = true;
+            if (oldData.flags.firstRunFramingSeen === true) this.data.flags.firstRunFramingSeen = true;
+          }
+        } catch (_) { /* migration failed — fresh data is still valid */ }
+      }
 
       // If success page already generated a code, keep it across wipes.
       if (this._syncVanityCodeToCodes()) {

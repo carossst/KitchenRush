@@ -31,8 +31,14 @@
     return Math.max(lo, Math.min(hi, v));
   }
 
-  function now() {
-    return performance.now();
+  // Game-time clock: returns r.elapsedMs from the active run.
+  // All ball timestamps (landedAt, bouncedAt, etc.) use game-time,
+  // NOT wall-clock. This prevents tab-switch bugs where performance.now()
+  // drifts while the RAF loop is paused.
+  // The UI maps game-time → wall-time for canvas animations.
+  var _currentGameTimeMs = 0;
+  function gameTime() {
+    return _currentGameTimeMs;
   }
 
   // V2: Seeded PRNG (mulberry32) for daily challenge
@@ -210,6 +216,9 @@
       }
       const mode = modeRaw;
 
+      // C11: Daily flag — only seed RNG when explicitly playing daily
+      const isDaily = !!(p.isDaily);
+
       // Lives (RUN only; SPRINT has no lives)
       const lives = (mode === MODES.RUN)
         ? Math.floor(requiredNumber(config.game && config.game.lives, "KR_CONFIG.game.lives", { min: 1 }))
@@ -223,17 +232,21 @@
       // Onboarding shield (first N balls always outside Kitchen)
       const onboardingShield = Math.floor(requiredNumber(config.game && config.game.onboardingShield, "KR_CONFIG.game.onboardingShield", { min: 0 }));
 
+      // Reset game clock
+      _currentGameTimeMs = 0;
+
       this.run = {
         mode: mode,
         config: config,
         canvasW: canvasW,
         canvasH: canvasH,
 
-        // V2: Seeded RNG for daily mode (null = use Math.random)
-        rng: (config.daily && config.daily.enabled && mode === MODES.RUN) ? mulberry32(dateSeed()) : null,
+        // V2: Seeded RNG for daily mode only (C11: Classic uses Math.random)
+        rng: (isDaily && mode === MODES.RUN) ? mulberry32(dateSeed()) : null,
+        isDaily: isDaily,
 
         // Timing
-        startedAt: now(),
+        startedAt: 0,
         elapsedMs: 0,
         lastSpawnAt: 0,
 
@@ -258,6 +271,10 @@
         totalMissed: 0,
         totalFaulted: 0,
         onboardingShield: onboardingShield,
+
+        // Streak tracking (C9: moved from UI to engine for data integrity)
+        currentStreak: 0,
+        bestStreak: 0,
 
         // First Kitchen ball signal (for reinforced visual)
         firstKitchenSpawned: false,
@@ -292,6 +309,7 @@
       const gameCfg = cfg.game || {};
 
       r.elapsedMs += dtMs;
+      _currentGameTimeMs = r.elapsedMs;
       const elapsedSec = r.elapsedMs / 1000;
 
       // Sprint timer countdown (includes accumulated fault penalties)
@@ -321,40 +339,42 @@
           if (b.y >= b.landingY) {
             b.y = b.landingY;
             b.state = "LANDED";
-            b.landedAt = now();
+            b.landedAt = gameTime();
           }
         }
 
         if (b.state === "LANDED") {
           // After rebound delay, transition to BOUNCING (Kitchen balls become smashable)
-          if (b.inKitchen && (now() - b.landedAt >= reboundDelayMs)) {
+          if (b.inKitchen && (gameTime() - b.landedAt >= reboundDelayMs)) {
             b.state = "BOUNCING";
-            b.bouncedAt = now();
-            r.lastBounceAt = now();
+            b.bouncedAt = gameTime();
+            r.lastBounceAt = gameTime();
           }
 
           // Non-kitchen balls: tap window expires → MISSED
-          if (!b.inKitchen && (now() - b.landedAt > b.tapWindowMs)) {
+          if (!b.inKitchen && (gameTime() - b.landedAt > b.tapWindowMs)) {
             b.state = "MISSED";
-            b.missedAt = now();
+            b.missedAt = gameTime();
             r.totalMissed++;
+            r.currentStreak = 0;
             this._loseLife(r);
           }
         }
 
         if (b.state === "BOUNCING") {
           // Kitchen ball: tap window after bounce
-          if (now() - b.bouncedAt > b.tapWindowMs) {
+          if (gameTime() - b.bouncedAt > b.tapWindowMs) {
             b.state = "MISSED";
-            b.missedAt = now();
+            b.missedAt = gameTime();
             r.totalMissed++;
+            r.currentStreak = 0;
             this._loseLife(r);
           }
         }
 
         // Cleanup old resolved balls (keep for fade-out animation, 500ms)
         if ((b.state === "SMASHED" || b.state === "MISSED" || b.state === "FAULTED") &&
-            (now() - (b.smashedAt || b.missedAt || b.faultedAt || 0)) > 500) {
+            (gameTime() - (b.smashedAt || b.missedAt || b.faultedAt || 0)) > 500) {
           r.balls.splice(i, 1);
         }
       }
@@ -452,8 +472,9 @@
       if (b.inKitchen && b.state !== "BOUNCING") {
         // Fault: tapped Kitchen ball before bounce
         b.state = "FAULTED";
-        b.faultedAt = now();
+        b.faultedAt = gameTime();
         r.totalFaulted++;
+        r.currentStreak = 0; // C9: streak broken on fault
 
         if (r.mode === MODES.RUN) {
           this._loseLife(r);
@@ -478,16 +499,18 @@
       // Note: smashes = player-visible score; totalSmashed = internal counter.
       // Currently identical. Will diverge if score multipliers are added.
       b.state = "SMASHED";
-      b.smashedAt = now();
+      b.smashedAt = gameTime();
       b.smashOutAngle = -Math.PI / 2 + (Math.random() - 0.5) * 0.8; // mostly upward
       r.smashes++;
       r.totalSmashed++;
+      r.currentStreak++;
+      if (r.currentStreak > r.bestStreak) r.bestStreak = r.currentStreak;
 
       // Check milestones
       for (var mi = 0; mi < r.milestones.length; mi++) {
         if (r.smashes === r.milestones[mi] && r.milestonesReached.indexOf(r.milestones[mi]) === -1) {
           r.milestonesReached.push(r.milestones[mi]);
-          r.lastMilestoneAt = now();
+          r.lastMilestoneAt = gameTime();
         }
       }
 
@@ -559,6 +582,8 @@
         totalSmashed: r.totalSmashed,
         totalMissed: r.totalMissed,
         totalFaulted: r.totalFaulted,
+        currentStreak: r.currentStreak || 0,
+        bestStreak: r.bestStreak || 0,
         milestonesReached: r.milestonesReached ? r.milestonesReached.slice() : [],
         lastMilestoneAt: r.lastMilestoneAt || 0,
         lastBounceAt: r.lastBounceAt || 0
@@ -581,7 +606,9 @@
         totalSpawned: s.totalSpawned,
         totalSmashed: s.totalSmashed,
         totalMissed: s.totalMissed,
-        totalFaulted: s.totalFaulted
+        totalFaulted: s.totalFaulted,
+        currentStreak: s.currentStreak,
+        bestStreak: s.bestStreak
       };
     }
   }

@@ -17,14 +17,14 @@
   --court-bg: 26 58 42;
   --court-deep: 15 42 26;
 
-  /* Accent (pickleball yellow-green) */
-  --primary: 68 255 68;
-  --primary-dark: 34 180 34;
-  --primary-depth: 22 140 22;
+  /* Accent (pickleball green — V5: toned down from 68 255 68 for OLED comfort) */
+  --primary: 48 209 88;
+  --primary-dark: 34 170 58;
+  --primary-depth: 22 140 42;
 
   /* Semantic */
-  --success: 68 255 68;
-  --success-dark: 34 200 34;
+  --success: 48 209 88;
+  --success-dark: 34 180 58;
   --danger: 255 68 68;
   --danger-dark: 200 40 40;
 
@@ -58,6 +58,7 @@
   --kr-a-85: 0.85;
   --kr-a-90: 0.90;
   --kr-a-95: 0.95;
+  --kr-a-soft: 0.60;
 
   /* Glass */
   --glass-65: rgb(var(--surface) / var(--kr-a-65));
@@ -195,7 +196,8 @@ body {
   width: 100%;
   max-width: var(--max);
   margin: 0 auto;
-  padding: 0 var(--pad);
+  /* V20: Safe area side insets */
+  padding: 0 calc(var(--pad) + env(safe-area-inset-right, 0px)) 0 calc(var(--pad) + env(safe-area-inset-left, 0px));
 }
 
 @media (min-width: 900px) {
@@ -636,7 +638,8 @@ body {
   top: 0;
   left: 0;
   right: 0;
-  padding: var(--gap-2) var(--gap-3);
+  /* V20: Safe area for notch/Dynamic Island */
+  padding: calc(var(--gap-2) + env(safe-area-inset-top, 0px)) calc(var(--gap-3) + env(safe-area-inset-right, 0px)) var(--gap-2) calc(var(--gap-3) + env(safe-area-inset-left, 0px));
   pointer-events: none;
   z-index: 10;
 }
@@ -884,6 +887,10 @@ body {
   margin-bottom: var(--gap-1);
   cursor: pointer;
   transition: background 0.2s, transform 0.1s;
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  color: inherit;
 }
 .kr-daily-badge:hover,
 .kr-daily-badge:active {
@@ -956,7 +963,7 @@ body {
    ============================================ */
 .kr-toast {
   position: fixed;
-  bottom: var(--gap-3);
+  bottom: calc(var(--gap-3) + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   padding: var(--space-10) var(--gap-3);
@@ -1086,7 +1093,7 @@ body {
    FOOTER
    ============================================ */
 .kr-footer {
-  padding: var(--gap-3) 0;
+  padding: var(--gap-3) 0 calc(var(--gap-3) + env(safe-area-inset-bottom, 0px));
   text-align: center;
   font-size: var(--fs-xs);
   color: rgb(var(--text-muted));
@@ -1225,4 +1232,9 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+
+.kr-landing-classic-hint {
+  margin: 0 0 var(--gap-3);
 }

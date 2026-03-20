@@ -94,7 +94,8 @@
       onboardingShield: 3,
 
       // Rebound delay (ms) — time between ball landing and bounce signal
-      reboundDelayMs: 150,
+      // U5: Increased from 150 to 350 for satisfying Kitchen tension (the "aha" moment)
+      reboundDelayMs: 350,
 
       // Speed curve: speed(t) = base + accelPerSec * t
       speed: {
@@ -291,7 +292,8 @@
     // LIMITS — monetization by replayability
     // ============================================
     limits: {
-      freeRuns: 3
+      // U9: Increased from 3 to 5 — let players learn Kitchen before paywall
+      freeRuns: 5
     },
 
 
@@ -682,6 +684,8 @@
       dailyBadge: "Daily Challenge",
       dailyDateTemplate: "{month} {day}",
       dailyExplain: "One shared Classic sequence each day. Same run for everyone.",
+      classicUnlockHint: "Finish today's Daily to play Classic",
+      ctaPlayDaily: "Play Daily Challenge",
 
       ctaPlay: "Play Classic",
       ctaPlayAfterFirstRun: "Play Classic again",
