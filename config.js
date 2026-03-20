@@ -52,7 +52,7 @@
   window.KR_CONFIG = {
 
     // Product version (UI display, logs, SW cache key)
-    version: "35",
+    version: "35.2",
 
     // Storage schema version (localStorage).
     // Change ONLY if you accept a migration/wipe.
@@ -1533,8 +1533,8 @@
 
       reqStr(cfg.premiumCodeRegex, "KR_CONFIG.premiumCodeRegex");
       try { new RegExp(cfg.premiumCodeRegex); } catch (_) { fail("KR_CONFIG.premiumCodeRegex invalid"); }
-      reqCheckoutUrl(cfg.stripeEarlyPaymentUrl, "KR_CONFIG.stripeEarlyPaymentUrl");
-      reqCheckoutUrl(cfg.stripeStandardPaymentUrl, "KR_CONFIG.stripeStandardPaymentUrl");
+      reqStr(cfg.stripeEarlyPaymentUrl, "KR_CONFIG.stripeEarlyPaymentUrl");
+      reqStr(cfg.stripeStandardPaymentUrl, "KR_CONFIG.stripeStandardPaymentUrl");
     },
 
     applyBrandText: function () {
