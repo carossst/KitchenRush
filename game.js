@@ -109,13 +109,10 @@
     // V2: Ball type
     var ballType = pickBallType(config, elapsedSec, rng);
     var typeConfig = (cfg.ballTypes && cfg.ballTypes[ballType]) || null;
-    if (!typeConfig || typeof typeConfig !== "object") {
-      throw new Error("KR_CONFIG.game.ballTypes." + ballType + " missing");
-    }
-    var speedMul = requiredNumber(typeConfig.speedMultiplier, "KR_CONFIG.game.ballTypes." + ballType + ".speedMultiplier", { min: 0.01 });
-    var tapMul = requiredNumber(typeConfig.tapWindowMultiplier, "KR_CONFIG.game.ballTypes." + ballType + ".tapWindowMultiplier", { min: 0.01 });
-    var radiusMul = requiredNumber(typeConfig.radiusMultiplier, "KR_CONFIG.game.ballTypes." + ballType + ".radiusMultiplier", { min: 0.01 });
-    var forceKitchen = !!typeConfig.forceKitchen;
+    var speedMul = typeConfig ? requiredNumber(typeConfig.speedMultiplier, "KR_CONFIG.game.ballTypes." + ballType + ".speedMultiplier", { min: 0.01 }) : 1;
+    var tapMul = typeConfig ? requiredNumber(typeConfig.tapWindowMultiplier, "KR_CONFIG.game.ballTypes." + ballType + ".tapWindowMultiplier", { min: 0.01 }) : 1;
+    var radiusMul = typeConfig ? requiredNumber(typeConfig.radiusMultiplier, "KR_CONFIG.game.ballTypes." + ballType + ".radiusMultiplier", { min: 0.01 }) : 1;
+    var forceKitchen = !!(typeConfig && typeConfig.forceKitchen);
 
     // Kitchen line Y (fraction of canvas height)
     const kitchenLineYFrac = requiredNumber(canvasCfg.kitchenLineY, "KR_CONFIG.canvas.kitchenLineY", { min: 0.01, max: 0.99 });
@@ -544,7 +541,7 @@
           y: b.y,
           radius: b.radius,
           inKitchen: b.inKitchen,
-          ballType: b.ballType,
+          ballType: b.ballType || "normal",
           state: b.state,
           landingY: b.landingY,
           isFirstKitchen: !!b.isFirstKitchen,

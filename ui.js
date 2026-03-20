@@ -751,22 +751,13 @@ void function () {
   // Game loop (Canvas requestAnimationFrame)
   // ============================================
   UI.prototype._startGameLoop = function () {
-    this._lastFrameTs = 0;
+    this._lastFrameTs = performance.now();
     var self = this;
 
     function loop(ts) {
       if (self.state !== STATES.PLAYING) return;
-
-      var frameTs = Number(ts);
-      if (!Number.isFinite(frameTs)) frameTs = performance.now();
-
-      if (!Number.isFinite(self._lastFrameTs) || self._lastFrameTs <= 0) {
-        self._lastFrameTs = frameTs;
-      }
-
-      var rawDtMs = frameTs - self._lastFrameTs;
-      var dtMs = Math.max(0, Math.min(100, rawDtMs));
-      self._lastFrameTs = frameTs;
+      var dtMs = ts - self._lastFrameTs;
+      self._lastFrameTs = ts;
 
       var state = self.game.update(dtMs);
       self._renderCanvas(state);

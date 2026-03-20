@@ -51,7 +51,7 @@
   window.KR_CONFIG = {
 
     // Product version (UI display, logs, SW cache key)
-    version: "36.4",
+    version: "1",
 
     // Storage schema version (localStorage).
     // Change ONLY if you accept a migration/wipe.
@@ -129,15 +129,6 @@
       // Each type unlocks after N seconds elapsed, changing one parameter.
       // "normal" is always available. Types are additive, not replacing.
       ballTypes: {
-        // Normal: engine baseline. Kept explicit to avoid config/runtime drift.
-        normal: {
-          unlockAfterSec: 0,
-          weight: 1.0,
-          speedMultiplier: 1.0,
-          forceKitchen: false,
-          tapWindowMultiplier: 1.0,
-          radiusMultiplier: 1.0
-        },
         // Dink: slow, always Kitchen, large tap window (easy — but must wait)
         dink: {
           unlockAfterSec: 15,
@@ -684,31 +675,31 @@
 
     landing: {
       title: "Kitchen Rush",
-      tagline: "Stay out of the Kitchen.",
-      subtitle: "Tap anywhere to smash. Yellow ball? Wait for the bounce.",
+      tagline: "Fast pickleball arcade.",
+      subtitle: "Read the bounce, protect your lives, and hit clean balls early. On yellow Kitchen balls, wait for the bounce.",
 
       // Daily challenge badge (shown when daily.enabled)
       dailyBadge: "Daily Challenge",
       dailyDateTemplate: "{month} {day}",
-      dailyExplain: "Same balls for everyone today. Beat your friends.",
+      dailyExplain: "One shared Classic sequence each day. Same run for everyone.",
 
-      ctaPlay: "Play",
-      ctaPlayAfterFirstRun: "Play again",
+      ctaPlay: "Play Classic",
+      ctaPlayAfterFirstRun: "Play Classic again",
 
       bestLabel: "Best",
       bestAriaTemplate: "Personal best: {best} Smashes",
-      bestTargetTemplate: "Can you hit {target}?",
-      premiumLabel: "Unlimited court time",
+      bestTargetTemplate: "Can you reach {target}?",
+      premiumLabel: "Unlimited runs on this device",
 
       // Landing stats (spark bars)
       runsLabel: "Runs",
 
       // Lifetime counter (cumulative investment — Eyal Hook model)
-      lifetimeTemplate: "{total} lifetime Smashes",
+      lifetimeTemplate: "{total} lifetime hits",
 
       // Post-paywall block (LANDING after free runs exhausted)
-      postPaywallTitle: "Free runs are done.",
-      postPaywallBody: "Unlock unlimited court time on this device.",
+      postPaywallTitle: "Free runs are used up.",
+      postPaywallBody: "Unlock unlimited runs on this device.",
       postPaywallCta: "See options",
 
       // Post-paywall + secret bonus hint
@@ -752,7 +743,7 @@
 
       // Modal one-shot (first tap ever)
       modalTitle: "You found Sprint mode",
-      modalBody: "20 seconds on the clock. No lives. Every Kitchen fault costs 2 seconds. How many Smashes can you land?",
+      modalBody: "20 seconds on the clock. No lives. Every Kitchen fault costs 2 seconds. How many clean hits can you land?",
       modalCta: "Let's rally",
 
       // Teaser (free runs limit)
@@ -774,7 +765,7 @@
 
       // End screen
       endTitle: "Time!",
-      scoreLine: "{score} Smashes in 20s",
+      scoreLine: "{score} hits in 20s",
       bestLine: "Sprint best: {best}",
       freeRunsLeftLine: "{remaining}/{limit} free sprints left.",
       newBest: "New sprint record!",
@@ -792,7 +783,7 @@
     end: {
       title: "Game over",
 
-      scoreLine: "{score} Smashes",
+      scoreLine: "{score} hits",
       personalBestLine: "Personal best: {best}",
       bestStreakLine: "Best rally: {streak} in a row",
 
@@ -836,7 +827,7 @@
       trustTitle: "No surprises",
 
       valueBullets: [
-        "Unlimited court time — same rules, no cap",
+        "Unlimited runs — same rules, no cap",
         "Sprint mode — 20 seconds of pure banger energy",
         "Chase your personal best, run after run"
       ],
@@ -845,7 +836,7 @@
       bridgeBody: "Unlock unlimited court time on this device.",
 
       // Personal progress anchor (shown only if best > 0)
-      progressLineTemplate: "Your best: {best} Smashes. Keep climbing.",
+      progressLineTemplate: "Your best: {best} hits. Keep climbing.",
 
       trustLine: "One purchase. Lifetime access. No tricks.",
       trustBullets: [
@@ -931,7 +922,7 @@
       // V2: Share card labels (canvas image)
       cardSprintLabel: "Sprint Mode",
       cardDailyLabel: "Daily Challenge",
-      cardSmashesLabel: "Smashes",
+      cardSmashesLabel: "Hits",
       cardBestLabel: "Best: {best}",
       cardDateFormat: "{month} {day}, {year}",
       cardTagline: "kitchenrush.app"
@@ -940,7 +931,7 @@
 
     installPrompt: {
       title: "Install Kitchen Rush",
-      body: "Play instantly. No browser tabs. On iPhone: Share > Add to Home Screen.",
+      body: "Play instantly. Read the bounce, protect your lives, and jump back in fast. On iPhone: Share > Add to Home Screen.",
       ctaPrimary: "Add to home screen",
       ctaSecondary: "Later"
     },
@@ -1170,9 +1161,6 @@
       reqNum(game.kitchenRatio.max, "KR_CONFIG.game.kitchenRatio.max", { min: 0, max: 1 });
       if (game.ballTypes != null) {
         reqObj(game.ballTypes, "KR_CONFIG.game.ballTypes");
-        if (!Object.prototype.hasOwnProperty.call(game.ballTypes, "normal")) {
-          fail("KR_CONFIG.game.ballTypes.normal is required because the engine uses normal as the implicit baseline ball type");
-        }
         Object.keys(game.ballTypes).forEach((key) => {
           const bt = reqObj(game.ballTypes[key], "KR_CONFIG.game.ballTypes." + key);
           reqNum(bt.unlockAfterSec, "KR_CONFIG.game.ballTypes." + key + ".unlockAfterSec", { min: 0 });
