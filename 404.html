@@ -39,7 +39,53 @@
   <script src="./config.js"></script>
   <script src="./email.js"></script>
   <script src="./footer.js"></script>
-  <script src="./page-404.js"></script>
+
+  <script>
+    (function () {
+      function apply() {
+        try {
+          var w = window.KR_WORDING;
+          if (!w || typeof w !== "object") return;
+
+          function getByPath(root, path) {
+            var p = String(path || "").trim();
+            if (!p) return null;
+            var parts = p.split(".");
+            var cur = root;
+            for (var i = 0; i < parts.length; i++) {
+              if (!cur || typeof cur !== "object") return null;
+              cur = cur[parts[i]];
+            }
+            return (typeof cur === "string") ? cur : null;
+          }
+
+          document.querySelectorAll("[data-kr-wording]").forEach(function (el) {
+            var key = el ? el.getAttribute("data-kr-wording") : "";
+            var text = getByPath(w, key);
+            if (typeof text === "string") el.textContent = text;
+          });
+
+          var brand = w.brand && w.brand.creatorLine;
+          if (brand) {
+            document.querySelectorAll('[data-kr-brand="creatorLine"]')
+              .forEach(function (el) { if (el) el.textContent = brand; });
+          }
+
+          var version = String((window.KR_CONFIG && window.KR_CONFIG.version) || "").trim();
+          if (version) {
+            document.querySelectorAll("[data-kr-version]")
+              .forEach(function (el) { if (el) el.textContent = "v" + version; });
+          }
+        } catch (_) { }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", apply);
+      } else {
+        apply();
+      }
+    })();
+  </script>
 </body>
 
 </html>

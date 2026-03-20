@@ -1,6 +1,6 @@
 // audio.js v1.0 - Kitchen Rush
 // Procedural Web Audio API synthesis — zero external audio files.
-// Sounds: hit (pickleball pop), fault, bounce, miss, gameOver, sprintBuzzer, milestone.
+// Sounds: smash (pickleball pop), fault, bounce, miss, gameOver, sprintBuzzer, milestone.
 
 (() => {
   "use strict";
@@ -14,13 +14,6 @@
       _ctx = new (window.AudioContext || window.webkitAudioContext)();
     } catch (_) { return null; }
     return _ctx;
-  }
-
-
-  function requireFiniteNumber(value, name) {
-    var n = Number(value);
-    if (!Number.isFinite(n)) throw new Error(name + " must be finite");
-    return n;
   }
 
   // Unlock AudioContext on first user gesture (iOS/Chrome requirement)
@@ -46,17 +39,15 @@
   // ============================================
 
   /**
-   * Hit — realistic pickleball "pop/crack" (65-75dB feel)
+   * Smash — realistic pickleball "pop/crack" (65-75dB feel)
    * Layered: sharp noise crack + midrange resonant pop + bass thump
    * The signature pop-pop-pop sound of a hard paddle hitting plastic ball
    */
-  function playHit(volume, pitch) {
+  function playSmash(volume, pitch) {
     var ctx = getCtx();
     if (!ctx) return;
-    var vol = Number(volume);
-    var p = Number(pitch);
-    if (!Number.isFinite(vol)) throw new Error("KR_Audio.playHit: volume must be finite");
-    if (!Number.isFinite(p)) throw new Error("KR_Audio.playHit: pitch must be finite");
+    var vol = Number(volume) || 0.6;
+    var p = Number(pitch) || 1;
     var t = ctx.currentTime;
 
     // Layer 1: Sharp noise crack (the "hit" transient — 15ms, very short)
@@ -137,8 +128,7 @@
   function playFault(volume) {
     var ctx = getCtx();
     if (!ctx) return;
-    var vol = Number(volume);
-    if (!Number.isFinite(vol)) throw new Error("KR_Audio.playFault: volume must be finite");
+    var vol = Number(volume) || 0.4;
     var t = ctx.currentTime;
 
     // Low thud
@@ -169,8 +159,7 @@
   function playBounce(volume) {
     var ctx = getCtx();
     if (!ctx) return;
-    var vol = Number(volume);
-    if (!Number.isFinite(vol)) throw new Error("KR_Audio.playBounce: volume must be finite");
+    var vol = Number(volume) || 0.3;
     var t = ctx.currentTime;
 
     var osc = ctx.createOscillator();
@@ -207,8 +196,7 @@
   function playMiss(volume) {
     var ctx = getCtx();
     if (!ctx) return;
-    var vol = Number(volume);
-    if (!Number.isFinite(vol)) throw new Error("KR_Audio.playMiss: volume must be finite");
+    var vol = Number(volume) || 0.25;
     var t = ctx.currentTime;
 
     var osc = ctx.createOscillator();
@@ -232,7 +220,7 @@
   function playGameOver(volume) {
     var ctx = getCtx();
     if (!ctx) return;
-    var vol = requireFiniteNumber(volume, "KR_Audio.playGameOver: volume");
+    var vol = Number(volume) || 0.5;
     var t = ctx.currentTime;
 
     [220, 165].forEach(function (freq, idx) {
@@ -260,7 +248,7 @@
   function playSprintBuzzer(volume) {
     var ctx = getCtx();
     if (!ctx) return;
-    var vol = requireFiniteNumber(volume, "KR_Audio.playSprintBuzzer: volume");
+    var vol = Number(volume) || 0.45;
     var t = ctx.currentTime;
 
     // Two short beeps
@@ -294,7 +282,7 @@
   function playMilestone(volume) {
     var ctx = getCtx();
     if (!ctx) return;
-    var vol = requireFiniteNumber(volume, "KR_Audio.playMilestone: volume");
+    var vol = Number(volume) || 0.35;
     var t = ctx.currentTime;
 
     [523, 659, 784].forEach(function (freq, idx) {
@@ -320,8 +308,7 @@
   function playNewBest(volume) {
     var ctx = getCtx();
     if (!ctx) return;
-    var vol = Number(volume);
-    if (!Number.isFinite(vol)) throw new Error("KR_Audio.playFault: volume must be finite");
+    var vol = Number(volume) || 0.4;
     var t = ctx.currentTime;
 
     [523, 659, 784, 1047].forEach(function (freq, idx) {
@@ -348,9 +335,9 @@
   window.KR_Audio = {
     unlock: unlock,
     play: function (type, volume, pitch) {
-      var p = requireFiniteNumber(pitch, "KR_Audio.play: pitch");
+      var p = Number(pitch) || 1;
       switch (type) {
-        case "hit":        playHit(volume, p); break;
+        case "smash":        playSmash(volume, p); break;
         case "fault":        playFault(volume); break;
         case "bounce":       playBounce(volume); break;
         case "miss":         playMiss(volume); break;

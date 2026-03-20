@@ -1,12 +1,11 @@
 <!DOCTYPE html>
-<html lang="en" data-kr-page="success">
+<html lang="en">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Payment successful. Your Kitchen Rush activation code is ready.">
+  <meta name="description" content="Payment successful. Your Kitchen Rush code is ready.">
   <meta name="robots" content="noindex, nofollow">
-  <link rel="canonical" href="https://www.bonjourpickleball.fr/success.html">
 
   <!-- PWA & UI (match index.html) -->
   <meta name="theme-color" content="#1a2332">
@@ -20,7 +19,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/kr-icon-192x192.png">
   <link rel="apple-touch-icon" href="./icons/kr-icon-192x192.png">
 
-  <title>Activation Code Ready - Kitchen Rush</title>
+  <title>Premium Access Ready - Kitchen Rush</title>
 
   <!-- Styles -->
   <link rel="preload" href="./style.css" as="style">
@@ -34,15 +33,15 @@
 
         <!-- Header (branding) -->
         <div class="kr-card kr-card--hero">
-          <div class="kr-row kr-row--spaced kr-row--align-center kr-gap-2">
+          <div class="kr-row kr-row--spaced" style="align-items:center; gap:var(--gap-2)">
             <a class="kr-branding" href="./index.html" id="kr-success-branding" aria-label="">
-              <img id="kr-success-logo" src="" alt="" class="kr-branding-logo kr-hidden-inline" />
+              <img id="kr-success-logo" src="" alt="" class="kr-branding-logo" style="display:none" />
               <span id="kr-success-name" class="kr-branding-name"></span>
             </a>
             <div class="kr-badge">THIS DEVICE</div>
           </div>
 
-          <div class="kr-mt-3">
+          <div style="margin-top:var(--space-10)">
             <h1 class="kr-h1" data-kr-wording="success.title"></h1>
             <p class="kr-sub" data-kr-wording="success.subtitle"></p>
           </div>
@@ -58,18 +57,19 @@
             </button>
           </div>
 
-          <div class="kr-code kr-mt-4" id="code">KR-XXXX-XXXX</div>
+          <div class="kr-code" id="code" style="margin-top:var(--gap-2)">KR-XXXX-XXXX</div>
 
-          <div id="copy-status" class="kr-live kr-hidden kr-mt-3" role="status" aria-live="polite">
+          <div id="copy-status" class="kr-live kr-hidden" role="status" aria-live="polite"
+            style="margin-top:var(--space-10)">
           </div>
 
           <div class="kr-divider"></div>
 
-          <p class="kr-muted kr-mt-0">
+          <p class="kr-muted" style="margin-top:0">
             <span data-kr-wording="success.txtSaveLine"></span>
             <span data-kr-wording="success.txtNoRecoverLine"></span>
           </p>
-          <p class="kr-muted kr-mt-2" data-kr-wording="success.clearDataWarning"></p>
+          <p class="kr-muted" style="margin-top:var(--space-6)" data-kr-wording="success.clearDataWarning"></p>
         </div>
 
         <!-- Benefits -->
@@ -103,13 +103,13 @@
         </div>
 
         <!-- Footer note -->
-        <p class="kr-muted kr-text-center kr-mt-5" data-kr-wording="success.thankYouLine">
+        <p class="kr-muted" style="text-align:center; margin-top:var(--gap-3)" data-kr-wording="success.thankYouLine">
         </p>
 
         <!-- Support (obfuscated) -->
-        <p class="kr-muted kr-text-center kr-mt-4 kr-fs-xs">
+        <p class="kr-muted" style="text-align:center; margin-top:var(--gap-2); font-size:var(--fs-xs)">
           <span data-kr-wording="success.supportLabel"></span>
-          <a href="#" data-user="contact" data-domain="bonjourpickleball.fr">Contact Bonjour Pickleball</a>
+          <a href="#" data-user="bonjour" data-domain="kitchenrush.app">Contact us</a>
         </p>
 
       </div>
@@ -122,7 +122,219 @@
   <script src="./config.js"></script>
   <script src="./email.js"></script>
   <script src="./footer.js"></script>
-  <script src="./success.js"></script>
+
+  <script>
+    // success.js inline - Kitchen Rush
+    (() => {
+      const cfg = window.KR_CONFIG || {};
+      const STORAGE_KEY = String(
+        (cfg.storage && cfg.storage.vanityCodeStorageKey) || ""
+      ).trim();
+
+      const COUNTER_KEY = String(
+        (cfg.storage && cfg.storage.storageKey) || ""
+      ).trim();
+
+      // Fail-closed: if keys not configured, page renders but code generation is blocked
+      if (!STORAGE_KEY || !COUNTER_KEY) return;
+
+      function rand4() {
+        return Math.random()
+          .toString(36)
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "")
+          .slice(0, 4)
+          .padEnd(4, "X");
+      }
+
+      function generateCode() {
+        return "KR-" + rand4() + "-" + rand4();
+      }
+
+      function getStoredCodeStrict() {
+        const rawRe = String(cfg.premiumCodeRegex || "").trim();
+        if (!rawRe) return "";
+
+        let re = null;
+        try { re = new RegExp(rawRe); } catch (_) { re = null; }
+        if (!re) return "";
+
+        let code = "";
+        try { code = String(localStorage.getItem(STORAGE_KEY) || "").trim(); } catch (_) { return ""; }
+        if (!code || !re.test(code)) return "";
+        return code;
+      }
+
+      function markCodeGeneratedBestEffort() {
+        try {
+          const raw = localStorage.getItem(COUNTER_KEY);
+          const data = raw ? JSON.parse(raw) : null;
+          if (!data || typeof data !== "object") return;
+          data.counters = data.counters || {};
+          data.counters.codeGenerated = Number(data.counters.codeGenerated || 0) + 1;
+          data.updatedAt = Date.now();
+          localStorage.setItem(COUNTER_KEY, JSON.stringify(data));
+        } catch (_) { }
+      }
+
+      function renderCode(code) {
+        const codeEl = document.getElementById("code");
+        if (codeEl) codeEl.textContent = code;
+      }
+
+      function showStatus(msg) {
+        const statusEl = document.getElementById("copy-status");
+        if (!statusEl) return;
+        const dur = Number(cfg?.ui?.toast?.default?.durationMs);
+        if (!Number.isFinite(dur) || dur < 600 || dur > 4000) return;
+        statusEl.textContent = msg;
+        statusEl.classList.remove("kr-hidden");
+        setTimeout(() => { statusEl.classList.add("kr-hidden"); }, Math.floor(dur));
+      }
+
+      function fallbackCopy(text) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.top = "-1000px";
+        document.body.appendChild(ta);
+        ta.select();
+        let ok = false;
+        try { ok = document.execCommand("copy"); } catch (_) { ok = false; }
+        document.body.removeChild(ta);
+        return ok;
+      }
+
+      async function copyCode() {
+        const codeEl = document.getElementById("code");
+        const code = codeEl ? codeEl.textContent.trim() : "";
+        if (!code) return;
+        const copiedText = window.KR_WORDING?.system?.copied;
+        const failedText = window.KR_WORDING?.system?.copyFailed;
+        if (!copiedText || !failedText) return;
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(code);
+            showStatus(copiedText);
+            return;
+          }
+        } catch (_) { }
+        if (fallbackCopy(code)) { showStatus(copiedText); } else { showStatus(failedText); }
+      }
+
+      function downloadCodeTxt() {
+        const codeEl = document.getElementById("code");
+        const code = codeEl ? codeEl.textContent.trim() : "";
+        if (!code) return;
+        const downloadedText = window.KR_WORDING?.system?.downloaded;
+        if (!downloadedText) return;
+        const w = window.KR_WORDING?.success;
+        if (!w?.txtTitle || !w?.txtSaveLine || !w?.txtNoRecoverLine) return;
+        const content = [w.txtTitle, "", code, "", w.txtSaveLine, w.txtNoRecoverLine].join("\n");
+        try {
+          const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+          if (!window.URL || typeof URL.createObjectURL !== "function") { copyCode(); return; }
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "kitchen-rush-code-" + code + ".txt";
+          a.style.display = "none";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) { } }, 0);
+          showStatus(downloadedText);
+        } catch (_) { copyCode(); }
+      }
+
+      function applyWording() {
+        function getByPath(root, path) {
+          const p = String(path || "").trim();
+          if (!p) return null;
+          const parts = p.split(".");
+          let cur = root;
+          for (const k of parts) {
+            if (!cur || typeof cur !== "object") return null;
+            cur = cur[k];
+          }
+          return (typeof cur === "string") ? cur : null;
+        }
+        try {
+          const w = window.KR_WORDING;
+          if (!w || typeof w !== "object") return;
+          document.querySelectorAll("[data-kr-wording]").forEach((el) => {
+            const key = el ? el.getAttribute("data-kr-wording") : "";
+            const text = getByPath(w, key);
+            if (typeof text === "string") el.textContent = text;
+          });
+        } catch (_) { }
+      }
+
+      function applyBrand() {
+        try {
+          const brand = window.KR_WORDING?.brand?.creatorLine;
+          if (!brand) return;
+          document.querySelectorAll('[data-kr-brand="creatorLine"]')
+            .forEach((el) => { if (el) el.textContent = brand; });
+        } catch (_) { }
+      }
+
+      function applySuccessBranding() {
+        try {
+          const logoUrl = String(cfg?.identity?.uiLogoUrl || "").trim();
+          const appName = String(cfg?.identity?.appName || "").trim();
+          const img = document.getElementById("kr-success-logo");
+          const name = document.getElementById("kr-success-name");
+          const link = document.getElementById("kr-success-branding");
+          if (!img || !name || !link) return;
+          if (!appName) { name.textContent = ""; link.setAttribute("aria-label", ""); }
+          else { name.textContent = appName; link.setAttribute("aria-label", appName); }
+          if (!logoUrl) { img.style.display = "none"; img.removeAttribute("src"); img.setAttribute("alt", ""); return; }
+          img.src = logoUrl; img.setAttribute("alt", appName || ""); img.style.display = "";
+        } catch (_) { }
+      }
+
+      function applyVersion() {
+        try {
+          const version = String(cfg?.version || "").trim();
+          const prefix = String(window.KR_WORDING?.system?.versionPrefix || "").trim();
+          const el = document.querySelector(".kr-footer-version");
+          if (el) el.textContent = version ? (prefix + version) : "";
+        } catch (_) { }
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        const code = getStoredCodeStrict();
+        if (!code) {
+          const codeEl = document.getElementById("code");
+          if (codeEl) codeEl.textContent = "";
+          return;
+        }
+
+        renderCode(code);
+        markCodeGeneratedBestEffort();
+
+        applyWording();
+        applyBrand();
+        applySuccessBranding();
+        applyVersion();
+
+        const copyBtn = document.getElementById("copy-btn");
+        const copyAgain = document.getElementById("copy-again");
+        const downloadBtn = document.getElementById("download-code");
+
+        if (copyBtn) copyBtn.addEventListener("click", copyCode);
+        if (copyAgain) copyAgain.addEventListener("click", copyCode);
+        if (downloadBtn) downloadBtn.addEventListener("click", downloadCodeTxt);
+
+        // Obfuscated email links
+        if (window.KR_Email && typeof window.KR_Email.initEmailLinks === "function") {
+          window.KR_Email.initEmailLinks();
+        }
+      });
+    })();
+  </script>
 </body>
 
 </html>

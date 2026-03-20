@@ -2,7 +2,7 @@
   "name": "Kitchen Rush",
   "short_name": "Kitchen Rush",
   "id": "./",
-  "description": "A mobile-first arcade game of reflexes, precision, and quick court reads inspired by pickleball.",
+  "description": "A fast arcade game inspired by pickleball. Smash balls, stay out of the Kitchen.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
