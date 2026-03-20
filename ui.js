@@ -645,6 +645,8 @@ void function () {
 
     this._runtime.tapLocked = false;
     this._runtime.finishingRun = false;
+    this._runtime.runMode = mode;
+    this._runtime._lastBallState = {};
 
     // Start engine
     var isDaily = !!(this._runtime.currentRunIsDaily);
@@ -682,7 +684,6 @@ void function () {
       line1 = sw.startOverlayLine1 || "";
       line2 = sw.startOverlayLine2 || "";
 
-      // Sprint free runs remaining
       if (!premium) {
         var spUsed = this._store("getSprintFreeRunsUsed") || 0;
         var spLimit = Number(cfg?.sprint?.freeRunsLimit);
@@ -700,31 +701,63 @@ void function () {
       else if (runType === "UNLIMITED") line1 = uw.startRunTypeUnlimited || "";
     }
 
-    if (!line1 && !line2) return;
-
     var node = el("kr-run-start-overlay");
     if (!node) return;
 
-    // "Tap anywhere to start" hint (Sprint only)
-    var tapHint = "";
-    if (mode === MODES.SPRINT) {
-      var spTap = String((w?.sprint || {}).startOverlayTapAnywhere || "").trim();
-      if (spTap) tapHint = '<p class="kr-run-start-hint kr-muted">' + escapeHtml(spTap) + '</p>';
+    // V3: Controls hint — detect device
+    var isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+    var controlsHtml = "";
+    if (isTouchDevice) {
+      controlsHtml =
+        '<div class="kr-start-controls">' +
+          '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">Left half</span> <span class="kr-start-ctrl-label">Drag to move</span></div>' +
+          '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">Right half</span> <span class="kr-start-ctrl-label">Tap for timing bonus</span></div>' +
+        '</div>';
+    } else {
+      controlsHtml =
+        '<div class="kr-start-controls">' +
+          '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">\u2190\u2191\u2192\u2193</span> <span class="kr-start-ctrl-label">Move (2D)</span></div>' +
+          '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">Space</span> <span class="kr-start-ctrl-label">Timing bonus</span></div>' +
+        '</div>' +
+        '<p class="kr-run-start-hint kr-muted">Ball auto-returns when you\'re close. Time your hit for double points!</p>';
+    }
+
+    var kitchenHint = '<p class="kr-run-start-hint kr-muted">Kitchen zone \u2014 wait for bounce before hitting</p>';
+
+    // V3: Daily modifier banner
+    var dailyHtml = "";
+    if (this._runtime.currentRunIsDaily && window.KR_Game && window.KR_Game.getDailyModifier) {
+      var dm = window.KR_Game.getDailyModifier();
+      if (dm) {
+        var dmOvLabel = String(dm.label || "").trim();
+        var dmOvDesc = String(dm.desc || "").trim();
+        if (dmOvLabel) {
+          dailyHtml = '<div class="kr-start-daily">' +
+            '<span class="kr-start-daily-icon">\uD83C\uDFC6</span> ' +
+            '<strong>' + escapeHtml(dmOvLabel) + '</strong><br>' +
+            (dmOvDesc ? '<span class="kr-muted">' + escapeHtml(dmOvDesc) + '</span>' : '') +
+          '</div>';
+        }
+      }
     }
 
     node.innerHTML =
       '<div class="kr-run-start-content">' +
-        '<p class="kr-run-start-line1">' + escapeHtml(line1) + '</p>' +
-        (line2 ? '<p class="kr-run-start-line2">' + escapeHtml(line2) + '</p>' : "") +
-        tapHint +
+        dailyHtml +
+        (line1 ? '<p class="kr-run-start-line1">' + escapeHtml(line1) + '</p>' : '') +
+        (line2 ? '<p class="kr-run-start-line2">' + escapeHtml(line2) + '</p>' : '') +
+        controlsHtml +
+        kitchenHint +
+        '<p class="kr-run-start-hint kr-muted">Tap to start</p>' +
       '</div>';
     node.classList.add("kr-run-start-overlay--visible");
 
-    // Auto-dismiss
+    // Auto-dismiss (longer to read controls: 4s)
+    var overlayMs = Math.max(ms, 4000);
     if (this._runtime.runStartOverlayTimerId) clearTimeout(this._runtime.runStartOverlayTimerId);
     this._runtime.runStartOverlayTimerId = setTimeout(function () {
       node.classList.remove("kr-run-start-overlay--visible");
-    }, ms);
+    }, overlayMs);
 
     // Tap to dismiss early
     node.addEventListener("pointerdown", function dismiss() {
@@ -790,7 +823,7 @@ void function () {
 
       // Feed input to game engine
       var inp = self._runtime.inputState || {};
-      self.game.setInput(inp.left, inp.right, inp.hit);
+      self.game.setInput(inp.left, inp.right, inp.up, inp.down, inp.hit);
 
       var state = self.game.update(dtMs);
       self._renderCanvasV2(state);
@@ -832,6 +865,7 @@ void function () {
 
     var netYpx = court.netY * h;
     var kitchenLineYpx = court.kitchenLineY * h;
+    var baselineYpx = (court.baselineY || 0.82) * h;
     var playerYpx = court.playerY * h;
     var controlsYpx = court.controlsY * h;
     var opponentYpx = court.opponentY * h;
@@ -861,7 +895,7 @@ void function () {
       ctx.fillStyle = colors.kitchenLabelColor;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("KITCHEN", w / 2, netYpx + (kitchenLineYpx - netYpx) / 2);
+      var _kitchenLabel = String((this.wording && this.wording.ui && this.wording.ui.kitchenLabel) || "KITCHEN"); ctx.fillText(_kitchenLabel, w / 2, netYpx + (kitchenLineYpx - netYpx) / 2);
     }
 
     // Kitchen line
@@ -885,7 +919,7 @@ void function () {
     ctx.fillRect(0, netYpx - 8, 4, 16);
     ctx.fillRect(w - 4, netYpx - 8, 4, 16);
     // Net mesh
-    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.strokeStyle = colors.netMesh || "rgba(255,255,255,0.15)";
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 6]);
     for (var ni = 1; ni <= 3; ni++) {
@@ -896,14 +930,27 @@ void function () {
     }
     ctx.setLineDash([]);
 
-    // Court lines
+    // Court lines (USAP-faithful layout)
     if (colors.courtLines) {
       ctx.strokeStyle = colors.courtLines;
       ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(w / 2, kitchenLineYpx); ctx.lineTo(w / 2, h); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(w * 0.05, netYpx); ctx.lineTo(w * 0.05, h); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(w * 0.95, netYpx); ctx.lineTo(w * 0.95, h); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(w * 0.05, h * 0.95); ctx.lineTo(w * 0.95, h * 0.95); ctx.stroke();
+      // Centerline (NVZ line to baseline)
+      ctx.beginPath(); ctx.moveTo(w / 2, kitchenLineYpx); ctx.lineTo(w / 2, baselineYpx); ctx.stroke();
+      // Sidelines
+      ctx.beginPath(); ctx.moveTo(w * 0.08, netYpx); ctx.lineTo(w * 0.08, baselineYpx); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(w * 0.92, netYpx); ctx.lineTo(w * 0.92, baselineYpx); ctx.stroke();
+      // Baseline
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(w * 0.08, baselineYpx); ctx.lineTo(w * 0.92, baselineYpx); ctx.stroke();
+      // Opponent's side: NVZ line (mirrored, subtle)
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.4;
+      var oppNvzY = netYpx - (kitchenLineYpx - netYpx) * 0.4; // compressed perspective
+      ctx.beginPath(); ctx.moveTo(w * 0.15, oppNvzY); ctx.lineTo(w * 0.85, oppNvzY); ctx.stroke();
+      // Opponent's baseline (far, very compressed)
+      ctx.globalAlpha = 0.2;
+      ctx.beginPath(); ctx.moveTo(w * 0.2, opponentYpx * 0.5); ctx.lineTo(w * 0.8, opponentYpx * 0.5); ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
     // Opponent silhouette
@@ -919,39 +966,64 @@ void function () {
     // Ball
     var ball = state.ball;
     if (ball) {
-      this._renderBallV2(ctx, ball, colors, w, h, gt, n, juice);
+      this._renderBallV2(ctx, ball, colors, w, h, gt, n, juice, state.rallyCount || 0);
     }
 
-    // Player
+    // Player (V3: 2D position from game state)
     var playerX = state.playerX || w / 2;
+    var playerYState = state.playerY || (court.playerY * h);
     var pState = state.playerState || "idle";
-    this._renderPlayerV2(ctx, playerX, playerYpx, pState, colors, w, h, n);
+    this._renderPlayerV2(ctx, playerX, playerYState, pState, colors, w, h, n);
 
-    // Controls zone
-    ctx.fillStyle = "rgba(255,255,255,0.03)";
+    // V3 Controls zone: left half = MOVE, right half = HIT (timing bonus)
+    ctx.fillStyle = colors.controlZoneBg || "rgba(255,255,255,0.03)";
     ctx.fillRect(0, controlsYpx, w, h - controlsYpx);
-    var zoneW = w * 0.4;
-    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    // Divider
+    ctx.strokeStyle = colors.controlZoneBorder || "rgba(255,255,255,0.08)";
     ctx.lineWidth = 1;
-    ctx.strokeRect(4, controlsYpx + 4, zoneW - 8, h - controlsYpx - 8);
-    ctx.strokeRect(w - zoneW + 4, controlsYpx + 4, zoneW - 8, h - controlsYpx - 8);
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
-    ctx.strokeRect(zoneW + 4, controlsYpx + 4, w * 0.2 - 8, h - controlsYpx - 8);
-    ctx.font = Math.round(w * 0.03) + "px system-ui, sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.2)";
+    ctx.strokeRect(4, controlsYpx + 4, w / 2 - 8, h - controlsYpx - 8);
+    ctx.strokeStyle = colors.controlZoneHitBorder || "rgba(255,255,255,0.12)";
+    ctx.strokeRect(w / 2 + 4, controlsYpx + 4, w / 2 - 8, h - controlsYpx - 8);
+    ctx.font = Math.round(w * 0.025) + "px system-ui, sans-serif";
+    ctx.fillStyle = colors.controlZoneText || "rgba(255,255,255,0.2)";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     var ctrlMidY = controlsYpx + (h - controlsYpx) / 2;
-    ctx.fillText("\u25C4", zoneW / 2, ctrlMidY);
-    ctx.fillText("\u25BA", w - zoneW / 2, ctrlMidY);
-    ctx.fillText("HIT", w / 2, ctrlMidY);
+    var _uw = (this.wording && this.wording.ui) || {};
+    ctx.fillText(String(_uw.controlMoveLabel || "MOVE"), w / 4, ctrlMidY);
+    ctx.fillText(String(_uw.controlTimingLabel || "HIT"), w * 3 / 4, ctrlMidY);
+
+    // V3: Timing bonus indicator
+    if (state.lastTimingBonus > 0.5) {
+      var tbAlpha = Math.max(0, state.lastTimingBonus - 0.3);
+      ctx.fillStyle = "rgba(" + (colors.smashFlashColor || "6,214,160") + "," + tbAlpha.toFixed(2) + ")";
+      ctx.font = "bold " + Math.round(w * 0.035) + "px system-ui, sans-serif";
+      var tbText = state.lastTimingBonus > 0.7
+        ? String((_uw && _uw.timingPerfectLabel) || "PERFECT!")
+        : String((_uw && _uw.timingNiceLabel) || "NICE!");
+      ctx.fillText(tbText, w * 3 / 4, ctrlMidY - 20);
+    }
+
+    // V3: Daily modifier banner
+    if (state.dailyModifier) {
+      var dmLabel = String(state.dailyModifier.label || "").trim();
+      var dmDesc = String(state.dailyModifier.desc || "").trim();
+      if (dmLabel) {
+        ctx.fillStyle = "rgba(255,215,0,0.15)";
+        ctx.fillRect(0, 0, w, Math.round(h * 0.04));
+        ctx.font = "bold " + Math.round(w * 0.025) + "px system-ui, sans-serif";
+        ctx.fillStyle = "rgba(255,215,0,0.8)";
+        ctx.textAlign = "center";
+        ctx.fillText(dmLabel + (dmDesc ? (" \u2014 " + dmDesc) : ""), w / 2, h * 0.025);
+      }
+    }
 
     // Juice: smash flash
     if (juice.flashType === "smash" && juice.flashUntil > n) {
       var smashFlashDur = requiredConfigNumber(this.config?.juice?.smashFlashMs, "juice.smashFlashMs", { min: 1, integer: true });
       var flashP = 1 - (juice.flashUntil - n) / smashFlashDur;
       var flashA = Math.max(0, 0.8 * (1 - flashP));
-      ctx.fillStyle = "rgba(6,214,160," + flashA.toFixed(2) + ")";
+      ctx.fillStyle = "rgba(" + (colors.smashFlashColor || "6,214,160") + "," + flashA.toFixed(2) + ")";
       ctx.beginPath();
       ctx.arc(juice.flashX, juice.flashY, 20 + flashP * 40, 0, Math.PI * 2);
       ctx.fill();
@@ -963,8 +1035,9 @@ void function () {
       var faultP = 1 - (juice.flashUntil - n) / faultFlashDur;
       var faultA = Math.max(0, 0.3 * (1 - faultP));
       var vigGrad = ctx.createRadialGradient(w / 2, h / 2, w * 0.3, w / 2, h / 2, w * 0.8);
-      vigGrad.addColorStop(0, "rgba(239,71,111,0)");
-      vigGrad.addColorStop(1, "rgba(239,71,111," + faultA.toFixed(2) + ")");
+      var _fvc = colors.faultVignetteColor || "239,71,111";
+      vigGrad.addColorStop(0, "rgba(" + _fvc + ",0)");
+      vigGrad.addColorStop(1, "rgba(" + _fvc + "," + faultA.toFixed(2) + ")");
       ctx.fillStyle = vigGrad;
       ctx.fillRect(0, 0, w, h);
     }
@@ -981,7 +1054,7 @@ void function () {
         ctx.font = "bold " + Math.round(22 + (1 - popT) * 6) + "px system-ui, sans-serif";
         ctx.fillStyle = colors.scorePopup || "#06d6a0";
         ctx.textAlign = "center";
-        ctx.fillText("+1", popup.x, popup.y - popT * 50);
+        ctx.fillText(String((_uw && _uw.scoreGainedDeltaText) || "+1"), popup.x, popup.y - popT * 50);
         ctx.globalAlpha = 1;
       }
     }
@@ -991,7 +1064,7 @@ void function () {
       var penP = 1 - (juice.sprintPenaltyUntil - n) / 400;
       var penA = Math.max(0, 0.9 * (1 - penP));
       ctx.font = "bold 28px system-ui, sans-serif";
-      ctx.fillStyle = "rgba(239,71,111," + penA.toFixed(2) + ")";
+      ctx.fillStyle = "rgba(" + (colors.faultVignetteColor || "239,71,111") + "," + penA.toFixed(2) + ")";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       var penText = String(this.wording?.sprint?.penaltyFlash || "").trim();
@@ -1005,15 +1078,36 @@ void function () {
   // ============================================
   // V2: Ball renderer
   // ============================================
-  UI.prototype._renderBallV2 = function (ctx, b, colors, w, h, gt, n, juice) {
+  UI.prototype._renderBallV2 = function (ctx, b, colors, w, h, gt, n, juice, rallyCount) {
     var BALL_STATES = window.KR_Game.BALL_STATES;
+    var _uw2 = (this.wording && this.wording.ui) || {};
 
-    // Shadow at bounce point
+    // V3: Show "MUST BOUNCE" indicator when double bounce rule applies
+    var mustBounce = (rallyCount < 2) || b.inKitchen;
+    if (mustBounce && b.state === BALL_STATES.TRAVELING) {
+      var mbAlpha = 0.4 + 0.2 * Math.sin(gt / 150);
+      ctx.globalAlpha = mbAlpha;
+      ctx.font = "bold " + Math.round(w * 0.022) + "px system-ui, sans-serif";
+      ctx.fillStyle = colors.waitIndicator || "#ff6b4a";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      var mbLabel = (rallyCount < 2)
+        ? String((_uw2 && _uw2.doubleBounceLabel) || "LET IT BOUNCE")
+        : String((_uw2 && _uw2.waitLabel) || "WAIT");
+      ctx.fillText(mbLabel, b.targetX, b.targetY + b.radius + 4);
+      ctx.globalAlpha = 1;
+    }
+
+
+    // Shadow at bounce point (grows as ball approaches)
     if (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.BOUNCED) {
-      ctx.globalAlpha = 0.25;
+      var shadowProgress = (b.state === BALL_STATES.TRAVELING) ? Math.min(1, Math.max(0, (gt - b.spawnedAt) / b.travelMs)) : 1;
+      var shadowAlpha = 0.1 + shadowProgress * 0.2;
+      var shadowW = b.radius * (0.4 + shadowProgress * 0.6);
+      ctx.globalAlpha = shadowAlpha;
       ctx.fillStyle = colors.shadow || "#000";
       ctx.beginPath();
-      ctx.ellipse(b.targetX, b.shadowY + b.radius * 0.3, b.radius * 0.8, b.radius * 0.3, 0, 0, Math.PI * 2);
+      ctx.ellipse(b.targetX, b.shadowY + b.radius * 0.3, shadowW, shadowW * 0.35, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
     }
@@ -1034,46 +1128,94 @@ void function () {
         ctx.fillStyle = colors.waitIndicator || "#ff6b4a";
         ctx.textAlign = "center";
         ctx.textBaseline = "bottom";
-        ctx.fillText("WAIT", b.x, b.y - b.radius - 6);
+        ctx.fillText(String((_uw2 && _uw2.waitLabel) || "WAIT"), b.x, b.y - b.radius - 6);
         ctx.globalAlpha = 1;
-        // Reset fill
         if (bt === "dink" && colors.ballDink) ctx.fillStyle = colors.ballDink;
         else if (bt === "lob" && colors.ballLob) ctx.fillStyle = colors.ballLob;
         else if (bt === "fast" && colors.ballFast) ctx.fillStyle = colors.ballFast;
         else ctx.fillStyle = colors.ballDefault || "#ffd60a";
       }
 
-      // Bounce flash ring
+      // V3: BOUNCE IMPACT — big visible feedback
       if (b.state === BALL_STATES.BOUNCED && b.bouncedAt > 0) {
         var sinceBounce = gt - b.bouncedAt;
+
+        // 1) Impact shockwave (expands from bounce point)
+        if (sinceBounce < 400) {
+          var shockT = sinceBounce / 400;
+          var shockAlpha = Math.max(0, 0.8 * (1 - shockT));
+          ctx.strokeStyle = "rgba(255,255,255," + shockAlpha.toFixed(2) + ")";
+          ctx.lineWidth = Math.max(0.5, 3 - shockT * 2);
+          ctx.beginPath();
+          ctx.arc(b.targetX, b.targetY, b.radius + shockT * 35, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        // 2) Ground impact mark
+        if (sinceBounce < 500) {
+          var impactT = sinceBounce / 500;
+          ctx.globalAlpha = Math.max(0, 0.5 * (1 - impactT));
+          ctx.fillStyle = b.inKitchen ? (colors.kitchenLine || "#ff6b4a") : "rgba(255,255,255,0.6)";
+          ctx.beginPath();
+          ctx.ellipse(b.targetX, b.targetY, b.radius * (1 + impactT * 0.5), b.radius * 0.3, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+
+        // 3) Dust particles
+        if (sinceBounce < 350) {
+          var dustT = sinceBounce / 350;
+          ctx.fillStyle = "rgba(255,255,255,0.5)";
+          for (var di = 0; di < 4; di++) {
+            var dAngle = (Math.PI / 2) + (di - 1.5) * 0.5;
+            var dDist = dustT * 25;
+            var dSize = 2 * (1 - dustT);
+            if (dSize > 0) {
+              ctx.globalAlpha = Math.max(0, 0.6 * (1 - dustT));
+              ctx.beginPath();
+              ctx.arc(b.targetX + Math.cos(dAngle) * dDist, b.targetY - Math.sin(dAngle) * dDist, dSize, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          ctx.globalAlpha = 1;
+        }
+
+        // 4) Colored flash ring
         if (sinceBounce < 300) {
           var bAlpha = Math.max(0, 1 - sinceBounce / 300);
-          ctx.strokeStyle = "rgba(6,214,160," + bAlpha.toFixed(2) + ")";
-          ctx.lineWidth = 2;
+          var ringColor = b.inKitchen ? (colors.kitchenLine || "#ff6b4a") : (colors.bounceRingFlash || "#06d6a0");
+          ctx.strokeStyle = ringColor;
+          ctx.globalAlpha = bAlpha;
+          ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.arc(b.x, b.y, b.radius + 4 + (sinceBounce / 300) * 12, 0, Math.PI * 2);
+          ctx.arc(b.x, b.y, b.radius + 4 + (sinceBounce / 300) * 18, 0, Math.PI * 2);
           ctx.stroke();
-          if (b.inKitchen && sinceBounce < 180) {
+          ctx.globalAlpha = 1;
+
+          if (sinceBounce < 200) {
             ctx.globalAlpha = bAlpha;
-            ctx.font = "bold " + Math.round(b.radius * 1.2) + "px system-ui, sans-serif";
-            ctx.fillStyle = "#06d6a0";
+            ctx.font = "bold " + Math.round(b.radius * 1.4) + "px system-ui, sans-serif";
+            ctx.fillStyle = ringColor;
             ctx.textAlign = "center";
             ctx.textBaseline = "bottom";
-            ctx.fillText("NOW!", b.x, b.y - b.radius - 8);
+            var bounceLabel = b.inKitchen ? String((_uw2 && _uw2.nowLabel) || "NOW!") : String((_uw2 && _uw2.goLabel) || "GO!");
+            ctx.fillText(bounceLabel, b.x, b.y - b.radius - 10);
             ctx.globalAlpha = 1;
           }
+
           if (!juice.bounceFlashBalls[b.id]) {
             juice.bounceFlashBalls[b.id] = true;
             this._playSound("bounce");
           }
         }
-        // Pulsing ring while waiting
-        var pulseScale = 1 + 0.08 * Math.sin(gt / 80);
+
+        // 5) Pulsing ring while waiting
+        var pulseScale = 1 + 0.12 * Math.sin(gt / 70);
         ctx.strokeStyle = colors.bounceRing || "#06d6a0";
         ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.6;
+        ctx.globalAlpha = 0.7;
         ctx.beginPath();
-        ctx.arc(b.x, b.y, (b.radius + 4) * pulseScale, 0, Math.PI * 2);
+        ctx.arc(b.x, b.y, (b.radius + 6) * pulseScale, 0, Math.PI * 2);
         ctx.stroke();
         ctx.globalAlpha = 1;
       }
@@ -1089,7 +1231,7 @@ void function () {
 
       // Highlight
       var grad = ctx.createRadialGradient(b.x - b.radius * 0.3, b.y - b.radius * 0.3, b.radius * 0.1, b.x, b.y, b.radius);
-      grad.addColorStop(0, "rgba(255,255,255,0.4)");
+      grad.addColorStop(0, colors.highlightWhite || "rgba(255,255,255,0.4)");
       grad.addColorStop(1, "rgba(255,255,255,0)");
       ctx.fillStyle = grad;
       ctx.beginPath();
@@ -1138,65 +1280,176 @@ void function () {
 
 
   // ============================================
-  // V2: Player renderer
+  // V2: Player renderer — sport moderne fluid silhouette
   // ============================================
   UI.prototype._renderPlayerV2 = function (ctx, x, y, pState, colors, w, h, n) {
     var pColor = colors.playerColor || "#44ccff";
     var pOutline = colors.playerOutline || "#2288bb";
-    var pW = w * 0.07;
-    var pH = h * 0.09;
+    var pGlow = colors.playerGlow || "rgba(68,204,255,0.25)";
 
-    ctx.fillStyle = pColor;
-    ctx.strokeStyle = pOutline;
-    ctx.lineWidth = 2;
+    // Scale relative to screen
+    var scale = Math.min(w, h) / 500;
+    var S = function (v) { return v * scale; };
 
-    // Body
-    var bodyW = pW * 0.6;
-    var bodyH = pH * 0.5;
-    ctx.fillRect(x - bodyW / 2, y - pH * 0.3, bodyW, bodyH);
-    ctx.strokeRect(x - bodyW / 2, y - pH * 0.3, bodyW, bodyH);
+    // Animation phase
+    var t = n / 1000;
+    var breathe = Math.sin(t * 2) * 0.5; // idle breathing
+    var runCycle = Math.sin(t * 12) * 0.5; // running leg cycle
+    var isRunning = (pState === "runLeft" || pState === "runRight");
+    var isSwinging = (pState === "swing");
 
-    // Head
+    // Lean when running
+    var lean = 0;
+    if (pState === "runLeft") lean = S(3);
+    if (pState === "runRight") lean = S(-3);
+
+    ctx.save();
+    ctx.translate(x + lean, y);
+
+    // Shadow on ground
+    ctx.globalAlpha = 0.2;
+    ctx.fillStyle = "#000";
     ctx.beginPath();
-    ctx.arc(x, y - pH * 0.45, pW * 0.3, 0, Math.PI * 2);
+    ctx.ellipse(0, S(22), S(14), S(4), 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Player glow (subtle)
+    ctx.shadowColor = pGlow;
+    ctx.shadowBlur = S(12);
+
+    // ── Legs (dynamic, animated) ──
+    ctx.fillStyle = pOutline;
+    var legSpread = isRunning ? runCycle * S(6) : 0;
+    // Left leg
+    ctx.beginPath();
+    ctx.moveTo(S(-4), S(8));
+    ctx.quadraticCurveTo(S(-5) - legSpread, S(15), S(-3) - legSpread, S(20));
+    ctx.lineTo(S(-1) - legSpread, S(20));
+    ctx.quadraticCurveTo(S(-2), S(14), S(-1), S(8));
+    ctx.fill();
+    // Right leg
+    ctx.beginPath();
+    ctx.moveTo(S(4), S(8));
+    ctx.quadraticCurveTo(S(5) + legSpread, S(15), S(3) + legSpread, S(20));
+    ctx.lineTo(S(1) + legSpread, S(20));
+    ctx.quadraticCurveTo(S(2), S(14), S(1), S(8));
+    ctx.fill();
+
+    // ── Body (torso — smooth curved shape) ──
+    ctx.fillStyle = pColor;
+    ctx.beginPath();
+    ctx.moveTo(S(-8), S(6)); // left hip
+    ctx.quadraticCurveTo(S(-10), S(-2), S(-7), S(-12)); // left side up
+    ctx.quadraticCurveTo(S(-3), S(-16) + breathe, 0, S(-16) + breathe); // left shoulder to center
+    ctx.quadraticCurveTo(S(3), S(-16) + breathe, S(7), S(-12)); // center to right shoulder
+    ctx.quadraticCurveTo(S(10), S(-2), S(8), S(6)); // right side down
+    ctx.closePath();
+    ctx.fill();
+
+    // Body outline
+    ctx.strokeStyle = pOutline;
+    ctx.lineWidth = S(1.5);
     ctx.stroke();
 
-    // Legs
-    var legW = bodyW * 0.3;
-    var legH = pH * 0.3;
-    ctx.fillRect(x - bodyW * 0.3, y + pH * 0.2, legW, legH);
-    ctx.fillRect(x + bodyW * 0.05, y + pH * 0.2, legW, legH);
-
-    // Paddle arm
-    var paddleAngle = 0;
-    if (pState === "swing") paddleAngle = -0.3 + Math.sin(n / 40) * 0.2;
-    else if (pState === "runLeft") paddleAngle = 0.2;
-    else if (pState === "runRight") paddleAngle = -0.2;
-
-    var paddleLen = pW * 0.7;
-    ctx.save();
-    ctx.translate(x + bodyW * 0.3, y - pH * 0.15);
-    ctx.rotate(paddleAngle);
+    // ── Head ──
     ctx.fillStyle = pColor;
-    ctx.fillRect(0, -3, paddleLen * 0.5, 6);
-    ctx.fillStyle = pOutline;
-    ctx.fillRect(paddleLen * 0.4, -8, paddleLen * 0.5, 16);
-    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(0, S(-20), S(7), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = pOutline;
+    ctx.lineWidth = S(1.5);
+    ctx.stroke();
 
-    // Motion lines when running
-    if (pState === "runLeft" || pState === "runRight") {
-      var leanDir = (pState === "runLeft") ? 1 : -1;
-      ctx.strokeStyle = "rgba(255,255,255,0.15)";
-      ctx.lineWidth = 1;
-      for (var ml = 0; ml < 3; ml++) {
-        var mlX = x + leanDir * (pW * 0.5 + ml * 4);
+    // Head highlight
+    ctx.fillStyle = "rgba(255,255,255,0.2)";
+    ctx.beginPath();
+    ctx.arc(S(-2), S(-22), S(3), 0, Math.PI * 2);
+    ctx.fill();
+
+    // ── Paddle arm ──
+    ctx.shadowBlur = 0;
+    var armBaseX = S(8);
+    var armBaseY = S(-8);
+    var paddleAngle = isSwinging ? (-0.8 + Math.sin(n / 50) * 0.4)
+      : isRunning ? (pState === "runLeft" ? 0.3 : -0.3)
+      : -0.1 + breathe * 0.02;
+
+    ctx.save();
+    ctx.translate(armBaseX, armBaseY);
+    ctx.rotate(paddleAngle);
+
+    // Upper arm
+    ctx.fillStyle = pColor;
+    ctx.beginPath();
+    ctx.moveTo(0, S(-2));
+    ctx.quadraticCurveTo(S(8), S(-1), S(14), S(0));
+    ctx.lineTo(S(14), S(3));
+    ctx.quadraticCurveTo(S(7), S(3), 0, S(2));
+    ctx.fill();
+
+    // Paddle (rounded rectangle)
+    ctx.fillStyle = pOutline;
+    var px = S(13); var py = S(-6); var pw = S(5); var pph = S(14); var pr = S(2);
+    ctx.beginPath();
+    ctx.moveTo(px + pr, py);
+    ctx.lineTo(px + pw - pr, py);
+    ctx.quadraticCurveTo(px + pw, py, px + pw, py + pr);
+    ctx.lineTo(px + pw, py + pph - pr);
+    ctx.quadraticCurveTo(px + pw, py + pph, px + pw - pr, py + pph);
+    ctx.lineTo(px + pr, py + pph);
+    ctx.quadraticCurveTo(px, py + pph, px, py + pph - pr);
+    ctx.lineTo(px, py + pr);
+    ctx.quadraticCurveTo(px, py, px + pr, py);
+    ctx.fill();
+
+    // Paddle edge highlight
+    ctx.strokeStyle = "rgba(255,255,255,0.3)";
+    ctx.lineWidth = S(0.8);
+    ctx.stroke();
+
+    ctx.restore(); // arm transform
+
+    // ── Off-arm (left, more relaxed) ──
+    ctx.fillStyle = pColor;
+    ctx.beginPath();
+    ctx.moveTo(S(-8), S(-8));
+    ctx.quadraticCurveTo(S(-14), S(-4), S(-12), S(2));
+    ctx.lineTo(S(-10), S(2));
+    ctx.quadraticCurveTo(S(-11), S(-3), S(-6), S(-6));
+    ctx.fill();
+
+    // ── Motion trail when running ──
+    if (isRunning) {
+      var trailDir = (pState === "runLeft") ? 1 : -1;
+      ctx.strokeStyle = colors.motionLines || "rgba(255,255,255,0.15)";
+      ctx.lineWidth = S(1);
+      for (var mi = 0; mi < 4; mi++) {
+        var mx = trailDir * (S(12) + mi * S(5));
+        var my = S(-10) + mi * S(6);
+        var mLen = S(8) + mi * S(3);
+        ctx.globalAlpha = 0.3 - mi * 0.06;
         ctx.beginPath();
-        ctx.moveTo(mlX, y - pH * 0.1 + ml * 8);
-        ctx.lineTo(mlX + leanDir * 8, y - pH * 0.1 + ml * 8);
+        ctx.moveTo(mx, my);
+        ctx.lineTo(mx + trailDir * mLen, my);
         ctx.stroke();
       }
+      ctx.globalAlpha = 1;
     }
+
+    // ── Swing effect ──
+    if (isSwinging) {
+      ctx.strokeStyle = "rgba(255,255,255,0.4)";
+      ctx.lineWidth = S(2);
+      var swingPhase = (n % 300) / 300;
+      ctx.globalAlpha = 0.5 * (1 - swingPhase);
+      ctx.beginPath();
+      ctx.arc(S(18), S(-6), S(10) + swingPhase * S(15), -0.5, 0.8);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.restore(); // main player transform
   };
 
 
@@ -1237,77 +1490,137 @@ void function () {
   UI.prototype._setupInputV2 = function () {
     var self = this;
     if (!this._runtime.inputState) {
-      this._runtime.inputState = { left: false, right: false, hit: false };
+      this._runtime.inputState = { left: false, right: false, up: false, down: false, hit: false };
     }
 
     var canvas = this._canvas;
     if (!canvas) return;
 
-    var getZone = function (clientX, cRect) {
-      var x = clientX - cRect.left;
-      var ratio = x / cRect.width;
-      if (ratio < 0.4) return "left";
-      if (ratio > 0.6) return "right";
-      return "hit";
-    };
-
-    var isInControlsZone = function (clientY, cRect) {
-      var y = clientY - cRect.top;
-      var ctrlY = ((self.config.court && self.config.court.controlsY) || 0.85) * cRect.height;
-      return y >= ctrlY;
-    };
-
+    // V3 Mobile: left half = drag to move (2D), right half = tap to hit (timing bonus)
+    // Any touch = also moves toward ball automatically
     var activeTouches = {};
 
     canvas.addEventListener("pointerdown", function (e) {
       e.preventDefault();
-      // Unlock audio on first touch
       if (window.KR_Audio && typeof window.KR_Audio.unlock === "function") window.KR_Audio.unlock();
       var rect = canvas.getBoundingClientRect();
-      var zone = isInControlsZone(e.clientY, rect) ? getZone(e.clientX, rect) : "hit";
-      activeTouches[e.pointerId] = zone;
-      self._runtime.inputState[zone] = true;
-    });
+      var x = e.clientX - rect.left;
+      var y = e.clientY - rect.top;
+      var ratioX = x / rect.width;
 
-    canvas.addEventListener("pointermove", function (e) {
-      if (!activeTouches[e.pointerId]) return;
-      var rect = canvas.getBoundingClientRect();
-      var oldZone = activeTouches[e.pointerId];
-      var newZone = isInControlsZone(e.clientY, rect) ? getZone(e.clientX, rect) : "hit";
-      if (newZone !== oldZone) {
-        self._runtime.inputState[oldZone] = false;
-        self._runtime.inputState[newZone] = true;
-        activeTouches[e.pointerId] = newZone;
+      activeTouches[e.pointerId] = { x: x, y: y, startX: x, startY: y, side: (ratioX < 0.5) ? "move" : "hit" };
+
+      // Right half tap = explicit hit for timing bonus
+      if (ratioX >= 0.5) {
+        self._runtime.inputState.hit = true;
       }
     });
 
+    canvas.addEventListener("pointermove", function (e) {
+      var touch = activeTouches[e.pointerId];
+      if (!touch) return;
+      var rect = canvas.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var y = e.clientY - rect.top;
+
+      // Calculate delta from last position for movement
+      var dx = x - touch.x;
+      var dy = y - touch.y;
+
+      // Directional input from drag delta (threshold to avoid jitter)
+      var threshold = 2;
+      self._runtime.inputState.left = (dx < -threshold);
+      self._runtime.inputState.right = (dx > threshold);
+      self._runtime.inputState.up = (dy < -threshold);
+      self._runtime.inputState.down = (dy > threshold);
+
+      touch.x = x;
+      touch.y = y;
+    });
+
     var pointerUp = function (e) {
-      var zone = activeTouches[e.pointerId];
-      if (zone) { self._runtime.inputState[zone] = false; delete activeTouches[e.pointerId]; }
+      var touch = activeTouches[e.pointerId];
+      if (touch) {
+        self._runtime.inputState.left = false;
+        self._runtime.inputState.right = false;
+        self._runtime.inputState.up = false;
+        self._runtime.inputState.down = false;
+        self._runtime.inputState.hit = false;
+        delete activeTouches[e.pointerId];
+      }
     };
     canvas.addEventListener("pointerup", pointerUp);
     canvas.addEventListener("pointercancel", pointerUp);
 
-    // Keyboard
+    // Keyboard (V3: 2D movement)
     this._keydownHandler = function (e) {
       if (self.state !== STATES.PLAYING) return;
       if (e.key === "ArrowLeft" || e.key === "a") { self._runtime.inputState.left = true; e.preventDefault(); }
       if (e.key === "ArrowRight" || e.key === "d") { self._runtime.inputState.right = true; e.preventDefault(); }
-      if (e.key === " " || e.key === "ArrowUp" || e.key === "w") { self._runtime.inputState.hit = true; e.preventDefault(); }
+      if (e.key === "ArrowUp" || e.key === "w") { self._runtime.inputState.up = true; e.preventDefault(); }
+      if (e.key === "ArrowDown" || e.key === "s") { self._runtime.inputState.down = true; e.preventDefault(); }
+      if (e.key === " ") { self._runtime.inputState.hit = true; e.preventDefault(); }
     };
     this._keyupHandler = function (e) {
       if (e.key === "ArrowLeft" || e.key === "a") self._runtime.inputState.left = false;
       if (e.key === "ArrowRight" || e.key === "d") self._runtime.inputState.right = false;
-      if (e.key === " " || e.key === "ArrowUp" || e.key === "w") self._runtime.inputState.hit = false;
+      if (e.key === "ArrowUp" || e.key === "w") self._runtime.inputState.up = false;
+      if (e.key === "ArrowDown" || e.key === "s") self._runtime.inputState.down = false;
+      if (e.key === " ") self._runtime.inputState.hit = false;
     };
     document.addEventListener("keydown", this._keydownHandler);
     document.addEventListener("keyup", this._keyupHandler);
+
+    // Mouse control (desktop): mouse X → player follows, click → hit
+    // Only active on non-touch devices to avoid conflict with touch zones
+    var isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+    if (!isTouchDevice) {
+      this._runtime._mouseActive = false;
+      this._runtime._mouseTargetX = -1;
+      var deadZone = 8; // pixels: don't jitter if mouse is very close to player
+
+      this._mouseMoveHandler = function (e) {
+        if (self.state !== STATES.PLAYING) return;
+        var rect = canvas.getBoundingClientRect();
+        var mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+        self._runtime._mouseActive = true;
+        self._runtime._mouseTargetX = mouseX;
+
+        // Convert mouse X to left/right input relative to player position
+        var playerX = (self.game && self.game.run) ? self.game.run.playerX : canvas.width / 2;
+        var diff = mouseX - playerX;
+        if (diff < -deadZone) {
+          self._runtime.inputState.left = true;
+          self._runtime.inputState.right = false;
+        } else if (diff > deadZone) {
+          self._runtime.inputState.left = false;
+          self._runtime.inputState.right = true;
+        } else {
+          self._runtime.inputState.left = false;
+          self._runtime.inputState.right = false;
+        }
+      };
+      canvas.addEventListener("mousemove", this._mouseMoveHandler);
+
+      this._mouseClickHandler = function (e) {
+        if (self.state !== STATES.PLAYING) return;
+        // Unlock audio
+        if (window.KR_Audio && typeof window.KR_Audio.unlock === "function") window.KR_Audio.unlock();
+        self._runtime.inputState.hit = true;
+        // Auto-release hit after one frame
+        setTimeout(function () { self._runtime.inputState.hit = false; }, 50);
+      };
+      canvas.addEventListener("click", this._mouseClickHandler);
+    }
   };
 
   UI.prototype._teardownInputV2 = function () {
     if (this._keydownHandler) { document.removeEventListener("keydown", this._keydownHandler); this._keydownHandler = null; }
     if (this._keyupHandler) { document.removeEventListener("keyup", this._keyupHandler); this._keyupHandler = null; }
-    this._runtime.inputState = { left: false, right: false, hit: false };
+    if (this._mouseMoveHandler && this._canvas) { this._canvas.removeEventListener("mousemove", this._mouseMoveHandler); this._mouseMoveHandler = null; }
+    if (this._mouseClickHandler && this._canvas) { this._canvas.removeEventListener("click", this._mouseClickHandler); this._mouseClickHandler = null; }
+    this._runtime.inputState = { left: false, right: false, up: false, down: false, hit: false };
+    if (this._runtime) { this._runtime._mouseActive = false; this._runtime._mouseTargetX = -1; }
   };
 
 
@@ -1600,7 +1913,9 @@ void function () {
       totalMissed: result.totalMissed || 0,
       totalSpawned: result.totalSpawned || 0,
       elapsedMs: result.elapsedMs || 0,
-      bestStreak: result.bestStreak || 0
+      bestStreak: result.bestStreak || 0,
+      dailyModifier: result.dailyModifier || null,
+      dailyObjectiveMet: !!(result.dailyObjectiveMet)
     };
 
     // Game over audio
@@ -1866,6 +2181,17 @@ void function () {
     var dp = todayDateParts();
     var dateStr = dp.month + " " + dp.day;
 
+    // V3: Daily modifier info for share
+    var modLabel = "";
+    var modDesc = "";
+    var objMet = false;
+    if (last.dailyModifier) {
+      modLabel = last.dailyModifier.label || "";
+      modDesc = last.dailyModifier.desc || "";
+    }
+    if (last.dailyObjectiveMet) objMet = true;
+    var modLine = modLabel ? (modLabel + (objMet ? " \u2705" : " \u274C")) : "";
+
     var tpl = "";
     if (isDaily) tpl = w.templateDaily || w.templateDefault || "";
     else if (last.mode === MODES.SPRINT) tpl = w.templateSprint || "";
@@ -1873,8 +2199,18 @@ void function () {
     else if (last.totalFaulted > 0) tpl = w.templateFault || "";
     else tpl = w.templateDefault || "";
 
-    var raw = fillTemplate(tpl, { score: last.smashes || 0, best: last.bestSmashes || 0, url: url, hashtag: hashtag, date: dateStr });
-    // Clean trailing spaces per line (when {hashtag} resolves to "")
+    var raw = fillTemplate(tpl, {
+      score: last.smashes || 0,
+      best: last.bestSmashes || 0,
+      url: url,
+      hashtag: hashtag,
+      date: dateStr,
+      modifier: modLine,
+      modifierName: modLabel,
+      modifierDesc: modDesc,
+      objective: objMet ? "\u2705" : "\u274C",
+      streak: last.bestStreak || 0
+    });
     return raw.split("\n").map(function (l) { return l.trimEnd(); }).join("\n");
   };
 

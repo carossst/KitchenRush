@@ -474,6 +474,7 @@ body {
 
 .kr-screen--playing canvas {
   display: block;
+  touch-action: none; /* V2: prevent scroll/zoom during gameplay */
 }
 
 /* END */
@@ -768,6 +769,41 @@ body {
   color: rgb(var(--text-muted));
   margin: var(--gap-2) 0 0;
   opacity: var(--kr-a-soft);
+}
+
+/* V2: Controls hint in run start overlay */
+.kr-start-controls {
+  display: flex;
+  justify-content: center;
+  gap: var(--gap-3);
+  margin: var(--gap-3) 0;
+}
+
+.kr-start-ctrl {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.kr-start-ctrl-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 36px;
+  padding: 0 var(--gap-1);
+  background: rgb(var(--surface-muted));
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: rgb(var(--text-strong));
+}
+
+.kr-start-ctrl-label {
+  font-size: var(--fs-xs);
+  color: rgb(var(--text-muted));
 }
 
 

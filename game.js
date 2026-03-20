@@ -1,7 +1,7 @@
-// game.js v2.0 - Kitchen Rush
+// game.js v3.0 - Kitchen Rush
 // Canvas game engine — pickleball exchange arcade.
-// Vue frontale face au filet, déplacement latéral, hit explicite.
-// Double bounce rule fidèle, kitchen = rebond obligatoire.
+// V3: 2D movement (up/down/left/right), auto-hit with timing bonus,
+//     daily challenge modifiers.
 // Zero DOM access, zero localStorage.
 
 (() => {
@@ -30,6 +30,7 @@
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function lerp(a, b, t) { return a + (b - a) * t; }
+  function dist(x1, y1, x2, y2) { return Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
 
   // Seeded PRNG (mulberry32) for daily challenge
   function mulberry32(seed) {
@@ -52,7 +53,15 @@
     return h;
   }
 
-  // Game-time clock (avoids wall-clock drift on tab switch)
+  // Day-of-year for daily modifier rotation
+  function dayOfYear() {
+    var now = new Date();
+    var start = new Date(now.getFullYear(), 0, 0);
+    var diff = now - start;
+    return Math.floor(diff / 86400000);
+  }
+
+  // Game-time clock
   var _gt = 0;
   function gameTime() { return _gt; }
 
@@ -60,14 +69,6 @@
   // ============================================
   // Ball states
   // ============================================
-  // TRAVELING  — ball moving between opponent and player (in air or after bounce)
-  // BOUNCED    — ball has bounced, waiting to be hit or expire
-  // HIT        — player hit the ball, it's flying back to opponent
-  // RETURNED   — opponent hit it back, new ball incoming
-  // MISSED     — player failed to hit
-  // FAULTED    — player hit a kitchen ball before bounce (or volley violation)
-  // SCORED     — rally won (future: opponent misses)
-
   var BALL_STATES = {
     TRAVELING: "TRAVELING",
     BOUNCED: "BOUNCED",
@@ -78,16 +79,43 @@
 
 
   // ============================================
-  // Court layout (fractions of canvas)
+  // Daily Challenge Modifiers
+  // ============================================
+  var DAILY_MODIFIERS = [
+    { id: "score_target_15", label: "Score Target", desc: "Reach 15 points", targetScore: 15 },
+    { id: "speed_demon", label: "Speed Demon", desc: "All balls are fast", speedMul: 1.5 },
+    { id: "kitchen_master", label: "Kitchen Master", desc: "Only kitchen balls count", kitchenOnly: true },
+    { id: "one_life", label: "One Life", desc: "One chance only", livesOverride: 1 },
+    { id: "no_kitchen", label: "Baseline Rally", desc: "No kitchen balls", kitchenRatioOverride: 0 },
+    { id: "lob_city", label: "Lob City", desc: "Only lobs", forceBallType: "lob" },
+    { id: "tiny_window", label: "Quick Hands", desc: "Tiny hit window", windowMul: 0.5 },
+    { id: "wide_court", label: "Wide Court", desc: "Balls spread wide", spreadMul: 2 },
+    { id: "marathon", label: "Marathon", desc: "Survive 90 seconds", survivalMs: 90000 },
+    { id: "streak_5", label: "Streak Hunter", desc: "Build a 5-streak", targetStreak: 5 },
+    { id: "fast_ramp", label: "Fast Ramp", desc: "Speed increases 3x faster", accelMul: 3 },
+    { id: "dink_only", label: "Soft Touch", desc: "Only dinks", forceBallType: "dink" },
+    { id: "mirror", label: "Mirror Mode", desc: "Controls are inverted", mirror: true },
+    { id: "score_target_25", label: "High Score", desc: "Reach 25 points", targetScore: 25 }
+  ];
+
+  function getDailyModifier() {
+    var day = dayOfYear();
+    return DAILY_MODIFIERS[day % DAILY_MODIFIERS.length];
+  }
+
+
+  // ============================================
+  // Court layout
   // ============================================
   function getCourtLayout(config) {
     var c = config.court || {};
     return {
-      netY: reqNum(c.netY, "court.netY", { min: 0.1, max: 0.5 }),                    // filet position (fraction from top)
-      kitchenLineY: reqNum(c.kitchenLineY, "court.kitchenLineY", { min: 0.3, max: 0.7 }), // kitchen line (fraction from top)
-      playerY: reqNum(c.playerY, "court.playerY", { min: 0.6, max: 0.95 }),            // player fixed Y position
-      opponentY: reqNum(c.opponentY, "court.opponentY", { min: 0.02, max: 0.3 }),      // opponent Y position
-      controlsY: reqNum(c.controlsY, "court.controlsY", { min: 0.8, max: 1.0 })       // controls zone start
+      netY: reqNum(c.netY, "court.netY", { min: 0.05, max: 0.3 }),
+      kitchenLineY: reqNum(c.kitchenLineY, "court.kitchenLineY", { min: 0.2, max: 0.6 }),
+      baselineY: (Number.isFinite(Number(c.baselineY)) && Number(c.baselineY) >= 0.5 && Number(c.baselineY) <= 0.99) ? Number(c.baselineY) : 0.82,
+      playerY: reqNum(c.playerY, "court.playerY", { min: 0.5, max: 0.9 }),
+      opponentY: reqNum(c.opponentY, "court.opponentY", { min: 0.02, max: 0.2 }),
+      controlsY: reqNum(c.controlsY, "court.controlsY", { min: 0.8, max: 1.0 })
     };
   }
 
@@ -97,134 +125,122 @@
   // ============================================
   var _nextBallId = 0;
 
-  function createBallFromOpponent(config, elapsedSec, canvasW, canvasH, court, playerX, rng) {
+  function createBallFromOpponent(config, elapsedSec, canvasW, canvasH, court, playerX, playerY, rng, modifier) {
     var rand = (typeof rng === "function") ? rng : Math.random;
     var gameCfg = config.game || {};
 
-    // Ball type selection
-    var ballType = pickBallType(config, elapsedSec, rng);
+    // Ball type selection (modifier can force a type)
+    var ballType;
+    if (modifier && modifier.forceBallType) {
+      ballType = modifier.forceBallType;
+    } else {
+      ballType = pickBallType(config, elapsedSec, rng);
+    }
     var typeConfig = (gameCfg.ballTypes && gameCfg.ballTypes[ballType]) || null;
     var speedMul = typeConfig ? reqNum(typeConfig.speedMultiplier, "ballType.speedMul", { min: 0.01 }) : 1;
+    if (modifier && modifier.speedMul) speedMul *= modifier.speedMul;
     var isLob = (ballType === "lob");
-    var isDink = (ballType === "dink");
     var forceKitchen = !!(typeConfig && typeConfig.forceKitchen);
 
-    // Speed at current time
+    // Speed
     var spd = gameCfg.speed || {};
+    var accelMul = (modifier && modifier.accelMul) ? modifier.accelMul : 1;
     var speed = (reqNum(spd.base, "speed.base", { min: 0.1 }) +
-                 reqNum(spd.accelPerSec, "speed.accel", { min: 0 }) * elapsedSec) * speedMul;
+                 reqNum(spd.accelPerSec, "speed.accel", { min: 0 }) * elapsedSec * accelMul) * speedMul;
 
-    // Opponent X position (slightly random, biased away from player for challenge)
+    // Opponent X
     var opX = canvasW * 0.2 + rand() * canvasW * 0.6;
 
-    // Target X: mostly toward player but with spread
-    var targetSpread = canvasW * 0.35;
+    // Target X: spread modifier
+    var spreadBase = canvasW * 0.35;
+    if (modifier && modifier.spreadMul) spreadBase *= modifier.spreadMul;
     var targetX = clamp(
-      playerX + (rand() - 0.5) * targetSpread * 2,
+      playerX + (rand() - 0.5) * spreadBase * 2,
       canvasW * 0.08,
       canvasW * 0.92
     );
 
-    // Kitchen ratio at current time
+    // Kitchen ratio
     var kr = gameCfg.kitchenRatio || {};
-    var kitchenRatio = clamp(
-      reqNum(kr.base, "kitchenRatio.base", { min: 0, max: 1 }) +
-      reqNum(kr.growthPerSec, "kitchenRatio.growth", { min: 0 }) * elapsedSec,
-      0,
-      reqNum(kr.max, "kitchenRatio.max", { min: 0, max: 1 })
-    );
+    var kitchenRatio;
+    if (modifier && modifier.kitchenRatioOverride !== undefined) {
+      kitchenRatio = modifier.kitchenRatioOverride;
+    } else {
+      kitchenRatio = clamp(
+        reqNum(kr.base, "kitchenRatio.base", { min: 0, max: 1 }) +
+        reqNum(kr.growthPerSec, "kitchenRatio.growth", { min: 0 }) * elapsedSec,
+        0,
+        reqNum(kr.max, "kitchenRatio.max", { min: 0, max: 1 })
+      );
+    }
+    if (modifier && modifier.kitchenOnly) kitchenRatio = 1;
 
-    // Decide if ball lands in kitchen
     var inKitchen = forceKitchen || (rand() < kitchenRatio);
 
-    // Target Y: where the ball will land (bounce point)
+    // Target Y
     var netYpx = court.netY * canvasH;
     var kitchenLineYpx = court.kitchenLineY * canvasH;
-    var playerYpx = court.playerY * canvasH;
+    var baselineYpx = court.baselineY * canvasH;
 
     var targetY;
     if (inKitchen) {
-      // Land between net and kitchen line
       targetY = netYpx + rand() * (kitchenLineYpx - netYpx) * 0.8 + (kitchenLineYpx - netYpx) * 0.1;
     } else {
-      // Land between kitchen line and player
-      targetY = kitchenLineYpx + rand() * (playerYpx - kitchenLineYpx - 20) + 10;
+      targetY = kitchenLineYpx + rand() * (baselineYpx - kitchenLineYpx - 20) + 10;
     }
 
-    // Start position (opponent side, above net)
     var startX = opX;
     var startY = court.opponentY * canvasH;
 
-    // Arc height (lobs have high arc, drives are flat)
     var arcHeight = isLob ? (canvasH * 0.15 + rand() * canvasH * 0.05) : (canvasH * 0.02);
 
-    // Ball radius
     var radiusMul = typeConfig ? reqNum(typeConfig.radiusMultiplier, "ballType.radius", { min: 0.01 }) : 1;
     var baseRadius = reqNum(config.canvas.ballRadius, "canvas.ballRadius", { min: 1 });
     var radius = Math.round(baseRadius * radiusMul);
 
-    // Tap window (time after bounce before ball expires)
+    // Tap window
     var win = gameCfg.window || {};
     var tapMul = typeConfig ? reqNum(typeConfig.tapWindowMultiplier, "ballType.tapMul", { min: 0.01 }) : 1;
+    if (modifier && modifier.windowMul) tapMul *= modifier.windowMul;
     var tapWindowMs = Math.max(
       reqNum(win.minMs, "window.min", { min: 1 }),
       (reqNum(win.initialMs, "window.initial", { min: 1 }) -
        reqNum(win.decayPerSec, "window.decay", { min: 0 }) * elapsedSec) * tapMul
     );
 
-    // Travel duration (how long the ball takes to reach target)
-    // Derived from speed: faster = shorter travel time
-    var dist = Math.sqrt(Math.pow(targetX - startX, 2) + Math.pow(targetY - startY, 2));
-    var travelMs = Math.max(300, (dist / speed) * 16.67);
+    // Travel duration
+    var d = Math.sqrt(Math.pow(targetX - startX, 2) + Math.pow(targetY - startY, 2));
+    var travelMs = Math.max(300, (d / speed) * 16.67);
 
     return {
       id: ++_nextBallId,
       ballType: ballType,
       inKitchen: inKitchen,
       radius: radius,
-
-      // Trajectory
-      startX: startX,
-      startY: startY,
-      targetX: targetX,
-      targetY: targetY,
+      startX: startX, startY: startY,
+      targetX: targetX, targetY: targetY,
       arcHeight: arcHeight,
       travelMs: travelMs,
-
-      // Current visual position (updated each frame)
-      x: startX,
-      y: startY,
-
-      // State
+      x: startX, y: startY,
       state: BALL_STATES.TRAVELING,
       spawnedAt: gameTime(),
-      bouncedAt: 0,
-      hitAt: 0,
-      missedAt: 0,
-      faultedAt: 0,
-
-      // After bounce
+      bouncedAt: 0, hitAt: 0, missedAt: 0, faultedAt: 0,
       tapWindowMs: tapWindowMs,
-
-      // Hit return trajectory (filled when player hits)
-      returnStartX: 0,
-      returnStartY: 0,
-      returnTargetX: 0,
-      returnTargetY: 0,
-      returnArcHeight: 0,
-      returnTravelMs: 0,
-
-      // Speed for result
+      returnStartX: 0, returnStartY: 0,
+      returnTargetX: 0, returnTargetY: 0,
+      returnArcHeight: 0, returnTravelMs: 0,
       speed: speed,
-
-      // Shadow
-      shadowY: targetY
+      shadowY: targetY,
+      // Auto-hit: did auto-hit already fire?
+      autoHitFired: false,
+      // Timing bonus: how close to optimal timing the player hit (0-1, 1=perfect)
+      timingBonus: 0
     };
   }
 
 
   // ============================================
-  // Ball type selection (from V1, reused)
+  // Ball type selection
   // ============================================
   function pickBallType(config, elapsedSec, rng) {
     var types = config.game && config.game.ballTypes;
@@ -262,25 +278,29 @@
 
     if (ball.state === BALL_STATES.TRAVELING) {
       var t = clamp(elapsed / ball.travelMs, 0, 1);
-      // X: linear interpolation
       var x = lerp(ball.startX, ball.targetX, t);
-      // Y: linear + arc (parabolic dip for lobs, subtle for drives)
       var yLinear = lerp(ball.startY, ball.targetY, t);
-      // Arc: highest at t=0.5, zero at t=0 and t=1
       var arc = -ball.arcHeight * 4 * t * (1 - t);
-      var y = yLinear + arc;
-      return { x: x, y: y, t: t };
+      return { x: x, y: yLinear + arc, t: t };
     }
 
     if (ball.state === BALL_STATES.BOUNCED) {
-      // Ball sits at bounce point with slight upward bounce animation
       var sinceBounce = gt - ball.bouncedAt;
       var bounceAnim = 0;
-      if (sinceBounce < 200) {
-        var bt = sinceBounce / 200;
-        bounceAnim = -15 * Math.sin(bt * Math.PI); // small hop
+      // Primary hop: bigger (40px over 250ms)
+      if (sinceBounce < 250) {
+        var bt = sinceBounce / 250;
+        bounceAnim = -40 * Math.sin(bt * Math.PI);
       }
-      return { x: ball.targetX, y: ball.targetY + bounceAnim, t: 1 };
+      // Secondary smaller hop (250-400ms)
+      else if (sinceBounce < 400) {
+        var bt2 = (sinceBounce - 250) / 150;
+        bounceAnim = -12 * Math.sin(bt2 * Math.PI);
+      }
+      // Squash factor for renderer (0-1, 1=max squash at impact)
+      var squash = 0;
+      if (sinceBounce < 60) squash = 1 - (sinceBounce / 60);
+      return { x: ball.targetX, y: ball.targetY + bounceAnim, t: 1, squash: squash };
     }
 
     if (ball.state === BALL_STATES.HIT) {
@@ -292,23 +312,18 @@
       return { x: x2, y: y2Linear + arc2, t: t2 };
     }
 
-    // MISSED / FAULTED: stay at last known position
     return { x: ball.x, y: ball.y, t: 1 };
   }
 
 
   // ============================================
-  // GameEngine V2
+  // GameEngine V3
   // ============================================
   class GameEngine {
     constructor() {
       this.run = null;
     }
 
-    /**
-     * Start a new run.
-     * @param {Object} payload — { config, mode, canvasW, canvasH, isDaily }
-     */
     start(payload) {
       var p = (payload && typeof payload === "object") ? payload : {};
       if (!p.config || typeof p.config !== "object") throw new Error("GameEngine.start(): config required");
@@ -322,13 +337,18 @@
       var mode = modeRaw;
 
       var isDaily = !!(p.isDaily);
-      var lives = (mode === MODES.RUN) ? Math.floor(reqNum(config.game.lives, "lives", { min: 1 })) : null;
-      var sprintDurationMs = (mode === MODES.SPRINT) ? Math.floor(reqNum(config.sprint.durationMs, "sprintDur", { min: 1 })) : null;
-      var onboardingShield = Math.floor(reqNum(config.game.onboardingShield, "shield", { min: 0 }));
+      var modifier = isDaily ? getDailyModifier() : null;
 
+      var baseLives = Math.floor(reqNum(config.game.lives, "lives", { min: 1 }));
+      var lives = (mode === MODES.RUN) ? ((modifier && modifier.livesOverride) ? modifier.livesOverride : baseLives) : null;
+      var sprintDurationMs = (mode === MODES.SPRINT) ? Math.floor(reqNum(config.sprint.durationMs, "sprintDur", { min: 1 })) : null;
+
+      // Daily survival mode: override sprint-like timer on RUN mode
+      var survivalMs = (modifier && modifier.survivalMs) ? modifier.survivalMs : null;
+
+      var onboardingShield = Math.floor(reqNum(config.game.onboardingShield, "shield", { min: 0 }));
       var court = getCourtLayout(config);
 
-      // Reset game clock
       _gt = 0;
 
       this.run = {
@@ -338,103 +358,101 @@
         canvasW: canvasW,
         canvasH: canvasH,
         isDaily: isDaily,
+        modifier: modifier,
 
-        rng: (isDaily && mode === MODES.RUN) ? mulberry32(dateSeed()) : null,
+        rng: isDaily ? mulberry32(dateSeed()) : null,
 
-        // Timing
         elapsedMs: 0,
-        lastSpawnAt: -9999, // force immediate first ball
+        lastSpawnAt: -9999,
 
-        // Player
+        // V3: Player 2D position
         playerX: canvasW / 2,
-        playerState: "idle",    // "idle" | "runLeft" | "runRight" | "swing"
+        playerY: court.playerY * canvasH,
+        playerMinY: court.kitchenLineY * canvasH + 10, // can't enter kitchen
+        playerMaxY: (court.baselineY || 0.82) * canvasH + 30, // can go slightly behind baseline
+        playerState: "idle",
         playerSwingUntil: 0,
 
-        // Opponent
         opponentX: canvasW / 2,
         opponentTargetX: canvasW / 2,
 
-        // Lives (RUN)
         lives: lives,
         maxLives: lives,
-
-        // Sprint
         sprintDurationMs: sprintDurationMs,
         sprintRemainingMs: sprintDurationMs,
         penaltyAccumulatedMs: 0,
 
-        // Score = successful rallies / hits
+        // Survival timer (daily modifier)
+        survivalMs: survivalMs,
+
         smashes: 0,
-
-        // Active ball (one at a time — pickleball is one ball)
         ball: null,
+        rallyCount: 0,
+        totalRallies: 0,
 
-        // Rally state
-        rallyCount: 0,       // hits in current rally (for double bounce rule)
-        totalRallies: 0,     // completed rallies
-
-        // Counters
         totalSpawned: 0,
         totalSmashed: 0,
         totalMissed: 0,
         totalFaulted: 0,
         onboardingShield: onboardingShield,
 
-        // Streak
         currentStreak: 0,
         bestStreak: 0,
-
-        // First kitchen signal
         firstKitchenSpawned: false,
 
-        // Milestones
         milestones: Array.isArray(config.game && config.game.milestones) ? config.game.milestones.slice() : [],
         milestonesReached: [],
         lastMilestoneAt: 0,
 
-        // Input state (set by UI, consumed by engine)
+        // V3 input: 2D movement + optional hit
         input: {
           left: false,
           right: false,
+          up: false,
+          down: false,
           hit: false,
-          hitConsumed: false  // prevent multi-hit per press
+          hitConsumed: false
         },
 
-        // State
         done: false,
         endReason: null,
+        waitUntil: 800,
 
-        // Wait state (between rallies)
-        waitUntil: 0
+        // V3: last timing bonus for UI display
+        lastTimingBonus: 0,
+        // V3: daily modifier completion flag
+        dailyObjectiveMet: false
       };
-
-      // Spawn first ball after a short delay
-      this.run.waitUntil = 800; // 800ms before first serve
 
       return this.getState();
     }
 
 
-    /**
-     * Set input state (called by UI on input events).
-     */
-    setInput(left, right, hit) {
+    setInput(left, right, up, down, hit) {
       if (!this.run) return;
-      this.run.input.left = !!left;
-      this.run.input.right = !!right;
-      // Hit: only set if not already consumed
-      if (hit && !this.run.input.hitConsumed) {
-        this.run.input.hit = true;
+      var r = this.run;
+      var mod = r.modifier;
+
+      // V3: Mirror mode inverts left/right
+      if (mod && mod.mirror) {
+        r.input.left = !!right;
+        r.input.right = !!left;
+      } else {
+        r.input.left = !!left;
+        r.input.right = !!right;
+      }
+      r.input.up = !!up;
+      r.input.down = !!down;
+
+      if (hit && !r.input.hitConsumed) {
+        r.input.hit = true;
       }
       if (!hit) {
-        this.run.input.hitConsumed = false;
+        r.input.hitConsumed = false;
       }
     }
 
 
-    /**
-     * Update game state (called every frame).
-     */
     update(dtMs) {
       if (!this.run || this.run.done) return this.getState();
 
@@ -442,6 +460,7 @@
       var cfg = r.config;
       var gameCfg = cfg.game || {};
       var court = r.court;
+      var mod = r.modifier;
 
       r.elapsedMs += dtMs;
       _gt = r.elapsedMs;
@@ -457,31 +476,57 @@
         }
       }
 
-      // ── Player movement ──
+      // Daily survival timer
+      if (r.survivalMs && r.elapsedMs >= r.survivalMs && r.mode === MODES.RUN) {
+        r.dailyObjectiveMet = true;
+        r.done = true;
+        r.endReason = "SURVIVED";
+        return this.getState();
+      }
+
+      // ── V3: Player 2D movement ──
       var playerSpeed = reqNum(cfg.court.playerSpeed, "court.playerSpeed", { min: 0.1 });
       var moveAmount = playerSpeed * (dtMs / 16.67);
 
+      var moving = false;
       if (r.input.left) {
         r.playerX = Math.max(20, r.playerX - moveAmount);
-        if (r.playerState !== "swing") r.playerState = "runLeft";
-      } else if (r.input.right) {
+        moving = true;
+      }
+      if (r.input.right) {
         r.playerX = Math.min(r.canvasW - 20, r.playerX + moveAmount);
-        if (r.playerState !== "swing") r.playerState = "runRight";
-      } else {
-        if (r.playerState !== "swing") r.playerState = "idle";
+        moving = true;
+      }
+      if (r.input.up) {
+        r.playerY = Math.max(r.playerMinY, r.playerY - moveAmount);
+        moving = true;
+      }
+      if (r.input.down) {
+        r.playerY = Math.min(r.playerMaxY, r.playerY + moveAmount);
+        moving = true;
       }
 
-      // Swing animation timeout
+      // Player state
+      if (r.playerState !== "swing") {
+        if (moving) {
+          if (r.input.left && !r.input.right) r.playerState = "runLeft";
+          else if (r.input.right && !r.input.left) r.playerState = "runRight";
+          else if (r.input.up) r.playerState = "runUp";
+          else if (r.input.down) r.playerState = "runDown";
+          else r.playerState = "running";
+        } else {
+          r.playerState = "idle";
+        }
+      }
+
       if (r.playerState === "swing" && gameTime() > r.playerSwingUntil) {
         r.playerState = "idle";
       }
 
-      // ── Opponent movement (simple tracking AI) ──
-      if (r.ball && (r.ball.state === BALL_STATES.HIT)) {
-        // Track the returning ball
+      // ── Opponent movement ──
+      if (r.ball && r.ball.state === BALL_STATES.HIT) {
         r.opponentTargetX = r.ball.returnTargetX;
       } else {
-        // Drift toward center when idle
         r.opponentTargetX = r.canvasW / 2;
       }
       var oppSpeed = playerSpeed * 0.7;
@@ -490,12 +535,12 @@
         r.opponentX += Math.sign(oppDiff) * Math.min(Math.abs(oppDiff), oppSpeed * (dtMs / 16.67));
       }
 
-      // ── Wait state (between rallies) ──
+      // ── Wait state ──
       if (r.waitUntil > 0 && r.elapsedMs < r.waitUntil) {
         return this.getState();
       }
 
-      // ── Spawn ball if none active ──
+      // ── Spawn ball ──
       if (!r.ball) {
         this._spawnBall(r, elapsedSec);
         return this.getState();
@@ -507,10 +552,10 @@
       var pos = getBallPosition(ball, gameTime());
       ball.x = pos.x;
       ball.y = pos.y;
+      ball.squash = pos.squash || 0; // V3: bounce squash for renderer
 
       // ── Ball state machine ──
       if (ball.state === BALL_STATES.TRAVELING) {
-        // Check if ball reached bounce point
         if (pos.t >= 1) {
           ball.state = BALL_STATES.BOUNCED;
           ball.bouncedAt = gameTime();
@@ -520,133 +565,146 @@
       }
 
       if (ball.state === BALL_STATES.BOUNCED) {
-        // Ball has bounced, waiting for player hit or expiry
         if (gameTime() - ball.bouncedAt > ball.tapWindowMs) {
-          // Player didn't hit in time → MISSED
+          // ── V3: Auto-hit — if player is close enough, auto-return ──
+          if (!ball.autoHitFired) {
+            var autoRange = this._getAutoHitRange(r);
+            var d = dist(r.playerX, r.playerY, ball.x, ball.y);
+            if (d <= autoRange) {
+              ball.autoHitFired = true;
+              ball.timingBonus = 0; // no timing bonus on auto-hit
+              this._executeHit(r, ball, 0);
+              return this.getState();
+            }
+          }
+
+          // Missed
           ball.state = BALL_STATES.MISSED;
           ball.missedAt = gameTime();
           r.totalMissed++;
           r.currentStreak = 0;
           this._loseLife(r);
-          r.waitUntil = r.elapsedMs + 600; // pause before next ball
+          r.waitUntil = r.elapsedMs + 600;
           r.rallyCount = 0;
         }
       }
 
+      // ── V3: Auto-hit check (while ball is BOUNCED, before expiry) ──
+      if (ball.state === BALL_STATES.BOUNCED && !ball.autoHitFired) {
+        var autoRange = this._getAutoHitRange(r);
+        var d2 = dist(r.playerX, r.playerY, ball.x, ball.y);
+        if (d2 <= autoRange) {
+          // Player is close enough — auto-hit fires
+          var sinceBounce = gameTime() - ball.bouncedAt;
+          var timingRatio = sinceBounce / ball.tapWindowMs; // 0=instant, 1=last moment
+
+          // ── Explicit HIT input: timing bonus ──
+          if (r.input.hit && !r.input.hitConsumed) {
+            r.input.hit = false;
+            r.input.hitConsumed = true;
+            // Timing bonus: best at ~20-40% of window (sweet spot)
+            var sweetSpot = 0.3;
+            var timingBonus = Math.max(0, 1 - Math.abs(timingRatio - sweetSpot) / 0.5);
+            ball.autoHitFired = true;
+            this._executeHit(r, ball, timingBonus);
+            return this.getState();
+          }
+
+          // Auto-hit after short grace period (give player chance to time it)
+          var gracePeriodMs = ball.tapWindowMs * 0.4;
+          if (sinceBounce >= gracePeriodMs) {
+            ball.autoHitFired = true;
+            ball.timingBonus = 0;
+            this._executeHit(r, ball, 0);
+            return this.getState();
+          }
+        }
+      }
+
+      // ── Explicit HIT while TRAVELING (before bounce) — volley attempt ──
+      if (r.input.hit && !r.input.hitConsumed && ball &&
+          ball.state === BALL_STATES.TRAVELING) {
+        r.input.hit = false;
+        r.input.hitConsumed = true;
+        this._tryVolley(r, ball);
+      }
+
+      // ── Ball HIT returning to opponent ──
       if (ball.state === BALL_STATES.HIT) {
-        // Ball returning to opponent
         var retPos = getBallPosition(ball, gameTime());
         ball.x = retPos.x;
         ball.y = retPos.y;
-
         if (retPos.t >= 1) {
-          // Opponent "hits" it back → new ball
           r.ball = null;
-          r.waitUntil = r.elapsedMs + 150; // tiny pause for rhythm
-          // Don't reset rallyCount — it continues
+          r.waitUntil = r.elapsedMs + 150;
         }
       }
 
-      // ── Handle player hit input ──
-      if (r.input.hit && !r.input.hitConsumed && ball &&
-          (ball.state === BALL_STATES.TRAVELING || ball.state === BALL_STATES.BOUNCED)) {
-        r.input.hit = false;
-        r.input.hitConsumed = true;
-        this._tryHit(r, ball);
-      }
-
-      // ── Cleanup old resolved balls (for fade-out) ──
+      // ── Cleanup resolved balls ──
       if (ball && (ball.state === BALL_STATES.MISSED || ball.state === BALL_STATES.FAULTED)) {
         var since = gameTime() - (ball.missedAt || ball.faultedAt || 0);
-        if (since > 600) {
-          r.ball = null;
-        }
+        if (since > 600) r.ball = null;
       }
 
-      if (r.done) return this.getState();
+      // ── Daily objective check ──
+      if (mod && !r.dailyObjectiveMet) {
+        if (mod.targetScore && r.smashes >= mod.targetScore) r.dailyObjectiveMet = true;
+        if (mod.targetStreak && r.bestStreak >= mod.targetStreak) r.dailyObjectiveMet = true;
+      }
+
       return this.getState();
     }
 
 
-    /**
-     * Try to hit the ball.
-     */
-    _tryHit(r, ball) {
-      var cfg = r.config;
-      var hitRange = reqNum(cfg.court.hitRange, "court.hitRange", { min: 1 });
+    // V3: Get auto-hit proximity range
+    _getAutoHitRange(r) {
+      var hitRange = reqNum(r.config.court.hitRange, "court.hitRange", { min: 1 });
+      // Generous range for auto-hit (larger than explicit hit)
+      return hitRange * 1.5;
+    }
+
+
+    // V3: Execute a valid hit (shared between auto-hit and explicit hit)
+    _executeHit(r, ball, timingBonus) {
       var court = r.court;
 
-      // Check if player is close enough to the ball (X distance)
-      var playerYpx = court.playerY * r.canvasH;
-      var dx = Math.abs(r.playerX - ball.x);
-      // Also check Y: ball should be near player's Y (within reasonable range)
-      var dy = Math.abs(ball.y - playerYpx);
-      var yRange = r.canvasH * 0.15; // vertical hit range
-
-      if (dx > hitRange || dy > yRange) {
-        // Too far — swing and miss (no penalty, just whiff)
-        r.playerState = "swing";
-        r.playerSwingUntil = gameTime() + 200;
-        return;
-      }
-
-      // ── Double bounce rule check ──
-      // Rally count 0 = return of serve (must bounce)
-      // Rally count 1 = 3rd shot (must bounce)
-      // Rally count 2+ = volleys allowed EXCEPT in kitchen
+      // Double bounce rule check
       var mustBounce = (r.rallyCount < 2) || ball.inKitchen;
-
       if (mustBounce && ball.state !== BALL_STATES.BOUNCED) {
-        // FAULT: hit before required bounce
-        ball.state = BALL_STATES.FAULTED;
-        ball.faultedAt = gameTime();
-        r.totalFaulted++;
-        r.currentStreak = 0;
-        r.rallyCount = 0;
-
-        if (r.mode === MODES.RUN) {
-          this._loseLife(r);
-        } else if (r.mode === MODES.SPRINT) {
-          var penalty = Math.floor(reqNum(cfg.sprint.faultPenaltyMs, "faultPenalty", { min: 1 }));
-          r.penaltyAccumulatedMs += penalty;
-          if (r.sprintDurationMs - r.elapsedMs - r.penaltyAccumulatedMs <= 0) {
-            r.sprintRemainingMs = 0;
-            r.done = true;
-            r.endReason = "TIMER";
-          }
-        }
-
-        r.waitUntil = r.elapsedMs + 600;
-        r.playerState = "swing";
-        r.playerSwingUntil = gameTime() + 300;
+        // Should not happen in auto-hit (only fires on BOUNCED), but safety check
+        this._faultBall(r, ball);
         return;
       }
 
-      // ── Valid hit! ──
       ball.state = BALL_STATES.HIT;
       ball.hitAt = gameTime();
-      r.smashes++;
+      ball.timingBonus = timingBonus;
+
+      // Score: base 1 + timing bonus (0-1 extra)
+      var points = 1;
+      if (timingBonus > 0.7) points = 2; // perfect timing = double points
+      r.smashes += points;
       r.totalSmashed++;
       r.currentStreak++;
       if (r.currentStreak > r.bestStreak) r.bestStreak = r.currentStreak;
       r.rallyCount++;
+      r.lastTimingBonus = timingBonus;
 
-      // Swing animation
       r.playerState = "swing";
       r.playerSwingUntil = gameTime() + 250;
 
-      // Calculate return trajectory (ball goes back to opponent)
+      // Return trajectory
       var rand = (typeof r.rng === "function") ? r.rng : Math.random;
       ball.returnStartX = ball.x;
       ball.returnStartY = ball.y;
       ball.returnTargetX = r.canvasW * 0.15 + rand() * r.canvasW * 0.7;
       ball.returnTargetY = court.opponentY * r.canvasH;
-      ball.returnArcHeight = r.canvasH * 0.03; // slight arc on return
-      ball.returnTravelMs = Math.max(250, ball.travelMs * 0.7); // return is faster
+      ball.returnArcHeight = r.canvasH * 0.03;
+      ball.returnTravelMs = Math.max(250, ball.travelMs * 0.7);
 
-      // Check milestones
+      // Milestones
       for (var mi = 0; mi < r.milestones.length; mi++) {
-        if (r.smashes === r.milestones[mi] && r.milestonesReached.indexOf(r.milestones[mi]) === -1) {
+        if (r.smashes >= r.milestones[mi] && r.milestonesReached.indexOf(r.milestones[mi]) === -1) {
           r.milestonesReached.push(r.milestones[mi]);
           r.lastMilestoneAt = gameTime();
         }
@@ -654,26 +712,72 @@
     }
 
 
-    /**
-     * Spawn a new ball from opponent.
-     */
+    // V3: Try volley (hit ball before bounce — only valid after double bounce rule satisfied)
+    _tryVolley(r, ball) {
+      var court = r.court;
+      var hitRange = reqNum(r.config.court.hitRange, "court.hitRange", { min: 1 });
+
+      var d = dist(r.playerX, r.playerY, ball.x, ball.y);
+      if (d > hitRange * 1.2) {
+        // Too far — whiff
+        r.playerState = "swing";
+        r.playerSwingUntil = gameTime() + 200;
+        return;
+      }
+
+      // Double bounce rule: must bounce if rallyCount < 2 or in kitchen
+      var mustBounce = (r.rallyCount < 2) || ball.inKitchen;
+      if (mustBounce) {
+        this._faultBall(r, ball);
+        return;
+      }
+
+      // Valid volley! High skill shot — big timing bonus
+      this._executeHit(r, ball, 1.0); // perfect bonus for successful volley
+    }
+
+
+    // Fault a ball
+    _faultBall(r, ball) {
+      ball.state = BALL_STATES.FAULTED;
+      ball.faultedAt = gameTime();
+      r.totalFaulted++;
+      r.currentStreak = 0;
+      r.rallyCount = 0;
+
+      if (r.mode === MODES.RUN) {
+        this._loseLife(r);
+      } else if (r.mode === MODES.SPRINT) {
+        var penalty = Math.floor(reqNum(r.config.sprint.faultPenaltyMs, "faultPenalty", { min: 1 }));
+        r.penaltyAccumulatedMs += penalty;
+        if (r.sprintDurationMs - r.elapsedMs - r.penaltyAccumulatedMs <= 0) {
+          r.sprintRemainingMs = 0;
+          r.done = true;
+          r.endReason = "TIMER";
+        }
+      }
+
+      r.waitUntil = r.elapsedMs + 600;
+      r.playerState = "swing";
+      r.playerSwingUntil = gameTime() + 300;
+    }
+
+
     _spawnBall(r, elapsedSec) {
       var ball = createBallFromOpponent(
-        r.config, elapsedSec, r.canvasW, r.canvasH, r.court, r.playerX, r.rng
+        r.config, elapsedSec, r.canvasW, r.canvasH, r.court,
+        r.playerX, r.playerY, r.rng, r.modifier
       );
 
-      // Onboarding shield: first N balls never kitchen
       if (r.totalSpawned < r.onboardingShield) {
         ball.inKitchen = false;
-        // Recalculate target Y to be outside kitchen
         var kitchenLineYpx = r.court.kitchenLineY * r.canvasH;
-        var playerYpx = r.court.playerY * r.canvasH;
+        var baselineYpx = r.court.baselineY * r.canvasH;
         var rand = (typeof r.rng === "function") ? r.rng : Math.random;
-        ball.targetY = kitchenLineYpx + rand() * (playerYpx - kitchenLineYpx - 20) + 10;
+        ball.targetY = kitchenLineYpx + rand() * (baselineYpx - kitchenLineYpx - 20) + 10;
         ball.shadowY = ball.targetY;
       }
 
-      // Track first kitchen ball
       if (ball.inKitchen && !r.firstKitchenSpawned) {
         r.firstKitchenSpawned = true;
         ball.isFirstKitchen = true;
@@ -684,9 +788,6 @@
     }
 
 
-    /**
-     * Lose a life (RUN only).
-     */
     _loseLife(r) {
       if (r.mode !== MODES.RUN || r.lives == null) return;
       r.lives = Math.max(0, r.lives - 1);
@@ -697,15 +798,12 @@
     }
 
 
-    /**
-     * Get current state snapshot (read-only, for UI).
-     */
     getState() {
       if (!this.run) {
         return {
           mode: "NONE", done: true, smashes: 0,
           lives: null, maxLives: null,
-          sprintRemainingMs: null, balls: [],
+          sprintRemainingMs: null,
           elapsedMs: 0, endReason: null
         };
       }
@@ -733,11 +831,13 @@
           travelMs: b.travelMs,
           tapWindowMs: b.tapWindowMs,
           shadowY: b.shadowY || b.targetY,
-          // Return trajectory
           returnStartX: b.returnStartX, returnStartY: b.returnStartY,
           returnTargetX: b.returnTargetX, returnTargetY: b.returnTargetY,
           returnArcHeight: b.returnArcHeight || 0,
-          returnTravelMs: b.returnTravelMs || 0
+          returnTravelMs: b.returnTravelMs || 0,
+          timingBonus: b.timingBonus || 0,
+          autoHitFired: !!b.autoHitFired,
+          squash: b.squash || 0
         };
       }
 
@@ -752,16 +852,14 @@
         elapsedMs: r.elapsedMs,
         endReason: r.endReason,
 
-        // Court entities
+        // V3: 2D player position
         playerX: r.playerX,
+        playerY: r.playerY,
         playerState: r.playerState,
         opponentX: r.opponentX,
         ball: ballState,
 
-        // Rally
         rallyCount: r.rallyCount,
-
-        // Counters
         totalSpawned: r.totalSpawned,
         totalSmashed: r.totalSmashed,
         totalMissed: r.totalMissed,
@@ -769,23 +867,21 @@
         currentStreak: r.currentStreak,
         bestStreak: r.bestStreak,
 
-        // Milestones
         milestonesReached: r.milestonesReached ? r.milestonesReached.slice() : [],
         lastMilestoneAt: r.lastMilestoneAt || 0,
 
-        // Court layout (for renderer)
         court: r.court,
-
-        // Canvas dimensions
         canvasW: r.canvasW,
-        canvasH: r.canvasH
+        canvasH: r.canvasH,
+
+        // V3 extras
+        lastTimingBonus: r.lastTimingBonus || 0,
+        dailyModifier: r.modifier ? { id: r.modifier.id, label: r.modifier.label, desc: r.modifier.desc } : null,
+        dailyObjectiveMet: !!r.dailyObjectiveMet
       };
     }
 
 
-    /**
-     * Get end-of-run result.
-     */
     getResult() {
       var s = this.getState();
       return {
@@ -800,7 +896,9 @@
         totalMissed: s.totalMissed,
         totalFaulted: s.totalFaulted,
         currentStreak: s.currentStreak,
-        bestStreak: s.bestStreak
+        bestStreak: s.bestStreak,
+        dailyModifier: s.dailyModifier,
+        dailyObjectiveMet: s.dailyObjectiveMet
       };
     }
   }
@@ -811,6 +909,8 @@
   // ============================================
   window.KR_Game = {
     GameEngine: GameEngine,
-    BALL_STATES: BALL_STATES
+    BALL_STATES: BALL_STATES,
+    getDailyModifier: getDailyModifier,
+    DAILY_MODIFIERS: DAILY_MODIFIERS
   };
 })();

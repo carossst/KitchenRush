@@ -190,11 +190,16 @@
     // COURT — V2 game layout (fractions of canvas height)
     // ============================================
     court: {
-      netY: 0.30,              // filet: 30% from top
-      kitchenLineY: 0.48,     // kitchen line: 48% from top (kitchen = between net and this)
-      playerY: 0.78,           // player fixed Y position
-      opponentY: 0.12,         // opponent Y position
-      controlsY: 0.85,         // touch controls zone starts here
+      // V2 court layout — proportions faithful to USAP 2026 rulebook
+      // Real court: 44ft × 20ft. Player's half = 22ft deep.
+      // NVZ (kitchen) = 7ft from net = 7/22 ≈ 31.8% of player's half.
+      // We show ~12% of opponent's compressed side above the net.
+      netY: 0.12,              // net position: 12% from top
+      kitchenLineY: 0.39,      // NVZ line: net + 27% ≈ 39% from top
+      baselineY: 0.82,         // baseline: 82% from top
+      playerY: 0.75,           // player position: service court
+      opponentY: 0.06,         // opponent: compressed far side
+      controlsY: 0.85,         // touch controls zone start
 
       // Player movement speed (pixels per frame at 60fps)
       playerSpeed: 4.5,
@@ -280,6 +285,19 @@
 
         // Court lines
         courtLines: "#ffffff30",
+
+        // V2: UI overlay colors (drawn on canvas)
+        netMesh: "rgba(255,255,255,0.15)",
+        controlZoneBg: "rgba(255,255,255,0.03)",
+        controlZoneBorder: "rgba(255,255,255,0.08)",
+        controlZoneHitBorder: "rgba(255,255,255,0.12)",
+        controlZoneText: "rgba(255,255,255,0.2)",
+        bounceRingFlash: "#06d6a0",
+        faultVignetteColor: "239,71,111",
+        smashFlashColor: "6,214,160",
+        highlightWhite: "rgba(255,255,255,0.4)",
+        motionLines: "rgba(255,255,255,0.15)",
+        playerGlow: "rgba(68,204,255,0.25)",
 
         // Milestone tint colors
         milestone1CourtBg: "#0a1a2a",
@@ -703,7 +721,7 @@
     landing: {
       title: "Kitchen Rush",
       tagline: "Fast pickleball arcade.",
-      subtitle: "Read the bounce, protect your lives, and hit clean balls early. On yellow Kitchen balls, wait for the bounce.",
+      subtitle: "Move to the ball, time your hit, and respect the Kitchen bounce. 3 lives.",
 
       // Daily challenge badge (shown when daily.enabled)
       dailyBadge: "Daily Challenge",
@@ -744,6 +762,20 @@
       scoreAriaTemplate: "Score: {score} Smashes",
       gameOverTitle: "Game over",
 
+      // V2: Canvas in-game labels (drawn on canvas, not DOM)
+      kitchenLabel: "KITCHEN",
+      waitLabel: "WAIT",
+      nowLabel: "NOW!",
+      goLabel: "GO!",
+      doubleBounceLabel: "LET IT BOUNCE",
+      hitLabel: "HIT",
+      controlLeftLabel: "\u25C4",
+      controlRightLabel: "\u25BA",
+      controlMoveLabel: "MOVE",
+      controlTimingLabel: "HIT",
+      timingPerfectLabel: "PERFECT!",
+      timingNiceLabel: "NICE!",
+
       // Start-of-run overlay (economy)
       startRunTypeFree: "FREE RUN",
       startRunTypeLastFree: "Last free run.",
@@ -766,9 +798,9 @@
 
 
     sprint: {
-      // Chest (discovery)
-      chestAria: "Secret bonus",
-      chestHint: "Tap the gift to unlock Sprint mode.",
+      // Golden Ball (discovery — unlocks Rush/Sprint mode)
+      chestAria: "Golden Ball",
+      chestHint: "Tap the golden ball to unlock Rush mode.",
 
       // Modal one-shot (first tap ever)
       modalTitle: "You found Sprint mode",
@@ -840,10 +872,10 @@
 
     firstRun: {
       trustLine: "No ads. No tricks. Just you and the court.",
-      kitchenHint: "Yellow ball in the Kitchen? Wait for the bounce, then tap.",
-      rule1: "Tap anywhere to smash the ball",
-      rule2: "Yellow ball = Kitchen = wait for bounce first",
-      rule3: "3 lives — miss or fault = life lost"
+      kitchenHint: "Kitchen ball (near the net)? Wait for the bounce before you hit.",
+      rule1: "Move left/right to reach the ball",
+      rule2: "Press HIT when you're in range",
+      rule3: "Kitchen zone = wait for the bounce first"
     },
 
 
@@ -936,11 +968,11 @@
       ctaLabel: "Share score",
       emailAria: "Share via email",
       toastCopied: "Copied!",
-      templateDefault: "Kitchen Rush — {score} Smashes {hashtag}\nCan you beat that?\n{url}",
-      templateFault: "Kitchen Rush — {score} Smashes {hashtag}\nThe Kitchen got me. Your turn.\n{url}",
-      templateNewBest: "Kitchen Rush — NEW BEST: {score} Smashes {hashtag}\nCome get me.\n{url}",
-      templateSprint: "Kitchen Rush Sprint — {score} in 20s {hashtag}\nPure speed. Beat that.\n{url}",
-      templateDaily: "Kitchen Rush Daily ({date}) — {score} Smashes {hashtag}\nSame balls for everyone. Can you beat {score}?\n{url}",
+      templateDefault: "Kitchen Rush \u2014 {score} Smashes {hashtag}\nCan you beat that?\n{url}",
+      templateFault: "Kitchen Rush \u2014 {score} Smashes {hashtag}\nThe Kitchen got me. Your turn.\n{url}",
+      templateNewBest: "Kitchen Rush \u2014 NEW BEST: {score} Smashes {hashtag}\nCome get me.\n{url}",
+      templateSprint: "Kitchen Rush Rush \u2014 {score} in 20s {hashtag}\nPure speed. Beat that.\n{url}",
+      templateDaily: "Kitchen Rush Daily ({date}) {modifier}\n{score} Smashes | Streak {streak} {hashtag}\nSame challenge for everyone. Can you beat {score}?\n{url}",
 
       // Hashtag (dynamic: #KitchenRush{score})
       hashtagPrefix: "#KitchenRush",
@@ -1217,6 +1249,17 @@
       reqNum(canvas.smashOutMs, "KR_CONFIG.canvas.smashOutMs", { min: 1, integer: true });
       reqNum(canvas.smashOutDistance, "KR_CONFIG.canvas.smashOutDistance", { min: 1 });
       reqNum(canvas.scorePopupMs, "KR_CONFIG.canvas.scorePopupMs", { min: 1, integer: true });
+
+      // V2: Court layout validation (USAP-faithful proportions)
+      const court = reqObj(cfg.court, "KR_CONFIG.court");
+      reqNum(court.netY, "KR_CONFIG.court.netY", { min: 0.05, max: 0.3 });
+      reqNum(court.kitchenLineY, "KR_CONFIG.court.kitchenLineY", { min: 0.2, max: 0.6 });
+      reqNum(court.baselineY, "KR_CONFIG.court.baselineY", { min: 0.7, max: 0.95 });
+      reqNum(court.playerY, "KR_CONFIG.court.playerY", { min: 0.5, max: 0.9 });
+      reqNum(court.opponentY, "KR_CONFIG.court.opponentY", { min: 0.02, max: 0.2 });
+      reqNum(court.controlsY, "KR_CONFIG.court.controlsY", { min: 0.8, max: 1.0 });
+      reqNum(court.playerSpeed, "KR_CONFIG.court.playerSpeed", { min: 0.1 });
+      reqNum(court.hitRange, "KR_CONFIG.court.hitRange", { min: 1 });
 
       const limits = reqObj(cfg.limits, "KR_CONFIG.limits");
       reqNum(limits.freeRuns, "KR_CONFIG.limits.freeRuns", { min: 0, integer: true });
