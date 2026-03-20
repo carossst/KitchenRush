@@ -93,9 +93,12 @@
       // Onboarding: first N balls always outside Kitchen
       onboardingShield: 3,
 
-      // Rebound delay (ms) — time between ball landing and bounce signal
-      // U5: Increased from 150 to 350 for satisfying Kitchen tension (the "aha" moment)
+      // Rebound delay (ms) — time between first ground contact and valid hit window
       reboundDelayMs: 350,
+
+      // Hit model
+      autoHitEnabled: false,
+      autoHitGraceRatio: 0.4,
 
       // Speed curve: speed(t) = base + accelPerSec * t
       speed: {
@@ -110,11 +113,16 @@
         minMs: 400
       },
 
-      // Tap window: windowMs(t) = max(minMs, initialMs - decayPerSec * t)
+      // Tap window after valid bounce
       window: {
         initialMs: 350,
         decayPerSec: 2.5,
         minMs: 80
+      },
+
+      // Ball targeting / spread
+      targeting: {
+        leadPlayerBias: 0.35
       },
 
       // Kitchen ratio: kitchenRatio(t) = min(max, base + growthPerSec * t)
@@ -204,8 +212,12 @@
       // Player movement speed (pixels per frame at 60fps)
       playerSpeed: 4.5,
 
-      // Hit range (max X distance between player and ball to hit)
-      hitRange: 55
+      // Hit range (max X/Y distance between player and ball to hit)
+      hitRange: 55,
+
+      // Desktop mouse control
+      mouseDeadZonePx: 10,
+      mouseFollow2D: true
     },
 
 

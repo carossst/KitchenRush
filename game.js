@@ -151,11 +151,22 @@
     // Opponent X
     var opX = canvasW * 0.2 + rand() * canvasW * 0.6;
 
-    // Target X: spread modifier
+    // Target X: partly anticipates player position, but stays court-driven
     var spreadBase = canvasW * 0.35;
     if (modifier && modifier.spreadMul) spreadBase *= modifier.spreadMul;
-    var targetX = clamp(
+
+    var targetingCfg = gameCfg.targeting || {};
+    var leadBias = reqNum(targetingCfg.leadPlayerBias, "game.targeting.leadPlayerBias", { min: 0, max: 1 });
+
+    var neutralTargetX = canvasW * 0.2 + rand() * canvasW * 0.6;
+    var playerBiasedX = clamp(
       playerX + (rand() - 0.5) * spreadBase * 2,
+      canvasW * 0.08,
+      canvasW * 0.92
+    );
+
+    var targetX = clamp(
+      neutralTargetX * (1 - leadBias) + playerBiasedX * leadBias,
       canvasW * 0.08,
       canvasW * 0.92
     );
@@ -565,20 +576,52 @@
       }
 
       if (ball.state === BALL_STATES.BOUNCED) {
-        if (gameTime() - ball.bouncedAt > ball.tapWindowMs) {
-          // ── V3: Auto-hit — if player is close enough, auto-return ──
-          if (!ball.autoHitFired) {
-            var autoRange = this._getAutoHitRange(r);
-            var d = dist(r.playerX, r.playerY, ball.x, ball.y);
-            if (d <= autoRange) {
+        var reboundDelayMs = reqNum(r.config.game.reboundDelayMs, "game.reboundDelayMs", { min: 0 });
+        var sinceBounce = gameTime() - ball.bouncedAt;
+        var hitWindowStartMs = reboundDelayMs;
+        var hitWindowEndMs = reboundDelayMs + ball.tapWindowMs;
+
+        // Valid explicit HIT only after visible bounce delay
+        if (r.input.hit && !r.input.hitConsumed) {
+          r.input.hit = false;
+          r.input.hitConsumed = true;
+
+          var hitRange = reqNum(r.config.court.hitRange, "court.hitRange", { min: 1 });
+          var dHit = dist(r.playerX, r.playerY, ball.x, ball.y);
+
+          if (dHit <= hitRange * 1.2) {
+            if (sinceBounce < hitWindowStartMs) {
+              this._faultBall(r, ball);
+              return this.getState();
+            }
+
+            if (sinceBounce <= hitWindowEndMs) {
+              var timingRatio = (sinceBounce - hitWindowStartMs) / Math.max(1, ball.tapWindowMs);
+              var sweetSpot = 0.3;
+              var timingBonus = Math.max(0, 1 - Math.abs(timingRatio - sweetSpot) / 0.5);
+              this._executeHit(r, ball, timingBonus);
+              return this.getState();
+            }
+          }
+        }
+
+        // Optional auto-hit path, disabled by default
+        var autoHitEnabled = !!r.config.game.autoHitEnabled;
+        if (autoHitEnabled && !ball.autoHitFired && sinceBounce >= hitWindowStartMs) {
+          var autoRange = this._getAutoHitRange(r);
+          var d2 = dist(r.playerX, r.playerY, ball.x, ball.y);
+          if (d2 <= autoRange) {
+            var autoHitGraceRatio = reqNum(r.config.game.autoHitGraceRatio, "game.autoHitGraceRatio", { min: 0, max: 1 });
+            var gracePeriodMs = ball.tapWindowMs * autoHitGraceRatio;
+            if ((sinceBounce - hitWindowStartMs) >= gracePeriodMs) {
               ball.autoHitFired = true;
-              ball.timingBonus = 0; // no timing bonus on auto-hit
               this._executeHit(r, ball, 0);
               return this.getState();
             }
           }
+        }
 
-          // Missed
+        if (sinceBounce > hitWindowEndMs) {
           ball.state = BALL_STATES.MISSED;
           ball.missedAt = gameTime();
           r.totalMissed++;
@@ -586,38 +629,6 @@
           this._loseLife(r);
           r.waitUntil = r.elapsedMs + 600;
           r.rallyCount = 0;
-        }
-      }
-
-      // ── V3: Auto-hit check (while ball is BOUNCED, before expiry) ──
-      if (ball.state === BALL_STATES.BOUNCED && !ball.autoHitFired) {
-        var autoRange = this._getAutoHitRange(r);
-        var d2 = dist(r.playerX, r.playerY, ball.x, ball.y);
-        if (d2 <= autoRange) {
-          // Player is close enough — auto-hit fires
-          var sinceBounce = gameTime() - ball.bouncedAt;
-          var timingRatio = sinceBounce / ball.tapWindowMs; // 0=instant, 1=last moment
-
-          // ── Explicit HIT input: timing bonus ──
-          if (r.input.hit && !r.input.hitConsumed) {
-            r.input.hit = false;
-            r.input.hitConsumed = true;
-            // Timing bonus: best at ~20-40% of window (sweet spot)
-            var sweetSpot = 0.3;
-            var timingBonus = Math.max(0, 1 - Math.abs(timingRatio - sweetSpot) / 0.5);
-            ball.autoHitFired = true;
-            this._executeHit(r, ball, timingBonus);
-            return this.getState();
-          }
-
-          // Auto-hit after short grace period (give player chance to time it)
-          var gracePeriodMs = ball.tapWindowMs * 0.4;
-          if (sinceBounce >= gracePeriodMs) {
-            ball.autoHitFired = true;
-            ball.timingBonus = 0;
-            this._executeHit(r, ball, 0);
-            return this.getState();
-          }
         }
       }
 
