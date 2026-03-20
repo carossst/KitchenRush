@@ -114,6 +114,14 @@ void function () {
     return url;
   }
 
+  function tryGetCheckoutUrl(cfg, priceKey) {
+    try {
+      return getCheckoutUrl(cfg, priceKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
   function formatCents(cents, currency) {
     const c = Number(cents);
     if (!Number.isFinite(c) || c <= 0) return "";
@@ -3996,8 +4004,8 @@ void function () {
       for (var i = 0; i < pw.trustBullets.length; i++) trustBulletHtml += '<li>' + escapeHtml(pw.trustBullets[i]) + '</li>';
     }
 
-    var earlyUrl = getCheckoutUrl(cfg, "early");
-    var standardUrl = getCheckoutUrl(cfg, "standard");
+    var earlyUrl = tryGetCheckoutUrl(cfg, "early");
+    var standardUrl = tryGetCheckoutUrl(cfg, "standard");
     var earlyLive = !!earlyUrl;
     var standardLive = !!standardUrl;
     var checkoutLive = isEarly ? earlyLive : standardLive;

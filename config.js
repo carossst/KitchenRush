@@ -52,7 +52,7 @@
   window.KR_CONFIG = {
 
     // Product version (UI display, logs, SW cache key)
-    version: "35.4",
+    version: "35.10",
 
     // Storage schema version (localStorage).
     // Change ONLY if you accept a migration/wipe.
