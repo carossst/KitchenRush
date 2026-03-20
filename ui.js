@@ -661,8 +661,13 @@ void function () {
 
     this.setState(STATES.PLAYING);
 
-    // Show run start overlay
-    this._showRunStartOverlay(mode, runType);
+    // Show run start overlay — game loop starts on dismiss tap
+    // Fail-closed: if overlay fails, start game loop immediately
+    try {
+      this._showRunStartOverlay(mode, runType);
+    } catch (_) {
+      this._startGameLoop();
+    }
   };
 
 
@@ -702,7 +707,11 @@ void function () {
     }
 
     var node = el("kr-run-start-overlay");
-    if (!node) return;
+    if (!node) {
+      // Fail-closed: no overlay DOM → start game loop immediately
+      this._startGameLoop();
+      return;
+    }
 
     // V3: Controls hint — detect device
     var isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
@@ -752,17 +761,18 @@ void function () {
       '</div>';
     node.classList.add("kr-run-start-overlay--visible");
 
-    // Auto-dismiss (longer to read controls: 4s)
-    var overlayMs = Math.max(ms, 4000);
+    // V3: NO auto-dismiss — player MUST tap to start
+    // Clear any legacy timer
     if (this._runtime.runStartOverlayTimerId) clearTimeout(this._runtime.runStartOverlayTimerId);
-    this._runtime.runStartOverlayTimerId = setTimeout(function () {
-      node.classList.remove("kr-run-start-overlay--visible");
-    }, overlayMs);
+    this._runtime.runStartOverlayTimerId = null;
 
-    // Tap to dismiss early
+    // Tap anywhere to dismiss overlay AND start game loop
+    var self = this;
     node.addEventListener("pointerdown", function dismiss() {
       node.classList.remove("kr-run-start-overlay--visible");
       node.removeEventListener("pointerdown", dismiss);
+      // V3: NOW start the game loop — game was frozen until this tap
+      self._startGameLoop();
     }, { once: true });
   };
 
@@ -2976,14 +2986,18 @@ void function () {
         if (document.hidden && self.state === STATES.PLAYING) {
           self._stopGameLoop();
         } else if (!document.hidden && self.state === STATES.PLAYING && !self._rafId) {
+          // V3: Don't restart if overlay is still visible (game hasn't started yet)
+          var overlay = el("kr-run-start-overlay");
+          if (overlay && overlay.classList.contains("kr-run-start-overlay--visible")) return;
           self._startGameLoop();
         }
       };
       document.addEventListener("visibilitychange", this._visibilityHandler);
     }
 
-    // Start game loop after DOM is ready
-    this._startGameLoop();
+    // V3: Do NOT start game loop yet — wait for overlay tap-to-start
+    // The game loop will be started by _showRunStartOverlay dismiss handler
+    // this._startGameLoop(); // REMOVED — started on overlay dismiss
   };
 
 
