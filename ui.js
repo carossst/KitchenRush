@@ -1581,65 +1581,43 @@ void function () {
     document.addEventListener("keydown", this._keydownHandler);
     document.addEventListener("keyup", this._keyupHandler);
 
-    // Mouse control (desktop): mouse position -> 2D movement, click -> hit
+    // Mouse control (desktop): mouse X → player follows, click → hit
     // Only active on non-touch devices to avoid conflict with touch zones
     var isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
     if (!isTouchDevice) {
       this._runtime._mouseActive = false;
       this._runtime._mouseTargetX = -1;
-      this._runtime._mouseTargetY = -1;
-
-      var mouseFollow2D = !!this.config?.court?.mouseFollow2D;
-      var deadZone = requiredConfigNumber(
-        this.config?.court?.mouseDeadZonePx,
-        "KR_CONFIG.court.mouseDeadZonePx",
-        { min: 0, integer: true }
-      );
+      var deadZone = 8; // pixels: don't jitter if mouse is very close to player
 
       this._mouseMoveHandler = function (e) {
         if (self.state !== STATES.PLAYING) return;
         var rect = canvas.getBoundingClientRect();
         var mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
-        var mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
         self._runtime._mouseActive = true;
         self._runtime._mouseTargetX = mouseX;
-        self._runtime._mouseTargetY = mouseY;
 
+        // Convert mouse X to left/right input relative to player position
         var playerX = (self.game && self.game.run) ? self.game.run.playerX : canvas.width / 2;
-        var playerY = (self.game && self.game.run) ? self.game.run.playerY : canvas.height * 0.75;
-        var diffX = mouseX - playerX;
-        var diffY = mouseY - playerY;
-
-        if (diffX < -deadZone) {
+        var diff = mouseX - playerX;
+        if (diff < -deadZone) {
           self._runtime.inputState.left = true;
           self._runtime.inputState.right = false;
-        } else if (diffX > deadZone) {
+        } else if (diff > deadZone) {
           self._runtime.inputState.left = false;
           self._runtime.inputState.right = true;
         } else {
           self._runtime.inputState.left = false;
           self._runtime.inputState.right = false;
         }
-
-        if (mouseFollow2D) {
-          if (diffY < -deadZone) {
-            self._runtime.inputState.up = true;
-            self._runtime.inputState.down = false;
-          } else if (diffY > deadZone) {
-            self._runtime.inputState.up = false;
-            self._runtime.inputState.down = true;
-          } else {
-            self._runtime.inputState.up = false;
-            self._runtime.inputState.down = false;
-          }
-        }
       };
       canvas.addEventListener("mousemove", this._mouseMoveHandler);
 
-      this._mouseClickHandler = function () {
+      this._mouseClickHandler = function (e) {
         if (self.state !== STATES.PLAYING) return;
+        // Unlock audio
         if (window.KR_Audio && typeof window.KR_Audio.unlock === "function") window.KR_Audio.unlock();
         self._runtime.inputState.hit = true;
+        // Auto-release hit after one frame
         setTimeout(function () { self._runtime.inputState.hit = false; }, 50);
       };
       canvas.addEventListener("click", this._mouseClickHandler);
@@ -1652,11 +1630,7 @@ void function () {
     if (this._mouseMoveHandler && this._canvas) { this._canvas.removeEventListener("mousemove", this._mouseMoveHandler); this._mouseMoveHandler = null; }
     if (this._mouseClickHandler && this._canvas) { this._canvas.removeEventListener("click", this._mouseClickHandler); this._mouseClickHandler = null; }
     this._runtime.inputState = { left: false, right: false, up: false, down: false, hit: false };
-    if (this._runtime) {
-      this._runtime._mouseActive = false;
-      this._runtime._mouseTargetX = -1;
-      this._runtime._mouseTargetY = -1;
-    }
+    if (this._runtime) { this._runtime._mouseActive = false; this._runtime._mouseTargetX = -1; }
   };
 
 
