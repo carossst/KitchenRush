@@ -207,6 +207,10 @@
       opponentFaultMax: 0.24,
       serveIndicatorMs: 900,
       sideOutIndicatorMs: 900,
+      preServePauseMs: 450,
+      rallyStartSlowMs: 120,
+      playerReturnWindowBonusMs: 90,
+      rushCarryoverDisabled: true,
       playerStartsServing: true,
       serviceCourtRightLabel: "Right",
       serviceCourtLeftLabel: "Left"
