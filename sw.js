@@ -33,12 +33,10 @@ const ASSETS_TO_CACHE = [
   "./email.js",
   "./footer.js",
   "./main.js",
-  "./manifest.json",
-  "./icons/kr-icon-192x192.png",
-  "./icons/kr-icon-192x192-maskable.png",
-  "./icons/kr-icon-512x512.png",
-  "./icons/kr-icon-512x512-maskable.png",
-  "./icons/kr-icon-512x512-rond.png"
+  "./wording-dom.js",
+  "./page-404.js",
+  "./success.js",
+  "./manifest.json"
 ];
 
 const CRITICAL_ASSETS = [
@@ -124,7 +122,12 @@ self.addEventListener("fetch", (event) => {
         return res;
       } catch (_) {
         if (req.mode === "navigate") {
-          const shell = await caches.match("./index.html");
+          const fallbackPath = url.pathname.endsWith("/success.html")
+            ? "./success.html"
+            : (url.pathname.endsWith("/404.html")
+              ? "./404.html"
+              : "./index.html");
+          const shell = await caches.match(fallbackPath);
           return shell || new Response("Offline", { status: 503 });
         }
         return new Response("", { status: 504 });

@@ -1,6 +1,6 @@
 /* Kitchen Rush - storage (V1) */
 /* Kitchen Rush */
-/* Removed: statsByItem, practice, houseAd, waitlist, statsSharing, recordAnswer. */
+/* Local-only storage manager for Kitchen Rush. */
 /* Added: sprintBest, sprintFreeRunsUsed, settings.soundEnabled/hapticsEnabled. */
 
 (() => {
@@ -51,6 +51,29 @@
     return n;
   }
 
+
+  function requiredTrimmedString(value, name) {
+    const s = String(value == null ? "" : value).trim();
+    if (!s) throw new Error(name + " must be a non-empty string");
+    return s;
+  }
+
+  function isPlainObject(value) {
+    return !!value && typeof value === "object" && !Array.isArray(value);
+  }
+
+
+  function ensureObjectBranch(host, key, fallbackFactory) {
+    if (!host || typeof host !== "object") throw new Error("StorageManager.ensureObjectBranch: host invalid for " + key);
+    if (!isPlainObject(host[key])) host[key] = fallbackFactory();
+    return host[key];
+  }
+
+  function requireData(manager) {
+    if (!manager || !manager.data || typeof manager.data !== "object") throw new Error("StorageManager: data not initialized");
+    return manager.data;
+  }
+
   function deepCopy(obj) {
     try {
       if (typeof structuredClone === "function") return structuredClone(obj);
@@ -67,8 +90,8 @@
       throw new Error("StorageManager: missing or invalid config (no fallback to window.KR_CONFIG)");
     }
 
-    const resolvedStorageKey = String(config?.storage?.storageKey || "").trim();
-    if (!resolvedStorageKey) throw new Error("StorageManager: missing config.storage.storageKey");
+    if (!config.storage || typeof config.storage !== "object") throw new Error("StorageManager: missing config.storage");
+    const resolvedStorageKey = requiredTrimmedString(config.storage.storageKey, "StorageManager: config.storage.storageKey");
 
     this.config = config;
     this.storageKey = resolvedStorageKey;
@@ -82,18 +105,17 @@
     // Cache compiled regex (premium codes)
     this._premiumCodeRe = undefined;
 
-    const schemaVersion = String(config.storageSchemaVersion == null ? "" : config.storageSchemaVersion).trim();
-
-    if (!schemaVersion) throw new Error("StorageManager: missing config.storageSchemaVersion");
+    const schemaVersion = requiredTrimmedString(config.storageSchemaVersion, "StorageManager: config.storageSchemaVersion");
 
     this.schemaVersion = schemaVersion;
 
     // freeRuns is read from config at init time (not live-synced).
-    const freeRuns = requiredNonNegativeInt(config?.limits?.freeRuns, "StorageManager: config.limits.freeRuns");
+    if (!config.limits || typeof config.limits !== "object") throw new Error("StorageManager: missing config.limits");
+    const freeRuns = requiredNonNegativeInt(config.limits.freeRuns, "StorageManager: config.limits.freeRuns");
     this.modes = getModes();
 
-    const gameId = String(config.identity?.appName || "").trim();
-    if (!gameId) throw new Error("StorageManager: missing config.identity.appName");
+    if (!config.identity || typeof config.identity !== "object") throw new Error("StorageManager: missing config.identity");
+    const gameId = requiredTrimmedString(config.identity.appName, "StorageManager: config.identity.appName");
 
     this.defaultData = {
       version: schemaVersion,
@@ -131,7 +153,7 @@
         runCompletes: 0,
 
         // Lifetime aggregate (never resets — Eyal Hook investment)
-        totalLifetimeSmashes: 0,
+        totalLifetimeScore: 0,
 
         // Sprint (teaser premium): free sprint runs used (lifetime, device-local)
         sprintFreeRunsUsed: 0,
@@ -154,13 +176,13 @@
 
       // Personal best (Run)
       personalBest: {
-        bestSmashes: 0,
+        bestScore: 0,
         achievedAt: 0
       },
 
       // Sprint best (separate from Run best)
       sprintBest: {
-        bestSmashes: 0,
+        bestScore: 0,
         achievedAt: 0
       },
 
@@ -206,19 +228,41 @@
   }
 
 
+
+  StorageManager.prototype._isLoadedDataStructurallyValid = function (loaded) {
+    if (!isPlainObject(loaded)) return false;
+    if (!isPlainObject(loaded.runs)) return false;
+    if (!isPlainObject(loaded.settings)) return false;
+    if (!isPlainObject(loaded.counters)) return false;
+    if (!isPlainObject(loaded.history) || !Array.isArray(loaded.history.lastRuns)) return false;
+    if (!isPlainObject(loaded.personalBest)) return false;
+    if (!isPlainObject(loaded.sprintBest)) return false;
+    if (!isPlainObject(loaded.earlyPrice)) return false;
+    if (!isPlainObject(loaded.analytics)) return false;
+    if (!isPlainObject(loaded.codes)) return false;
+    if (!isPlainObject(loaded.flags)) return false;
+    if (!isPlainObject(loaded.houseAd)) return false;
+    if (!isPlainObject(loaded.waitlist)) return false;
+    return true;
+  };
+
   // ============================================
   // Init
   // ============================================
   StorageManager.prototype.init = function () {
     if (this.initialized) return;
 
-    const cfg = this.config || {};
+    const cfg = this.config;
     const schemaVersion = this.schemaVersion;
 
     const loaded = this._load();
 
-    // No legacy support: mismatch => reset
-    if (!loaded || typeof loaded !== "object" || String(loaded.version || "") !== schemaVersion) {
+    // No legacy support: mismatch or malformed payload => reset
+    var loadedVersion = "";
+    if (loaded && typeof loaded === "object") {
+      loadedVersion = String(loaded.version == null ? "" : loaded.version).trim();
+    }
+    if (!loaded || typeof loaded !== "object" || loadedVersion !== schemaVersion || this._isLoadedDataStructurallyValid(loaded) !== true) {
       this._wipeAndReset();
 
       // If success page already generated a code, keep it across wipes.
@@ -233,29 +277,17 @@
 
     this.data = loaded;
 
-    // Harden required blocks
-    if (!this.data.runs) this.data.runs = deepCopy(this.defaultData.runs);
-    if (!this.data.settings) this.data.settings = deepCopy(this.defaultData.settings);
-    if (!this.data.counters) this.data.counters = deepCopy(this.defaultData.counters);
-    if (!this.data.history) this.data.history = deepCopy(this.defaultData.history);
-    if (!this.data.personalBest) this.data.personalBest = deepCopy(this.defaultData.personalBest);
-    if (!this.data.sprintBest) this.data.sprintBest = deepCopy(this.defaultData.sprintBest);
-    if (!this.data.earlyPrice) this.data.earlyPrice = deepCopy(this.defaultData.earlyPrice);
-    if (!this.data.analytics) this.data.analytics = deepCopy(this.defaultData.analytics);
-    if (!this.data.codes) this.data.codes = deepCopy(this.defaultData.codes);
-
     // Harden flags (migrate from legacy separate localStorage keys)
-    if (!this.data.flags || typeof this.data.flags !== "object") {
-      this.data.flags = deepCopy(this.defaultData.flags);
-    }
     var fl = this.data.flags;
     if (typeof fl.sprintChestHintSolved !== "boolean") fl.sprintChestHintSolved = false;
     if (typeof fl.sprintChestWelcomeShown !== "boolean") fl.sprintChestWelcomeShown = false;
     if (typeof fl.firstRunFramingSeen !== "boolean") fl.firstRunFramingSeen = false;
 
     // One-time migration: read legacy localStorage keys and absorb them
-    var storageKey = String(cfg?.storage?.storageKey || "").trim();
-    if (storageKey) {
+    if (!cfg.storage || typeof cfg.storage !== "object") throw new Error("StorageManager.init: missing config.storage");
+    var storageKey = String(cfg.storage.storageKey).trim();
+    if (!storageKey) throw new Error("StorageManager.init: missing config.storage.storageKey");
+    {
       try {
         if (!fl.sprintChestHintSolved && localStorage.getItem(storageKey + ":sprintChestHintSolved") === "true") fl.sprintChestHintSolved = true;
         if (!fl.sprintChestWelcomeShown && localStorage.getItem(storageKey + ":sprintChestWelcomeShown") === "true") fl.sprintChestWelcomeShown = true;
@@ -321,15 +353,16 @@
     }
 
     // Harden personal best
-    if (!Number.isFinite(this.data.personalBest.bestSmashes)) this.data.personalBest.bestSmashes = 0;
+    if (!Number.isFinite(this.data.personalBest.bestScore)) this.data.personalBest.bestScore = 0;
     if (!Number.isFinite(this.data.personalBest.achievedAt)) this.data.personalBest.achievedAt = 0;
 
     // Harden sprint best
-    if (!Number.isFinite(this.data.sprintBest.bestSmashes)) this.data.sprintBest.bestSmashes = 0;
+    if (!Number.isFinite(this.data.sprintBest.bestScore)) this.data.sprintBest.bestScore = 0;
     if (!Number.isFinite(this.data.sprintBest.achievedAt)) this.data.sprintBest.achievedAt = 0;
 
     // Harden early price
-    const ep = this.data.earlyPrice || {};
+    const data = requireData(this);
+    const ep = ensureObjectBranch(data, "earlyPrice", () => deepCopy(this.defaultData.earlyPrice));
     if (!Number.isFinite(ep.startedAt)) ep.startedAt = 0;
     if (typeof ep.used !== "boolean") ep.used = false;
     this.data.earlyPrice = ep;
@@ -426,7 +459,7 @@
   StorageManager.prototype._compileCodeRegex = function () {
     if (this._premiumCodeRe !== undefined) return;
 
-    const cfg = this.config || {};
+    const cfg = this.config;
     const raw = String(cfg?.premiumCodeRegex || "").trim();
 
     if (!raw) {
@@ -444,7 +477,7 @@
   StorageManager.prototype._syncVanityCodeToCodes = function () {
     if (!this.data) return false;
 
-    const cfg = this.config || {};
+    const cfg = this.config;
     const vanityKey = String(cfg?.storage?.vanityCodeStorageKey || "").trim();
     if (!vanityKey) return false;
 
@@ -463,7 +496,7 @@
 
     let vanity = "";
     try {
-      vanity = String(window.localStorage.getItem(vanityKey) || "").trim();
+      vanity = requiredTrimmedString(window.localStorage.getItem(vanityKey), "StorageManager._loadVanityCode(): vanity code value");
     } catch (_) {
       vanity = "";
     }
@@ -489,43 +522,47 @@
   };
 
   StorageManager.prototype.getRunsBalance = function () {
-    return clampNonNegativeInt(this.data?.runs?.balance);
+    const runs = ensureObjectBranch(requireData(this), "runs", () => deepCopy(this.defaultData.runs));
+    return clampNonNegativeInt(runs.balance);
   };
 
   StorageManager.prototype.getRunsUsed = function () {
-    return clampNonNegativeInt(this.data?.counters?.runStarts);
+    const counters = ensureObjectBranch(requireData(this), "counters", () => deepCopy(this.defaultData.counters));
+    return clampNonNegativeInt(counters.runStarts);
   };
 
   StorageManager.prototype.getRunNumber = function () {
-    return clampNonNegativeInt(this.data?.counters?.runNumber);
+    const counters = ensureObjectBranch(requireData(this), "counters", () => deepCopy(this.defaultData.counters));
+    return clampNonNegativeInt(counters.runNumber);
   };
 
   StorageManager.prototype.getCounters = function () {
-    return this.data?.counters || {};
+    return deepCopy(ensureObjectBranch(requireData(this), "counters", () => deepCopy(this.defaultData.counters)));
   };
 
   StorageManager.prototype.getData = function () {
-    return this.data || {};
+    return deepCopy(requireData(this));
   };
 
   StorageManager.prototype.getPersonalBest = function () {
-    const pb = this.data?.personalBest || {};
+    const pb = ensureObjectBranch(requireData(this), "personalBest", () => deepCopy(this.defaultData.personalBest));
     return {
-      bestSmashes: clampNonNegativeInt(pb.bestSmashes),
+      bestScore: clampNonNegativeInt(pb.bestScore),
       achievedAt: clampNonNegativeInt(pb.achievedAt)
     };
   };
 
   StorageManager.prototype.getSprintBest = function () {
-    const sb = this.data?.sprintBest || {};
+    const sb = ensureObjectBranch(requireData(this), "sprintBest", () => deepCopy(this.defaultData.sprintBest));
     return {
-      bestSmashes: clampNonNegativeInt(sb.bestSmashes),
+      bestScore: clampNonNegativeInt(sb.bestScore),
       achievedAt: clampNonNegativeInt(sb.achievedAt)
     };
   };
 
   StorageManager.prototype.getSprintFreeRunsUsed = function () {
-    return clampNonNegativeInt(this.data?.counters?.sprintFreeRunsUsed);
+    const counters = ensureObjectBranch(requireData(this), "counters", () => deepCopy(this.defaultData.counters));
+    return clampNonNegativeInt(counters.sprintFreeRunsUsed);
   };
 
   StorageManager.prototype.incrementSprintFreeRunsUsed = function () {
@@ -545,23 +582,22 @@
     const n = clampNonNegativeInt(maxCount);
     if (n <= 0) return [];
 
-    const list = (this.data?.history && Array.isArray(this.data.history.lastRuns))
-      ? this.data.history.lastRuns
-      : [];
+    const history = ensureObjectBranch(requireData(this), "history", () => deepCopy(this.defaultData.history));
+    const list = Array.isArray(history.lastRuns) ? history.lastRuns : [];
 
     return list.slice(0, n).map((e) => {
       const it = (e && typeof e === "object") ? e : {};
       return {
         runNumber: clampNonNegativeInt(it.runNumber),
         endedAt: clampNonNegativeInt(it.endedAt),
-        smashes: clampNonNegativeInt(it.smashes),
+        score: clampNonNegativeInt(it.score),
         meta: (it.meta && typeof it.meta === "object") ? it.meta : {}
       };
     });
   };
 
   StorageManager.prototype.getEarlyPriceState = function () {
-    const ep = this.data?.earlyPrice || {};
+    const ep = ensureObjectBranch(requireData(this), "earlyPrice", () => deepCopy(this.defaultData.earlyPrice));
     const startedAt = clampNonNegativeInt(ep.startedAt);
     const windowMs = requiredNonNegativeInt(this.config?.earlyPriceWindowMs, "StorageManager.getEarlyPriceState(): config.earlyPriceWindowMs");
 
@@ -620,7 +656,7 @@
       return { ok: true, reason: "PREMIUM", balance: this.getRunsBalance() };
     }
 
-    const r = this.data.runs || {};
+    const r = ensureObjectBranch(requireData(this), "runs", () => deepCopy(this.defaultData.runs));
     const bal = clampNonNegativeInt(r.balance);
 
     if (bal > 0) {
@@ -641,7 +677,7 @@
   // ============================================
   StorageManager.prototype.setSoundEnabled = function (on) {
     if (!this.data) return;
-    if (!this.data.settings) this.data.settings = deepCopy(this.defaultData.settings);
+    ensureObjectBranch(requireData(this), "settings", () => deepCopy(this.defaultData.settings));
     this.data.settings.soundEnabled = (on === true);
     this._save();
   };
@@ -653,42 +689,44 @@
 
   StorageManager.prototype.setHapticsEnabled = function (on) {
     if (!this.data) return;
-    if (!this.data.settings) this.data.settings = deepCopy(this.defaultData.settings);
+    ensureObjectBranch(requireData(this), "settings", () => deepCopy(this.defaultData.settings));
     this.data.settings.hapticsEnabled = (on === true);
     this._save();
   };
 
   StorageManager.prototype.getHapticsEnabled = function () {
-    const v = this.data?.settings?.hapticsEnabled;
-    return (v === false) ? false : true; // default true
+    if (!this.data || !isPlainObject(this.data.settings)) throw new Error("StorageManager.getHapticsEnabled: settings missing");
+    if (typeof this.data.settings.hapticsEnabled !== "boolean") throw new Error("StorageManager.getHapticsEnabled: settings.hapticsEnabled invalid");
+    return this.data.settings.hapticsEnabled;
   };
 
 
   // ============================================
   // Run completion
   // ============================================
-  StorageManager.prototype.recordRunComplete = function (runNumber, smashes, meta) {
+  StorageManager.prototype.recordRunComplete = function (runNumber, scoreValue, meta) {
     if (!this.data) return { ok: false, newBest: false };
 
-    const score = clampNonNegativeInt(smashes);
+    const score = clampNonNegativeInt(scoreValue);
     const rn = clampNonNegativeInt(runNumber);
 
     // Counters
     this.data.counters.runNumber = Math.max(this.data.counters.runNumber, rn);
     this.data.counters.runCompletes = clampNonNegativeInt(this.data.counters.runCompletes) + 1;
-    this.data.counters.totalLifetimeSmashes = clampNonNegativeInt(this.data.counters.totalLifetimeSmashes) + score;
+    this.data.counters.totalLifetimeScore = clampNonNegativeInt(this.data.counters.totalLifetimeScore) + score;
 
     // Personal best (RUN mode only)
-    const mode = String(meta && meta.mode || "").trim().toUpperCase();
+    const mode = String((meta && meta.mode) == null ? "" : meta.mode).trim().toUpperCase();
     const isRun = (mode === MODES.RUN);
+    const isDaily = !!(meta && meta.isDaily === true);
 
-    const pb = this.data.personalBest || { bestSmashes: 0, achievedAt: 0 };
-    const prevBest = clampNonNegativeInt(pb.bestSmashes);
+    const pb = ensureObjectBranch(requireData(this), "personalBest", () => deepCopy(this.defaultData.personalBest));
+    const prevBest = clampNonNegativeInt(pb.bestScore);
 
     let newBest = false;
 
-    if (isRun && score > prevBest) {
-      pb.bestSmashes = score;
+    if (isRun && !isDaily && score > prevBest) {
+      pb.bestScore = score;
       pb.achievedAt = now();
       this.data.personalBest = pb;
 
@@ -704,42 +742,42 @@
     const entry = {
       runNumber: rn,
       endedAt: now(),
-      smashes: score,
+      score: score,
       meta: (meta && typeof meta === "object") ? meta : {}
     };
 
     list.unshift(entry);
     while (list.length > 20) list.pop();
 
-    this.data.history = this.data.history || {};
+    this.data.history = ensureObjectBranch(requireData(this), "history", () => deepCopy(this.defaultData.history));
     this.data.history.lastRuns = list;
 
     this._save();
 
-    return { ok: true, newBest, bestSmashes: clampNonNegativeInt(this.data.personalBest.bestSmashes) };
+    return { ok: true, newBest, bestScore: clampNonNegativeInt(this.data.personalBest.bestScore) };
   };
 
 
   // ============================================
   // Sprint completion
   // ============================================
-  StorageManager.prototype.recordSprintComplete = function (smashes) {
+  StorageManager.prototype.recordSprintComplete = function (scoreValue) {
     if (!this.data) return { ok: false, newBest: false };
 
-    const score = clampNonNegativeInt(smashes);
+    const score = clampNonNegativeInt(scoreValue);
 
     // Counters
     this.data.counters.sprintCompletes = clampNonNegativeInt(this.data.counters.sprintCompletes) + 1;
-    this.data.counters.totalLifetimeSmashes = clampNonNegativeInt(this.data.counters.totalLifetimeSmashes) + score;
+    this.data.counters.totalLifetimeScore = clampNonNegativeInt(this.data.counters.totalLifetimeScore) + score;
 
     // Sprint best
-    const sb = this.data.sprintBest || { bestSmashes: 0, achievedAt: 0 };
-    const prevBest = clampNonNegativeInt(sb.bestSmashes);
+    const sb = ensureObjectBranch(requireData(this), "sprintBest", () => deepCopy(this.defaultData.sprintBest));
+    const prevBest = clampNonNegativeInt(sb.bestScore);
 
     let newBest = false;
 
     if (score > prevBest) {
-      sb.bestSmashes = score;
+      sb.bestScore = score;
       sb.achievedAt = now();
       this.data.sprintBest = sb;
 
@@ -750,7 +788,7 @@
 
     this._save();
 
-    return { ok: true, newBest, bestSmashes: clampNonNegativeInt(this.data.sprintBest.bestSmashes) };
+    return { ok: true, newBest, bestScore: clampNonNegativeInt(this.data.sprintBest.bestScore) };
   };
 
   StorageManager.prototype.markSprintStarted = function () {
@@ -780,7 +818,8 @@
     this.data.counters.paywallShown = clampNonNegativeInt(this.data.counters.paywallShown) + 1;
 
     // Early price window starts once, at the first PAYWALL view
-    const ep = this.data.earlyPrice || {};
+    const data = requireData(this);
+    const ep = ensureObjectBranch(data, "earlyPrice", () => deepCopy(this.defaultData.earlyPrice));
     if (!clampNonNegativeInt(ep.startedAt)) {
       ep.startedAt = now();
     }
@@ -852,9 +891,14 @@
   };
 
   StorageManager.prototype.getVanityCode = function () {
-    var vanityKey = String(this.config?.storage?.vanityCodeStorageKey || "").trim();
-    if (!vanityKey) return "";
-    try { return String(localStorage.getItem(vanityKey) || "").trim(); } catch (_) { return ""; }
+    if (!this.config || !isPlainObject(this.config.storage)) throw new Error("StorageManager.getVanityCode: config.storage missing");
+    var vanityKey = requiredTrimmedString(this.config.storage.vanityCodeStorageKey, "StorageManager.getVanityCode: config.storage.vanityCodeStorageKey");
+    try {
+      var raw = localStorage.getItem(vanityKey);
+      return requiredTrimmedString(raw, "StorageManager.getVanityCode(): vanity code");
+    } catch (_) {
+      return "";
+    }
   };
 
 
@@ -879,7 +923,7 @@
 
     if (this.isPremium()) return { ok: true, reason: "ALREADY" };
 
-    const cfg = this.config || {};
+    const cfg = this.config;
     const code = String(codeInput || "").trim();
     if (!code) return { ok: false, reason: "EMPTY" };
 
@@ -909,10 +953,8 @@
     this.data.codes.code = code;
 
     // Vanity key (UI convenience)
-    const vanityKey = String(cfg?.storage?.vanityCodeStorageKey || "").trim();
-    if (vanityKey) {
-      try { window.localStorage.setItem(vanityKey, code); } catch (_) { /* ignore */ }
-    }
+    const vanityKey = requiredTrimmedString(cfg.storage.vanityCodeStorageKey, "StorageManager.tryRedeemPremiumCode: config.storage.vanityCodeStorageKey");
+    try { window.localStorage.setItem(vanityKey, code); } catch (_) { /* ignore */ }
 
     // Counters
     if (this.data.counters) {
@@ -953,13 +995,14 @@
   };
 
   StorageManager.prototype.getHouseAdState = function () {
-    const s = String(this.data?.houseAd?.state || "").trim();
+    const houseAd = ensureObjectBranch(requireData(this), "houseAd", () => deepCopy(this.defaultData.houseAd));
+    const s = requiredTrimmedString(houseAd.state, "StorageManager.getHouseAdState: houseAd.state");
     return (s === "never_seen" || s === "remind_later") ? s : "never_seen";
   };
 
   StorageManager.prototype.setHouseAdState = function (state) {
     if (!this.data) return;
-    const s = String(state || "").trim();
+    const s = requiredTrimmedString(state, "StorageManager.setHouseAdState(state)");
     if (s !== "never_seen" && s !== "remind_later") return;
 
     if (!this.data.houseAd || typeof this.data.houseAd !== "object") {
@@ -970,7 +1013,8 @@
   };
 
   StorageManager.prototype.getHouseAdHiddenUntil = function () {
-    return clampNonNegativeInt(this.data?.settings?.houseAdHiddenUntil);
+    const settings = ensureObjectBranch(requireData(this), "settings", () => deepCopy(this.defaultData.settings));
+    return clampNonNegativeInt(settings.houseAdHiddenUntil);
   };
 
   StorageManager.prototype.isHouseAdHiddenNow = function () {
@@ -989,7 +1033,8 @@
 
   StorageManager.prototype.hideHouseAdUsingConfig = function () {
     if (!this.data) return { ok: false, until: 0 };
-    const hideMs = clampNonNegativeInt(this.config?.houseAd?.hideMs);
+    if (!this.config || !isPlainObject(this.config.houseAd)) throw new Error("StorageManager.hideHouseAdUsingConfig: config.houseAd missing");
+    const hideMs = requiredNonNegativeInt(this.config.houseAd.hideMs, "StorageManager.hideHouseAdUsingConfig: config.houseAd.hideMs");
     if (hideMs <= 0) return { ok: false, until: 0 };
 
     const until = now() + hideMs;
@@ -1007,23 +1052,43 @@
     return { ok: true, until: until };
   };
 
+  StorageManager.prototype._countReachedRunMilestones = function (values) {
+    if (!Array.isArray(values) || values.length === 0) return 0;
+    const rc = clampNonNegativeInt(this.data?.counters?.runCompletes);
+    let count = 0;
+    for (let i = 0; i < values.length; i += 1) {
+      const n = clampNonNegativeInt(values[i]);
+      if (n > 0 && rc >= n) count += 1;
+    }
+    return count;
+  };
+
   // Config-driven unlock: has the user completed enough runs to show House Ad?
   StorageManager.prototype.hasReachedHouseAdThreshold = function () {
     if (!this.data) return false;
-    const n = clampNonNegativeInt(this.config?.houseAd?.minRunCompletesToShow);
-    if (n <= 0) return false;
-    return clampNonNegativeInt(this.data?.counters?.runCompletes) >= n;
+    if (!this.config || !isPlainObject(this.config.houseAd)) throw new Error("StorageManager.hasReachedHouseAdThreshold: config.houseAd missing");
+    const milestones = this.config.houseAd.showAfterRunCompletes;
+    if (!Array.isArray(milestones) || milestones.length === 0) return false;
+    return this._countReachedRunMilestones(milestones) > 0;
   };
 
   StorageManager.prototype.shouldShowHouseAdNow = function (ctx) {
     if (!this.data) return false;
-    const cfg = this.config || {};
-    const haCfg = cfg.houseAd || {};
+    const cfg = this.config;
+    if (!cfg || !isPlainObject(cfg.houseAd)) throw new Error("StorageManager.shouldShowHouseAdNow: config.houseAd missing");
+    const haCfg = cfg.houseAd;
     if (haCfg.enabled !== true) return false;
-    if (!String(haCfg.url || "").trim()) return false;
+    const houseAdUrl = String(haCfg.url).trim();
+    if (!houseAdUrl) return false;
     if (this.hasReachedHouseAdThreshold() !== true) return false;
     if (ctx && ctx.inRun === true) return false;
     if (this.isHouseAdHiddenNow()) return false;
+    const milestones = haCfg.showAfterRunCompletes;
+    if (Array.isArray(milestones) && milestones.length > 0) {
+      const eligible = this._countReachedRunMilestones(milestones);
+      const shown = clampNonNegativeInt(this.data?.counters?.houseAdShown);
+      return eligible > shown;
+    }
     return true;
   };
 
@@ -1042,7 +1107,8 @@
 
   // Waitlist
   StorageManager.prototype.getWaitlistStatus = function () {
-    const s = String(this.data?.waitlist?.status || "").trim();
+    const waitlist = ensureObjectBranch(requireData(this), "waitlist", () => deepCopy(this.defaultData.waitlist));
+    const s = requiredTrimmedString(waitlist.status, "StorageManager.getWaitlistStatus(): waitlist.status");
     return (s === "not_seen" || s === "seen" || s === "joined") ? s : "not_seen";
   };
 
@@ -1059,7 +1125,8 @@
   };
 
   StorageManager.prototype.getWaitlistDraftIdea = function () {
-    return String(this.data?.waitlist?.draftIdea || "").trim();
+    const waitlist = ensureObjectBranch(requireData(this), "waitlist", () => deepCopy(this.defaultData.waitlist));
+    return String(waitlist.draftIdea == null ? "" : waitlist.draftIdea).trim();
   };
 
   StorageManager.prototype.setWaitlistDraftIdea = function (idea) {
@@ -1073,21 +1140,24 @@
 
   StorageManager.prototype.hasReachedWaitlistThreshold = function () {
     if (!this.data) return false;
-    const n = clampNonNegativeInt(this.config?.waitlist?.minRunCompletesToShow);
-    if (n <= 0) return false;
-    return clampNonNegativeInt(this.data?.counters?.runCompletes) >= n;
+    if (!this.config || !isPlainObject(this.config.waitlist)) throw new Error("StorageManager.hasReachedWaitlistThreshold: config.waitlist missing");
+    const milestones = this.config.waitlist.showAfterRunCompletes;
+    if (!Array.isArray(milestones) || milestones.length === 0) return false;
+    return this._countReachedRunMilestones(milestones) > 0;
   };
 
   StorageManager.prototype.shouldShowWaitlistNow = function (ctx) {
     if (!this.data) return false;
-    const cfg = this.config || {};
-    const wlCfg = cfg.waitlist || {};
+    const cfg = this.config;
+    if (!cfg || !isPlainObject(cfg.waitlist)) throw new Error("StorageManager.shouldShowWaitlistNow: config.waitlist missing");
+    const wlCfg = cfg.waitlist;
     if (wlCfg.enabled !== true) return false;
     if (this.hasReachedWaitlistThreshold() !== true) return false;
     if (ctx && ctx.inRun === true) return false;
-    const st = String(this.data?.waitlist?.status || "").trim();
+    const waitlist = ensureObjectBranch(requireData(this), "waitlist", () => deepCopy(this.defaultData.waitlist));
+    const st = requiredTrimmedString(waitlist.status, "StorageManager.shouldShowWaitlistNow(): waitlist.status");
     if (st === "joined") return false;
-    return true;
+    return st === "not_seen";
   };
 
 
@@ -1136,8 +1206,10 @@
   StorageManager.prototype.getAnonymousStatsPayload = function () {
     if (!this.data) return null;
 
-    const cfg = this.config || {};
-    const schemaVersion = String(cfg?.statsSharing?.schemaVersion || "1.0");
+    const cfg = this.config;
+    if (!cfg || !isPlainObject(cfg.statsSharing)) throw new Error("StorageManager.getAnonymousStatsPayload: config.statsSharing missing");
+    const schemaVersion = String(cfg.statsSharing.schemaVersion).trim();
+    if (!schemaVersion) throw new Error("StorageManager.getAnonymousStatsPayload: config.statsSharing.schemaVersion missing");
 
     let device = "desktop";
     try {
@@ -1152,8 +1224,8 @@
       runs: clampNonNegativeInt(this.data.counters?.runCompletes),
       sprintRuns: clampNonNegativeInt(this.data.counters?.sprintCompletes),
       isPremium: !!(this.data.isPremium),
-      personalBest: clampNonNegativeInt(this.data.personalBest?.bestSmashes),
-      sprintBest: clampNonNegativeInt(this.data.sprintBest?.bestSmashes),
+      personalBest: clampNonNegativeInt(this.data.personalBest.bestScore),
+      sprintBest: clampNonNegativeInt(this.data.sprintBest.bestScore),
       device: device,
 
       funnel: {

@@ -1,67 +1,56 @@
-// email.js v1.0 - Kitchen Rush
-// Obfuscation mailto helper — fail-closed, config-driven.
-// Transformed from Word Traps email.js — same pattern, KR_ prefix.
-//
-// Responsibilities:
-//   1. Decode obfuscated emails from KR_CONFIG (technical, never displayed raw)
-//   2. Wire footer contact link: label from KR_WORDING, click → KR_SUPPORT_OPEN hook
-//   3. Wire legacy data-user/data-domain links (success.html)
-//
-// Fail-closed contract:
-//   - No label in KR_WORDING → no link (silent skip)
-//   - No KR_SUPPORT_OPEN hook → no click handler (footer.js cleans up)
-//   - No obfuscated email in KR_CONFIG → empty string (callers handle it)
-//   - No fallbacks, no guessing, no email ever shown as text
+// email.js v2.0 - Kitchen Rush
+// Config-driven email helpers. No silent content fallbacks.
 
 (() => {
   "use strict";
 
-  /** Decode HTML-entity-obfuscated string (e.g. "a&#64;b&#46;c" → "a@b.c") */
   function decodeHtmlEntities(str) {
     const t = document.createElement("textarea");
     t.innerHTML = str;
     return t.value;
   }
 
-  /** Sanitize a string for safe use in mailto query params (strip injection vectors) */
   function sanitize(str) {
-    return String(str || "").replace(/[\r\n]/g, " ").trim();
+    return String(str).replace(/[\r\n]/g, " ").trim();
   }
 
-  // Returns decoded support email from KR_CONFIG.support.emailObfuscated.
-  // Fail-closed: returns "" if anything is missing or invalid.
+  function requireConfig() {
+    const cfg = window.KR_CONFIG;
+    if (!cfg || typeof cfg !== "object") throw new Error("KR_Email: KR_CONFIG missing");
+    return cfg;
+  }
+
+  function requireWording() {
+    const w = window.KR_WORDING;
+    if (!w || typeof w !== "object") throw new Error("KR_Email: KR_WORDING missing");
+    return w;
+  }
+
+  function decodeEmail(obfuscated, fieldName) {
+    const raw = String(obfuscated).trim();
+    if (!raw) throw new Error(fieldName + " missing");
+    const email = decodeHtmlEntities(raw).replace(/[\r\n]/g, "").trim();
+    if (!email.includes("@")) throw new Error(fieldName + " invalid");
+    return email;
+  }
+
   function getSupportEmailDecoded() {
-    try {
-      const obf = String(window.KR_CONFIG?.support?.emailObfuscated || "").trim();
-      if (!obf) return "";
-
-      const email = decodeHtmlEntities(obf).replace(/[\r\n]/g, "").trim();
-      if (!email || !email.includes("@")) return "";
-      return email;
-    } catch (_) {
-      return "";
-    }
+    const cfg = requireConfig();
+    return decodeEmail(cfg.support.emailObfuscated, "KR_CONFIG.support.emailObfuscated");
   }
 
-  // Build a mailto URL for waitlist signup.
-  // Fail-closed: returns "" if config is missing/disabled.
   function buildMailto(config, message) {
-    const wl = config?.waitlist;
-    if (!wl?.enabled) return "";
+    if (!config || typeof config !== "object") throw new Error("KR_Email.buildMailto: config missing");
+    const wording = requireWording();
+    const waitlist = config.waitlist;
+    if (!waitlist || waitlist.enabled !== true) return "";
 
-    const obf = String(wl.toEmailObfuscated || "").trim();
-    if (!obf) return "";
-    const to = decodeHtmlEntities(obf).replace(/[\r\n]/g, "").trim();
-    if (!to || !to.includes("@")) return "";
-
-    const prefix = sanitize(wl.subjectPrefix);
-    if (!prefix) return "";
-    const suffix = sanitize(window.KR_WORDING?.waitlist?.emailSubjectSuffix);
+    const to = decodeEmail(waitlist.toEmailObfuscated, "KR_CONFIG.waitlist.toEmailObfuscated");
+    const prefix = sanitize(waitlist.subjectPrefix);
+    const suffix = sanitize(wording.waitlist.emailSubjectSuffix);
     const subject = suffix ? `${prefix} ${suffix}` : prefix;
-
-    const idea = String(message || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
-    const tpl = String(window.KR_WORDING?.waitlist?.emailBodyTemplate || "").trim();
-    const body = tpl ? tpl.replaceAll("{idea}", idea) : idea;
+    const idea = String(message).replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+    const body = String(wording.waitlist.emailBodyTemplate).replaceAll("{idea}", idea);
 
     const q = [];
     if (subject) q.push(`subject=${encodeURIComponent(subject)}`);
@@ -69,65 +58,54 @@
     return `mailto:${to}${q.length ? `?${q.join("&")}` : ""}`;
   }
 
-  // Wire all email-related links in the DOM.
+  function openSupportEmail() {
+    const cfg = requireConfig();
+    const wording = requireWording();
+    const email = getSupportEmailDecoded();
+    const prefix = sanitize(cfg.support.subjectPrefix);
+    const suffix = sanitize(wording.support.emailSubjectSuffix);
+    const subject = [prefix, suffix].filter(Boolean).join(" ").trim();
+    const body = String(wording.support.emailBodyTemplate).trim();
+    const q = [];
+    if (subject) q.push(`subject=${encodeURIComponent(subject)}`);
+    if (body) q.push(`body=${encodeURIComponent(body)}`);
+    window.location.href = `mailto:${email}${q.length ? `?${q.join("&")}` : ""}`;
+  }
+
   function initEmailLinks() {
-    try {
-      const wording = window.KR_WORDING || {};
+    const wording = requireWording();
+    const supportLabel = String(wording.support.label).trim();
 
-      // Footer contact link (#kr-contact-link)
-      const supportLink = document.getElementById("kr-contact-link");
-      if (supportLink) {
-        const label = String(wording.support?.label || "").trim();
-
-        if (!label) {
-          // Fail-closed: no label → footer.js will remove the empty link + separator.
-        } else {
-          supportLink.textContent = label;
-          supportLink.setAttribute("aria-label", label);
-
-          if (typeof window.KR_SUPPORT_OPEN !== "function") {
-            supportLink.removeAttribute("href");
-            supportLink.removeAttribute("target");
-            supportLink.removeAttribute("rel");
-          } else {
-            const email = getSupportEmailDecoded();
-            if (email) {
-              supportLink.href = `mailto:${email}`;
-            } else {
-              supportLink.removeAttribute("href");
-            }
-
-            supportLink.addEventListener("click", (e) => {
-              e.preventDefault();
-              window.KR_SUPPORT_OPEN();
-            });
-          }
+    const supportLink = document.getElementById("kr-contact-link");
+    if (supportLink) {
+      supportLink.textContent = supportLabel;
+      supportLink.setAttribute("aria-label", supportLabel);
+      supportLink.setAttribute("href", `mailto:${getSupportEmailDecoded()}`);
+      supportLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (typeof window.KR_SUPPORT_OPEN === "function") {
+          window.KR_SUPPORT_OPEN();
+          return;
         }
-      }
-
-      // Legacy data-user/data-domain links (success.html)
-      const links = document.querySelectorAll("a[data-user][data-domain]");
-      links.forEach((link) => {
-        if (!link) return;
-        if (link.id === "kr-contact-link") return;
-        if (link.getAttribute("data-email-mode") === "modal") return;
-
-        const user = link.getAttribute("data-user");
-        const domain = link.getAttribute("data-domain");
-        if (!user || !domain) return;
-
-        link.href = `mailto:${user}@${domain}`;
+        openSupportEmail();
       });
-    } catch (_) {
-      // Silent fail — fail-closed.
     }
+
+    document.querySelectorAll("a[data-user][data-domain]").forEach((link) => {
+      if (link.id === "kr-contact-link") return;
+      if (link.getAttribute("data-email-mode") === "modal") return;
+      const user = String(link.getAttribute("data-user")).trim();
+      const domain = String(link.getAttribute("data-domain")).trim();
+      if (!user || !domain) return;
+      link.href = `mailto:${user}@${domain}`;
+    });
   }
 
   window.KR_Email = {
     buildMailto,
     decodeObfuscated: decodeHtmlEntities,
     getSupportEmailDecoded,
+    openSupportEmail,
     initEmailLinks
   };
-
 })();

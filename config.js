@@ -1,4 +1,4 @@
-// config.js v1.0 - Kitchen Rush
+// config.js v29.0 - Kitchen Rush
 // Configuration + UI copy (single file, no split)
 // Kitchen Rush
 
@@ -20,8 +20,8 @@
   // ============================================
   // Global UI helpers (shared across IIFE modules)
   // ============================================
-  window.KR_UTILS = window.KR_UTILS || {};
-  window.KR_UTILS.escapeHtml = function (str) {
+  const KR_UTILS = Object.create(null);
+  KR_UTILS.escapeHtml = function (str) {
     return String(str)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
@@ -29,6 +29,7 @@
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
   };
+  window.KR_UTILS = Object.freeze(KR_UTILS);
 
   // Single source of truth for critical enums (no scattered magic strings).
   window.KR_ENUMS = Object.freeze({
@@ -51,7 +52,7 @@
   window.KR_CONFIG = {
 
     // Product version (UI display, logs, SW cache key)
-    version: "1",
+    version: "35",
 
     // Storage schema version (localStorage).
     // Change ONLY if you accept a migration/wipe.
@@ -67,11 +68,21 @@
     // ============================================
     identity: {
       appName: "Kitchen Rush",
-      appUrl: "https://kitchenrush.app",   // TBD: confirm domain
-      parentUrl: "",
+      appUrl: "https://www.bonjourpickleball.fr/",
+      parentUrl: "https://www.bonjourpickleball.fr/",
 
       // UI signature icon (in-card branding)
       uiLogoUrl: "./icons/kr-icon-512x512-rond.png"
+    },
+
+    seo: {
+      title: "Kitchen Rush - Mobile Arcade Pickleball Game",
+      description: "A mobile arcade game of reflexes, precision, and quick court reads inspired by pickleball. No ads. No account.",
+      canonicalUrl: "https://www.bonjourpickleball.fr/",
+      shareImageUrl: "https://www.bonjourpickleball.fr/icons/kr-icon-512x512.png",
+      themeColor: "#1a2332",
+      successTitle: "Activation Code Ready - Kitchen Rush",
+      successDescription: "Payment successful. Your Kitchen Rush activation code is ready."
     },
 
     // ============================================
@@ -84,81 +95,122 @@
 
 
     // ============================================
-    // GAME — core gameplay mechanics (Canvas)
+    // GAME — shared gameplay primitives
     // ============================================
     game: {
-      // Lives
-      lives: 3,
+      // Player - mobile-first lateral control + assisted forward step
+      player: {
+        baseXFrac: 0.5,
+        baseYFrac: 0.92,
+        maxForwardYFrac: 0.78,
+        widthFrac: 0.22,
+        heightPx: 8,
+        moveSpeedPxPerSec: 900,
+        hitReachPx: 84,
+        autoForwardReachPx: 120,
+        swingMs: 180,
+        bodyRadiusPx: 14,
+        headRadiusPx: 8,
+        paddleLengthPx: 28,
+        paddleThicknessPx: 6,
+        lateralLeanPx: 7
+      }
+    },
 
-      // Onboarding: first N balls always outside Kitchen
+
+    // ============================================
+    // RUSH — fast arcade variant
+    // ============================================
+    rush: {
+      // First N balls always stay out of the Kitchen.
       onboardingShield: 3,
 
-      // Rebound delay (ms) — time between ball landing and bounce signal
+      // Delay between landing and bounce state.
       reboundDelayMs: 150,
 
-      // Speed curve: speed(t) = base + accelPerSec * t
-      speed: {
+      // Travel speed curve for incoming balls.
+      speedCurve: {
         base: 2.8,
         accelPerSec: 0.05
       },
 
-      // Spawn interval: spawnInterval(t) = max(minMs, initialMs - decayPerSec * t)
-      spawn: {
+      // Spawn cadence for new balls.
+      spawnInterval: {
         initialMs: 1200,
         decayPerSec: 12,
         minMs: 400
       },
 
-      // Tap window: windowMs(t) = max(minMs, initialMs - decayPerSec * t)
-      window: {
+      // Player reaction window after a playable bounce.
+      hitWindow: {
         initialMs: 350,
         decayPerSec: 2.5,
         minMs: 80
       },
 
-      // Kitchen ratio: kitchenRatio(t) = min(max, base + growthPerSec * t)
-      kitchenRatio: {
+      // Share of short Kitchen balls as intensity rises.
+      kitchenShare: {
         base: 0.3,
         growthPerSec: 0.01,
         max: 0.7
       },
 
-      // Milestones (Smash counts triggering visual feedback)
+      // Score milestones for UI feedback.
       milestones: [25, 50, 100],
 
-      // Each type unlocks after N seconds elapsed, changing one parameter.
-      // "normal" is always available. Types are additive, not replacing.
+      // Runtime defaults for rush-generated balls.
+      defaultBallType: "normal",
+      defaultExchangeStage: "RALLY",
+      defaultResponseType: "STANDARD",
+
+      // Ball archetypes layered on top of the base arcade loop.
       ballTypes: {
-        // Dink: slow, always Kitchen, large tap window (easy — but must wait)
         dink: {
           unlockAfterSec: 15,
-          weight: 0.2,              // spawn probability weight when unlocked
+          weight: 0.2,
           speedMultiplier: 0.5,
           forceKitchen: true,
-          tapWindowMultiplier: 1.8,
+          hitWindowMultiplier: 1.8,
           radiusMultiplier: 0.8
         },
-        // Lob: high arc, slow, lands anywhere, long float = patience test
         lob: {
           unlockAfterSec: 30,
           weight: 0.15,
           speedMultiplier: 0.35,
           forceKitchen: false,
-          tapWindowMultiplier: 0.7,   // shorter window after landing
+          hitWindowMultiplier: 0.7,
           radiusMultiplier: 1.3
         },
-        // Fast: speed ball, short tap window, never Kitchen (pure reflex)
         fast: {
           unlockAfterSec: 45,
           weight: 0.15,
           speedMultiplier: 2.0,
           forceKitchen: false,
-          tapWindowMultiplier: 0.6,
+          hitWindowMultiplier: 0.6,
           radiusMultiplier: 0.9
         }
       }
     },
 
+    // ============================================
+    // CLASSIC - pickleball-styled scoring and service
+    // ============================================
+    classic: {
+      targetScore: 11,
+      winBy: 2,
+      betweenShotsMs: 320,
+      betweenRalliesMs: 900,
+      opponentReturnBase: 0.88,
+      opponentReturnDecayPerShot: 0.08,
+      opponentReturnMin: 0.34,
+      opponentFaultBase: 0.08,
+      opponentFaultMax: 0.24,
+      serveIndicatorMs: 900,
+      sideOutIndicatorMs: 900,
+      playerStartsServing: true,
+      serviceCourtRightLabel: "Right",
+      serviceCourtLeftLabel: "Left"
+    },
 
     // ============================================
     // DAILY — V2: same ball sequence for everyone each day
@@ -173,7 +225,7 @@
     // JUICE — visual effect timings (Canvas, ms)
     // ============================================
     juice: {
-      smashFlashMs: 120,
+      hitFlashMs: 120,
       faultFlashMs: 200,
       faultShakeMs: 200,
       faultShakeIntensity: 6,
@@ -194,6 +246,34 @@
 
       // Kitchen line position (% from top of court area)
       kitchenLineY: 0.65,
+      netYFrac: 0.27,
+      perspectiveTopInsetFrac: 0.25,
+      perspectiveBottomInsetFrac: 0.06,
+      playerScaleNear: 1.42,
+      playerScaleFar: 0.72,
+      landingMarkerRadiusPx: 16,
+      landingMarkerStrokePx: 3,
+      trajectoryGuideDashPx: 12,
+      ballGlowBlurPx: 20,
+      ballCoreRingPx: 2,
+      hudPanelBlurPx: 10,
+      serviceTargetRadiusMult: 2.8,
+      swingSlashWidthPx: 6,
+      swingSlashAlpha: 0.26,
+      opponentBaseAlpha: 0.26,
+      farCourtGuideAlpha: 0.28,
+      idleBobPx: 3,
+      fastTrailWidthPx: 3,
+      fastTrailAlpha: 0.28,
+      impactParticleCount: 8,
+      opponentIdleBobPx: 3,
+      opponentReachPx: 10,
+      playerRunBobPx: 6,
+      playerRunSwingPx: 10,
+      playerTiltMaxPx: 8,
+      ballSpinAlpha: 0.22,
+      ballPulsePx: 3,
+      servicePulseAlpha: 0.22,
 
       // Minimum landing Y for non-kitchen balls (fraction of kitchenLineY)
       // Prevents balls from landing near the very top of the screen
@@ -212,56 +292,100 @@
       shadowGrowthFactor: 0.7,
 
       // Bounce animation: ball jumps up visually after landing
-      bounceHeight: 0.08,      // fraction of canvas height
-      bounceAnimMs: 250,       // duration of bounce animation
+      bounceHeight: 0.08,
+      bounceAnimMs: 250,
 
-      // Smash-out animation: ball flies away after being smashed
-      smashOutMs: 300,         // duration of fly-away animation
-      smashOutDistance: 200,    // pixels the ball flies upward
+      // Hit-out animation: ball flies away after being hited
+      hitOutMs: 300,
+      hitOutDistance: 200,
 
-      // Score popup: "+1" floats up from smash point
+      // Score popup: "+1" floats up from hit point
       scorePopupMs: 600,
 
       // Trail: number of trail segments behind falling ball
-      trailSegments: 4,
+      trailSegments: 3,
+
+      // Mobile canvas sharpness
+      devicePixelRatioMax: 2,
+
+      // Service / court readability
+      serviceTargetGlowAlpha: 0.22,
+      serviceGuideWidthPx: 2,
+      serviceGuideDashPx: 10,
+      serviceGuideShowMs: 900,
+      opponentDepthFrac: 0.22,
+      opponentXOffsetFrac: 0.18,
+      opponentBodyScale: 0.72,
+      opponentPaddleScale: 0.85,
 
       // Canvas colors (non-DOM: CSS cannot style canvas content)
       colors: {
-        courtBg: "#1b4332",
-        kitchenBg: "#081c15",
-        kitchenLine: "#ffffff66",
-        kitchenLabelColor: "#ffffff33",
+        appBgTop: "#07131f",
+        appBgBottom: "#050b13",
+        courtBg: "#133a5e",
+        courtBgDark: "#0d2942",
+        courtStripe: "rgba(255,255,255,0.03)",
+        kitchenBg: "#e35d5b",
+        kitchenBgDark: "#b84245",
+        kitchenOverlay: "rgba(255,255,255,0.05)",
+        kitchenLine: "rgba(255,245,237,0.95)",
+        kitchenLineGlow: "rgba(255,140,112,0.35)",
+        kitchenLabelColor: "rgba(255,245,237,0.18)",
+        line: "rgba(255,245,237,0.72)",
+        lineSoft: "rgba(255,245,237,0.26)",
+        netTape: "rgba(255,255,255,0.92)",
+        netMesh: "rgba(214,228,242,0.16)",
+        horizonGlow: "rgba(255,255,255,0.06)",
 
-        ballDefault: "#e0fbfc",
-        ballKitchen: "#ffd60a",
-        ballSmashed: "#06d6a0",
+        ballDefault: "#ffd84d",
+        ballKitchen: "#ffd84d",
+        ballHit: "#fff4bf",
         ballFaulted: "#ef476f",
-        ballMissed: "#6c757d",
-        bounceRing: "#06d6a0",
-        shadow: "#000000",
+        ballMissed: "#7b8794",
+        ballOutline: "rgba(88,60,0,0.42)",
+        bounceRing: "#fff4bf",
+        shadow: "rgba(6,11,18,0.42)",
 
-        // Paddle
-        paddle: "#e0fbfc",
-        paddleGlow: "rgba(224,251,252,0.3)",
+        // Player / opponent
+        paddle: "#f7fbff",
+        paddleAccent: "#67d2ff",
+        paddleGlow: "rgba(103,210,255,0.16)",
+        playerAccent: "#67d2ff",
+        playerShadow: "rgba(5,8,14,0.28)",
+        opponent: "rgba(255,255,255,0.58)",
+        opponentPaddle: "rgba(103,210,255,0.68)",
+        serviceTarget: "rgba(255,216,77,0.30)",
+        serviceGuide: "rgba(255,255,255,0.28)",
+        hudPanel: "rgba(7,19,31,0.78)",
+        hudBorder: "rgba(255,245,237,0.14)",
+        hudAccent: "rgba(255,216,77,0.96)",
+        hudTextMuted: "rgba(221,232,242,0.76)",
+        serviceLane: "rgba(255,216,77,0.12)",
+        swingSlash: "rgba(103,210,255,0.22)",
+        fastTrail: "rgba(255,216,77,0.20)",
+        impactParticle: "rgba(255,255,255,0.72)",
+        opponentGhost: "rgba(255,255,255,0.24)",
+        ballSeam: "rgba(88,60,0,0.22)",
+        scoreGlow: "rgba(255,216,77,0.24)",
 
         // Score popup
-        scorePopup: "#06d6a0",
+        scorePopup: "#f7fbff",
 
         // "WAIT" indicator on kitchen balls
-        waitIndicator: "#ffd60a",
+        waitIndicator: "#fff4bf",
 
-        // V2: Ball type colors
-        ballDink: "#98c1d9",      // soft blue — "slow, wait"
-        ballLob: "#e0aaff",       // lavender — "big, floaty"
-        ballFast: "#ff8800",      // orange — "speed, danger"
+        // Ball type accents
+        ballDink: "rgba(255,244,191,0.95)",
+        ballLob: "rgba(255,255,255,0.95)",
+        ballFast: "rgba(255,166,77,0.95)",
 
-        // Milestone tint colors (court + kitchen at 25/50/100 Smashes)
-        milestone1CourtBg: "#1a3a3a",
-        milestone1KitchenBg: "#0f2a2a",
-        milestone2CourtBg: "#3a2a1a",
-        milestone2KitchenBg: "#2a1a0f",
-        milestone3CourtBg: "#2a1a3a",
-        milestone3KitchenBg: "#1a0f2a"
+        // Milestone tint colors (court + kitchen at 25/50/100 hits)
+        milestone1CourtBg: "#16456f",
+        milestone1KitchenBg: "#ef6d63",
+        milestone2CourtBg: "#0f3b63",
+        milestone2KitchenBg: "#f27b4b",
+        milestone3CourtBg: "#103858",
+        milestone3KitchenBg: "#ff8a57"
       }
     },
 
@@ -271,7 +395,7 @@
     // ============================================
     audio: {
       enabled: true,
-      smashVolume: 0.6,
+      hitVolume: 0.6,
       faultVolume: 0.4,
       bounceVolume: 0.3
     },
@@ -282,16 +406,31 @@
     // ============================================
     haptic: {
       enabled: true,
-      smashPattern: [15],
+      hitPattern: [15],
       faultPattern: [30, 50, 30]
     },
 
+
+
+    // ============================================
+    // CONTROLS — mobile first
+    // ============================================
+    controls: {
+      keyboardEnabled: true,
+      pointerMoveEnabled: true,
+      touchButtonsEnabled: true,
+      touchNudgeMs: 40,
+      pointerSmoothing: 0.18,
+      leftKeys: ["ArrowLeft", "a", "A"],
+      rightKeys: ["ArrowRight", "d", "D"],
+      hitKeys: [" ", "Enter"]
+    },
 
     // ============================================
     // LIMITS — monetization by replayability
     // ============================================
     limits: {
-      freeRuns: 3
+      freeRuns: 2
     },
 
 
@@ -300,12 +439,12 @@
     // ============================================
     challenges: {
       nearBestGap: 5,         // show "near best" if gap ≤ this
-      cleanRunMinSmashes: 5,  // min smashes to celebrate a 0-fault run
+      cleanRunMinScore: 5,  // min score to celebrate a 0-fault run
       streakThreshold: 8,     // show streak challenge if bestStreak ≥ this
       streakTargetBonus: 3,   // target = streak + this
       faultThreshold: 2,      // show fault coaching if faults ≥ this
       lowAccuracyPct: 60,     // show accuracy challenge if < this %
-      lowAccuracyMinSmashes: 3 // min smashes for accuracy to be meaningful
+      lowAccuracyMinScore: 3 // min score for accuracy to be meaningful
     },
 
 
@@ -351,7 +490,7 @@
     currency: "USD",
     earlyPriceCents: 499,
     standardPriceCents: 699,
-    earlyPriceWindowMs: 20 * 60 * 1000, // 20 minutes
+    earlyPriceWindowMs: 20 * 60 * 1000,
     stripeEarlyPaymentUrl: "REPLACE_WITH_STRIPE_EARLY_URL",
     stripeStandardPaymentUrl: "REPLACE_WITH_STRIPE_STANDARD_URL",
     successRedirectUrl: "./success.html",
@@ -388,13 +527,13 @@
     // HOUSE AD (cross-sell to other games)
     // ============================================
     houseAd: {
-      enabled: false,            // TBD: enable when other game exists
+      enabled: true,
       premiumOnly: false,
-      url: "",                   // TBD: URL to cross-sell game
-      showAfterEnd: true,
+      url: "",                   // Keep placeholder until ad destination is live.
+      showAfterEnd: false,
 
-      // Unlock threshold (completed runs, not pool-based)
-      minRunCompletesToShow: 5,
+      // Contextual cadence by completed runs.
+      showAfterRunCompletes: [15, 30],
 
       // "Remind later" hide window (mechanics)
       hideMs: 24 * 60 * 60 * 1000  // 24h
@@ -404,17 +543,17 @@
     // WAITLIST (future products/features notification)
     // ============================================
     waitlist: {
-      enabled: false,            // TBD: enable when ready
+      enabled: true,
 
-      // Unlock threshold (completed runs)
-      minRunCompletesToShow: 5,
+      // Contextual cadence by completed runs.
+      showAfterRunCompletes: [10],
 
-      placement: "end-and-landing-after-seen-once",
+      placement: "landing-card",
       afterPoolExhaustedOnly: false,
       showModalOneShot: false,
 
       // Obfuscated email (anti-scraping)
-      toEmailObfuscated: "",     // TBD
+      toEmailObfuscated: "contact&#64;bonjourpickleball&#46;fr",
       subjectPrefix: "[Kitchen Rush][Waitlist]"
     },
 
@@ -439,11 +578,15 @@
       afterPoolExhaustedOnly: false,
       showModalOneShot: false,
 
-      // Milestone triggers (completed runs instead of pool %)
-      promptAfterRunCompletes: [3, 5],
+      // Contextual cadence:
+      // - 3: early familiarity without asking on the first two runs
+      // - 7: confirmation of repeated play without prompting every session
+      // - 10: first habit milestone
+      // - 50: long-term player check-in
+      promptAfterRunCompletes: [3, 7, 10, 50],
 
-      // Also prompt when free runs are exhausted
-      promptOnFreeRunsExhausted: true
+      // Keep the cadence clean; do not add extra prompts just because free runs are exhausted.
+      promptOnFreeRunsExhausted: false
     },
 
 
@@ -451,7 +594,7 @@
     // SUPPORT
     // ============================================
     support: {
-      emailObfuscated: "bonjour&#64;kitchenrush&#46;app",
+      emailObfuscated: "contact&#64;bonjourpickleball&#46;fr",
       subjectPrefix: "[Kitchen Rush][Contact]"
     },
 
@@ -490,8 +633,8 @@
 
       // Paywall urgency (pulse when time is low)
       paywallUrgency: {
-        enabled: true,
-        pulseBelowMs: 5 * 60 * 1000 // 5 minutes
+        enabled: false,
+        pulseBelowMs: 5 * 60 * 1000
       }
     },
 
@@ -513,13 +656,26 @@
     },
 
     // ============================================
+    // UX FLOW (retention + shell discipline)
+    // ============================================
+    uxFlow: {
+      houseAdMinRunCompletes: 999999,
+      waitlistMinRunCompletes: 999999,
+      autoShareNewBestMinScore: 999999,
+      autoShareDailyMinScore: 999999,
+      autoShareRegularMinScore: 999999,
+      classicLongRallyMinHits: 5,
+      classicNearBestGap: 5
+    },
+
+    // ============================================
     // MICRO-FEEDBACK (arcade streaks, overlays)
     // ============================================
     microFeedback: {
-      // Minimum smashes between consecutive overlays (avoids spam)
-      cooldownSmashes: 3,
+      // Minimum score delta between consecutive overlays (avoids spam)
+      cooldownScoreDelta: 3,
 
-      // Streak tier thresholds (consecutive smashes without fault)
+      // Streak tier thresholds (consecutive clean hits without fault)
       streakThresholds: {
         start: 3,
         building: 6,
@@ -567,7 +723,7 @@
   // - Competitive (against yourself)
   //
   // Dominant lexical field:
-  // - smash, fault, miss
+  // - hit, fault, miss
   // - game over, new best
   // - play again, unlock
   //
@@ -581,8 +737,8 @@
 
   window.KR_WORDING = {
     brand: {
-      creatorLine: "",                    // TBD
-      creatorLineHtml: ""                 // TBD
+      creatorLine: "Created by Carole Stromboni for Bonjour Pickleball",
+      creatorLineHtml: ""
     },
 
     system: {
@@ -598,6 +754,7 @@
       closeIcon: "\u2715",
 
       offlinePayment: "Payment requires an internet connection.",
+      checkoutUnavailable: "Checkout is not live yet.",
       copied: "Copied",
       copyFailed: "Copy failed",
       more: "How to play",
@@ -614,6 +771,7 @@
 
       // Fatal / loading (main.js bootstrap)
       loadingLabel: "Loading...",
+      classicLoading: "Classic loading…",
       reloadCta: "Reload",
       fatalGeneric: "Unable to load the game. Please refresh the page.",
       fatalModules: "Unable to load game components. Please refresh the page.",
@@ -628,16 +786,17 @@
     footer: {
       contact: "Contact",
       privacy: "Privacy",
-      terms: "Terms"
+      terms: "Terms",
+      press: "Press"
     },
 
 
     success: {
       title: "Payment successful",
-      subtitle: "Your activation code is ready. Save it, then activate it in the game.",
+      subtitle: "Your activation code is ready. Save it, then activate it in the game on this device.",
 
       codeLabel: "Your activation code",
-      clearDataWarning: "If you clear site data or switch device/browser, you will need this code again.",
+      clearDataWarning: "If you clear site data or switch browser or device, you will need this code again.",
 
       howToActivateTitle: "How to activate",
       howToActivateStep1: "Return to the game.",
@@ -649,23 +808,23 @@
 
       whatYouGetTitle: "What you get",
       benefitsTitle: "What you get",
-      benefitUnlimitedRuns: "Unlimited runs.",
-      benefitSprint: "Sprint mode unlocked.",
-      benefitPersonalBest: "Personal best tracking.",
+      benefitUnlimitedRuns: "Unlimited Classic and Rush runs on this device.",
+      benefitSprint: "Rush stays unlocked.",
+      benefitPersonalBest: "Best scores stay saved on this device.",
 
       ctaBackToGame: "Back to game",
       ctaDownload: "Download code (.txt)",
-      shortcutHint: "Shortcut: How to play - Activate with a code.",
+      shortcutHint: "Open How to play, then use Activate with a code.",
 
-      thankYouLine: "Thank you for supporting an independent game.",
+      thankYouLine: "Thank you for supporting an independent game by Bonjour Pickleball.",
       supportLabel: "Need help?",
 
       copyCta: "Copy code",
       copyAgainCta: "Copy code again",
-      tipNoRecover: "Tip: keep this code somewhere safe. It can't be recovered from a server.",
+      tipNoRecover: "Save this code somewhere safe. This game does not keep a server copy.",
       txtTitle: "Your Kitchen Rush activation code",
-      txtSaveLine: "Tip: keep this code somewhere safe.",
-      txtNoRecoverLine: "It can't be recovered from a server.",
+      txtSaveLine: "Save this code somewhere safe.",
+      txtNoRecoverLine: "This game does not keep a server copy.",
 
       // Order bump (if enabled in marketing config)
       orderBumpTitle: "",          // TBD: product name
@@ -676,26 +835,49 @@
     landing: {
       title: "Kitchen Rush",
       tagline: "Stay out of the Kitchen.",
-      subtitle: "Tap anywhere to smash. Yellow ball? Wait for the bounce.",
+      subtitle: "A mobile arcade game of reflexes, precision, and quick court reads inspired by pickleball.",
+      subtitleAfterFirstRun: "Stay clean, own the Kitchen, beat your best.",
 
       // Daily challenge badge (shown when daily.enabled)
       dailyBadge: "Daily Challenge",
       dailyDateTemplate: "{month} {day}",
-      dailyExplain: "Same balls for everyone today. Beat your friends.",
+      dailyExplain: "Play today's shared Classic sequence.",
+      dailyCta: "Play Daily",
+      dailyInfoTitle: "Daily Challenge",
+      dailyInfoBody: "Daily Challenge is today's shared Classic run. Same sequence for everyone today. It uses Classic rules and counts toward Classic free runs.",
 
-      ctaPlay: "Play",
+      ctaPlay: "Play Classic",
+      touchLeftLabel: "Left",
+      touchHitLabel: "Hit",
+      touchRightLabel: "Right",
       ctaPlayAfterFirstRun: "Play again",
+      serverYou: "Server: You",
+      serverOpponent: "Server: Opponent",
+      sideLeft: "Left",
+      sideRight: "Right",
+      sideTemplate: "Serve from {side}",
+      scoreTemplate: "{player}-{opponent}",
+      sideOut: "Side out",
+      pointWon: "Point",
+      startOverlayTargetTemplate: "First to {target}. Win by {winBy}.",
+      gamePointYou: "Game point.",
+      gamePointOpponent: "Pressure point.",
+      longRallyPoint: "Long rally.",
+      cleanPoint: "Clean point.",
+      holdServe: "Hold serve.",
+      breakServe: "Break serve.",
+      winOverlay: "You took it.",
 
       bestLabel: "Best",
-      bestAriaTemplate: "Personal best: {best} Smashes",
-      bestTargetTemplate: "Can you hit {target}?",
+      bestAriaTemplate: "Best score: {best}",
+      bestTargetTemplate: "Can you top {target}?",
       premiumLabel: "Unlimited court time",
 
       // Landing stats (spark bars)
       runsLabel: "Runs",
 
       // Lifetime counter (cumulative investment — Eyal Hook model)
-      lifetimeTemplate: "{total} lifetime Smashes",
+      lifetimeTemplate: "{total} lifetime hits",
 
       // Post-paywall block (LANDING after free runs exhausted)
       postPaywallTitle: "Free runs are done.",
@@ -703,16 +885,16 @@
       postPaywallCta: "See options",
 
       // Post-paywall + secret bonus hint
-      postPaywallSbTitle: "Before you decide...",
-      postPaywallSbBody: "You've got a secret mode to find. Look for the \uD83C\uDF81."
+      postPaywallSbTitle: "",
+      postPaywallSbBody: ""
     },
 
 
     ui: {
-      livesLabel: "Lives",
+      livesLabel: "",
       livesAria: "{lives} lives remaining",
       scoreLabel: "",
-      scoreAriaTemplate: "Score: {score} Smashes",
+      scoreAriaTemplate: "Score: {playerScore}-{opponentScore}",
       gameOverTitle: "Game over",
 
       // Start-of-run overlay (economy)
@@ -723,6 +905,7 @@
       // Chance/life state overlays
       lastLifeOverlay: "Last life.",
       gameOverOverlay: "Game over.",
+      doubleBounceOverlay: "Let it bounce.",
 
       // HUD deltas
       lifeLostDeltaText: "-1",
@@ -739,51 +922,51 @@
     sprint: {
       // Chest (discovery)
       chestAria: "Secret bonus",
-      chestHint: "Tap the gift to unlock Sprint mode.",
+      chestHint: "Tap the gift to unlock Rush.",
 
       // Modal one-shot (first tap ever)
-      modalTitle: "You found Sprint mode",
-      modalBody: "20 seconds on the clock. No lives. Every Kitchen fault costs 2 seconds. How many Smashes can you land?",
-      modalCta: "Let's rally",
+      modalTitle: "You found Rush",
+      modalBody: "20 seconds on the clock. No lives. Every Kitchen fault costs 2 seconds. Keep the rally clean and score fast.",
+      modalCta: "Let's go",
 
       // Teaser (free runs limit)
-      startOverlayFreeRunsLimitLine: "{remaining}/{limit} free sprints left",
+      startOverlayFreeRunsLimitLine: "{remaining}/{limit} free Rush runs left",
       freeLimitReachedTitle: "That was a rally.",
-      freeLimitReachedBody: "You've used your {limit} free sprints.\n\nPremium unlocks unlimited Sprint mode.",
-      freeLimitReachedCta: "Unlock Sprint",
+      freeLimitReachedBody: "You've used your {limit} free Rush runs.\n\nPremium unlocks unlimited Rush.",
+      freeLimitReachedCta: "Unlock Rush",
       freeLimitReachedClose: "Not now",
 
       // In-game HUD
-      title: "Sprint",
+      title: "Rush",
       timerLabel: "{remaining}s",
       penaltyFlash: "-2s",
 
       // Start overlay
       startOverlayLine1: "20 seconds. No lives.",
       startOverlayLine2: "Kitchen faults cost 2 seconds.",
-      startOverlayTapAnywhere: "Tap anywhere to go",
+      startOverlayTapAnywhere: "Tap to start",
 
       // End screen
       endTitle: "Time!",
-      scoreLine: "{score} Smashes in 20s",
-      bestLine: "Sprint best: {best}",
-      freeRunsLeftLine: "{remaining}/{limit} free sprints left.",
-      newBest: "New sprint record!",
-      playAgain: "Sprint again",
+      scoreLine: "{score} Rush score in 20s",
+      bestLine: "Rush best: {best}",
+      freeRunsLeftLine: "{remaining}/{limit} free Rush runs left.",
+      newBest: "New Rush best!",
+      playAgain: "Rush again",
       backToRuns: "Back to court",
 
       // End toast
       endGameOverToast: "Time's up",
 
       // CTA
-      ctaPlayAgain: "Sprint again"
+      ctaPlayAgain: "Rush again"
     },
 
 
     end: {
       title: "Game over",
 
-      scoreLine: "{score} Smashes",
+      scoreLine: "Final score: {score}",
       personalBestLine: "Personal best: {best}",
       bestStreakLine: "Best rally: {streak} in a row",
 
@@ -804,6 +987,10 @@
       playAgain: "Play again",
       playAgainNearBest: "So close — one more",
       playAgainAfterBest: "Defend your record",
+      retryNearBest: "One clean run could beat your best.",
+      retryFaults: "Too many Kitchen faults. The bounce is the run.",
+      retryWin: "Back on court. Defend it.",
+      retryLoss: "One more. Stay patient in the Kitchen.",
 
       shareTitle: "Share"
     },
@@ -812,9 +999,9 @@
     firstRun: {
       trustLine: "No ads. No tricks. Just you and the court.",
       kitchenHint: "Yellow ball in the Kitchen? Wait for the bounce, then tap.",
-      rule1: "Tap anywhere to smash the ball",
+      rule1: "Move left and right, then hit on time",
       rule2: "Yellow ball = Kitchen = wait for bounce first",
-      rule3: "3 lives — miss or fault = life lost"
+      rule3: "Classic uses score and side out. Rush uses time pressure."
     },
 
 
@@ -827,18 +1014,18 @@
       trustTitle: "No surprises",
 
       valueBullets: [
-        "Unlimited court time — same rules, no cap",
-        "Sprint mode — 20 seconds of pure banger energy",
-        "Chase your personal best, run after run"
+        "Unlimited Classic and Rush runs on this device",
+        "Classic with score, serve, side out, and Kitchen pressure",
+        "Rush for short, faster sessions"
       ],
 
       bridgeTitle: "Free runs are done.",
       bridgeBody: "Unlock unlimited court time on this device.",
 
       // Personal progress anchor (shown only if best > 0)
-      progressLineTemplate: "Your best: {best} Smashes. Keep climbing.",
+      progressLineTemplate: "Your best score: {best}. Keep going.",
 
-      trustLine: "One purchase. Lifetime access. No tricks.",
+      trustLine: "One purchase. Local unlock. No subscription.",
       trustBullets: [
         "One-time payment, no subscription",
         "No ads, ever — just you and the court",
@@ -847,24 +1034,24 @@
       ],
 
       // EARLY-only conversion bump
-      savingsLineTemplate: "Save {saveAmount} today (early price).",
+      savingsLineTemplate: "",
 
       checkoutNote: "Secure checkout via Stripe.",
 
-      ctaEarly: "Unlock at $4.99",
-      ctaStandard: "Unlock - $6.99",
+      ctaEarly: "Unlock",
+      ctaStandard: "Unlock",
       cta: "Unlock",
 
       alreadyHaveCode: "Already have a code? Redeem it here.",
       deviceNote: "Premium stays unlocked on this device. No account needed.",
 
-      earlyBadgeLabel: "Early bird",
-      earlyLabel: "Early price",
-      standardLabel: "Standard price",
+      earlyBadgeLabel: "",
+      earlyLabel: "",
+      standardLabel: "One-time unlock",
 
-      timerLabel: "Price increases in:",
+      timerLabel: "",
 
-      postEarlyLine1: "The early price has ended.",
+      postEarlyLine1: "",
       postEarlyLine2: "{standardPrice} - One-time purchase. Yours forever.",
 
       ctaNotNow: "Not now"
@@ -873,12 +1060,12 @@
 
     howto: {
       title: "How to play",
-      line1: "Balls drop onto the court.",
-      line2: "Tap to smash them before they bounce away.",
-      line3: "But if a ball lands in the Kitchen — wait for the bounce first.",
+      line1: "Classic is a short-form pickleball-inspired rally game.",
+      line2: "Read the ball, move into position, and hit on time.",
+      line3: "If the ball lands in the Kitchen, let it bounce before you play it.",
 
       ruleTitle: "The Kitchen rule",
-      ruleSentence: "The Kitchen is the non-volley zone near the net. No smashing before the bounce. Tap too early = fault = life lost.",
+      ruleSentence: "The Kitchen is the non-volley zone near the net. Let serves and returns bounce, and never volley from the Kitchen.",
 
       premiumTitle: "Premium",
       alreadyPremium: "Premium is already active on this device.",
@@ -907,11 +1094,11 @@
       ctaLabel: "Share score",
       emailAria: "Share via email",
       toastCopied: "Copied!",
-      templateDefault: "Kitchen Rush — {score} Smashes {hashtag}\nCan you beat that?\n{url}",
-      templateFault: "Kitchen Rush — {score} Smashes {hashtag}\nThe Kitchen got me. Your turn.\n{url}",
-      templateNewBest: "Kitchen Rush — NEW BEST: {score} Smashes {hashtag}\nCome get me.\n{url}",
-      templateSprint: "Kitchen Rush Sprint — {score} in 20s {hashtag}\nPure speed. Beat that.\n{url}",
-      templateDaily: "Kitchen Rush Daily ({date}) — {score} Smashes {hashtag}\nSame balls for everyone. Can you beat {score}?\n{url}",
+      templateDefault: "Kitchen Rush — score {score} {hashtag}\nCan you top that?\n{url}",
+      templateFault: "Kitchen Rush — score {score} {hashtag}\nKitchen fault. Your turn.\n{url}",
+      templateNewBest: "Kitchen Rush — new best {score} {hashtag}\nYour turn.\n{url}",
+      templateSprint: "Kitchen Rush — Rush {score} in 20s {hashtag}\nFast round. Beat that.\n{url}",
+      templateDaily: "Kitchen Rush Daily ({date}) — score {score} {hashtag}\nSame daily sequence for everyone.\n{url}",
 
       // Hashtag (dynamic: #KitchenRush{score})
       hashtagPrefix: "#KitchenRush",
@@ -920,12 +1107,12 @@
       cardModalTitle: "New personal best!",
 
       // V2: Share card labels (canvas image)
-      cardSprintLabel: "Sprint Mode",
+      cardSprintLabel: "Rush",
       cardDailyLabel: "Daily Challenge",
-      cardSmashesLabel: "Smashes",
+      cardScoreLabel: "Score",
       cardBestLabel: "Best: {best}",
       cardDateFormat: "{month} {day}, {year}",
-      cardTagline: "kitchenrush.app"
+      cardTagline: "bonjourpickleball.fr"
     },
 
 
@@ -938,32 +1125,32 @@
 
 
     houseAd: {
-      eyebrow: "",
-      title: "",
-      bodyLine1: "Kitchen Rush is a standalone arcade game.",
-      bodyLine2: "We have other games.",
-      ctaPrimary: "Try another game",
-      ctaRemindLater: "Remind later",
+      eyebrow: "More from Bonjour Pickleball",
+      title: "Try another game",
+      bodyLine1: "You have a few runs behind you now.",
+      bodyLine2: "If another pickleball game is live, you can open it here.",
+      ctaPrimary: "Open game",
+      ctaRemindLater: "Later",
 
-      landingTitle: "",
-      landingBodyLine1: "",
-      landingBodyLine2: "",
-      landingCtaPrimary: "Try another game",
-      landingCtaRemindLater: "Remind later"
+      landingTitle: "More from Bonjour Pickleball",
+      landingBodyLine1: "You have a few runs behind you now.",
+      landingBodyLine2: "If another pickleball game is live, you can open it here.",
+      landingCtaPrimary: "Open game",
+      landingCtaRemindLater: "Later"
     },
 
 
     waitlist: {
-      ctaLabel: "Get notified about future products or features.",
-      disclaimer: "No spam. No account. You can leave anytime.",
-      title: "Get notified about future products or features.",
-      bodyLine1: "No spam. No account. Leave anytime.",
-      bodyLine2: "Optional: reply with one idea if you want.",
-      inputPlaceholder: "Optional: share an idea.",
-      cta: "Send email",
+      ctaLabel: "Get updates from Bonjour Pickleball after 10 completed runs.",
+      disclaimer: "Optional. No account. No spam.",
+      title: "Join the Bonjour Pickleball waitlist",
+      bodyLine1: "Get updates about future games or features.",
+      bodyLine2: "Optional: add one idea if you want.",
+      inputPlaceholder: "Optional: share one idea.",
+      cta: "Open email",
 
       emailSubjectSuffix: "Waitlist",
-      emailBodyTemplate: "Hi!\n\nI'd like to join the Kitchen Rush waitlist.\n\nOptional idea:\n{idea}\n\nThanks!"
+      emailBodyTemplate: "Hi!\n\nI'd like to join the Bonjour Pickleball waitlist for Kitchen Rush updates.\n\nOptional idea:\n{idea}\n\nThanks!"
     },
 
 
@@ -972,13 +1159,13 @@
       buttonLabel: "Share anonymous stats",
 
       promptTitle: "Help improve Kitchen Rush",
-      promptBodyTemplate: "You've completed {runCompletes} runs. Share anonymous stats to help improve the game. You can review everything before sending.",
-      promptBodyLastFree: "That was your last free run. Share anonymous stats to help improve the game. You can review everything before sending.",
+      promptBodyTemplate: "You've completed {runCompletes} runs. Share anonymous stats if you want to help improve the game. You can review everything before sending.",
+      promptBodyLastFree: "That was your last free run. Share anonymous stats if you want to help improve the game. You can review everything before sending.",
       promptCtaPrimary: "Preview & share",
       promptCtaSecondary: "Not now",
 
       modalTitle: "Help improve the game",
-      modalDescription: "Share your anonymous gameplay stats with the creator. No personal data is collected - you can see exactly what will be sent below.",
+      modalDescription: "Share anonymous gameplay stats with the creator. No personal data is collected. You can review everything before sending.",
       previewLabel: "Data to be shared:",
       ctaSend: "Send via email",
       ctaCancel: "Cancel",
@@ -991,9 +1178,9 @@
 
 
     support: {
-      modalTitle: "Write us",
+      modalTitle: "Contact Bonjour Pickleball",
       modalBodyLine1: "Email is the fastest way to reach us.",
-      modalBodyLine2: "Copy the address below or open your email app.",
+      modalBodyLine2: "Use the address below or open your email app.",
       emailSubjectSuffix: "Feedback",
       ctaCopy: "Copy email",
       ctaOpen: "Open email app",
@@ -1011,7 +1198,7 @@
       streakStart: "3 clean in a row",
       streakBuilding: "6 clean - keep it clean",
       streakStrong: "10 clean - Jardim vibes",
-      streakElite: "15 clean - banger rally",
+      streakElite: "15 clean - long rally",
       streakLegendary: "20 clean - Waters level",
       streakAgain: "{streak} clean",
 
@@ -1064,7 +1251,7 @@
   window.KR_CONFIG_BOOT = {
     validateConfigSoft: function () {
       const cfg = window.KR_CONFIG;
-      if (!cfg || typeof cfg !== "object") return;
+      if (!cfg || typeof cfg !== "object") throw new Error("KR_CONFIG_BOOT.validateConfigSoft: KR_CONFIG missing");
 
       const warn = (...args) => {
         if (cfg.debug && cfg.debug.enabled) console.warn("[KR_CONFIG]", ...args);
@@ -1079,8 +1266,7 @@
       if (!cfg.stripeEarlyPaymentUrl || String(cfg.stripeEarlyPaymentUrl).includes("REPLACE")) warn("Stripe early URL needs to be configured");
       if (!cfg.stripeStandardPaymentUrl || String(cfg.stripeStandardPaymentUrl).includes("REPLACE")) warn("Stripe standard URL needs to be configured");
 
-      if (!cfg.game || !Number.isFinite(Number(cfg.game.lives)) || Number(cfg.game.lives) <= 0) warn("game.lives must be > 0");
-
+      
       const freeRunsNum = (cfg.limits && Number.isFinite(Number(cfg.limits.freeRuns))) ? Number(cfg.limits.freeRuns) : null;
       if (freeRunsNum == null || Math.floor(freeRunsNum) !== freeRunsNum || freeRunsNum < 0 || freeRunsNum > 99) warn("limits.freeRuns must be an integer in [0..99]");
 
@@ -1106,6 +1292,16 @@
         if (!s) fail(name + " missing or empty");
         return s;
       };
+      const reqCheckoutUrl = (value, name) => {
+        const s = reqStr(value, name);
+        if (cfg.environment !== "development" && s.indexOf("REPLACE") !== -1) {
+          fail(name + " still contains a placeholder value");
+        }
+        if (s.indexOf("REPLACE") === -1 && !/^https:\/\//i.test(s)) {
+          fail(name + " must start with https://");
+        }
+        return s;
+      };
       const reqNum = (value, name, opts) => {
         const n = Number(value);
         if (!Number.isFinite(n)) fail(name + " must be a finite number");
@@ -1117,6 +1313,16 @@
       const reqBool = (value, name) => {
         if (typeof value !== "boolean") fail(name + " must be a boolean");
         return value;
+      };
+      const reqIntArray = (values, name) => {
+        if (!Array.isArray(values) || values.length < 1) fail(name + " must be a non-empty array");
+        let prev = 0;
+        values.forEach((value, index) => {
+          const n = reqNum(value, name + "[" + index + "]", { min: 1, integer: true });
+          if (index > 0 && n <= prev) fail(name + " must be strictly increasing");
+          prev = n;
+        });
+        return values;
       };
 
       reqObj(cfg, "KR_CONFIG");
@@ -1141,36 +1347,75 @@
       reqStr(cfg.storage.vanityCodeStorageKey, "KR_CONFIG.storage.vanityCodeStorageKey");
 
       const game = reqObj(cfg.game, "KR_CONFIG.game");
-      reqNum(game.lives, "KR_CONFIG.game.lives", { min: 1, integer: true });
-      reqNum(game.onboardingShield, "KR_CONFIG.game.onboardingShield", { min: 0, integer: true });
-      reqNum(game.reboundDelayMs, "KR_CONFIG.game.reboundDelayMs", { min: 1, integer: true });
-      reqObj(game.speed, "KR_CONFIG.game.speed");
-      reqNum(game.speed.base, "KR_CONFIG.game.speed.base", { min: 0.1 });
-      reqNum(game.speed.accelPerSec, "KR_CONFIG.game.speed.accelPerSec", { min: 0 });
-      reqObj(game.spawn, "KR_CONFIG.game.spawn");
-      reqNum(game.spawn.initialMs, "KR_CONFIG.game.spawn.initialMs", { min: 1, integer: true });
-      reqNum(game.spawn.decayPerSec, "KR_CONFIG.game.spawn.decayPerSec", { min: 0 });
-      reqNum(game.spawn.minMs, "KR_CONFIG.game.spawn.minMs", { min: 1, integer: true });
-      reqObj(game.window, "KR_CONFIG.game.window");
-      reqNum(game.window.initialMs, "KR_CONFIG.game.window.initialMs", { min: 1, integer: true });
-      reqNum(game.window.decayPerSec, "KR_CONFIG.game.window.decayPerSec", { min: 0 });
-      reqNum(game.window.minMs, "KR_CONFIG.game.window.minMs", { min: 1, integer: true });
-      reqObj(game.kitchenRatio, "KR_CONFIG.game.kitchenRatio");
-      reqNum(game.kitchenRatio.base, "KR_CONFIG.game.kitchenRatio.base", { min: 0, max: 1 });
-      reqNum(game.kitchenRatio.growthPerSec, "KR_CONFIG.game.kitchenRatio.growthPerSec", { min: 0 });
-      reqNum(game.kitchenRatio.max, "KR_CONFIG.game.kitchenRatio.max", { min: 0, max: 1 });
-      if (game.ballTypes != null) {
-        reqObj(game.ballTypes, "KR_CONFIG.game.ballTypes");
-        Object.keys(game.ballTypes).forEach((key) => {
-          const bt = reqObj(game.ballTypes[key], "KR_CONFIG.game.ballTypes." + key);
-          reqNum(bt.unlockAfterSec, "KR_CONFIG.game.ballTypes." + key + ".unlockAfterSec", { min: 0 });
-          reqNum(bt.weight, "KR_CONFIG.game.ballTypes." + key + ".weight", { min: 0 });
-          reqNum(bt.speedMultiplier, "KR_CONFIG.game.ballTypes." + key + ".speedMultiplier", { min: 0.01 });
-          reqNum(bt.tapWindowMultiplier, "KR_CONFIG.game.ballTypes." + key + ".tapWindowMultiplier", { min: 0.01 });
-          reqNum(bt.radiusMultiplier, "KR_CONFIG.game.ballTypes." + key + ".radiusMultiplier", { min: 0.01 });
-          reqBool(bt.forceKitchen, "KR_CONFIG.game.ballTypes." + key + ".forceKitchen");
+      const player = reqObj(game.player, "KR_CONFIG.game.player");
+      reqNum(player.baseXFrac, "KR_CONFIG.game.player.baseXFrac", { min: 0, max: 1 });
+      reqNum(player.baseYFrac, "KR_CONFIG.game.player.baseYFrac", { min: 0, max: 1 });
+      reqNum(player.maxForwardYFrac, "KR_CONFIG.game.player.maxForwardYFrac", { min: 0, max: 1 });
+      reqNum(player.widthFrac, "KR_CONFIG.game.player.widthFrac", { min: 0.01, max: 1 });
+      reqNum(player.heightPx, "KR_CONFIG.game.player.heightPx", { min: 1, integer: true });
+      reqNum(player.moveSpeedPxPerSec, "KR_CONFIG.game.player.moveSpeedPxPerSec", { min: 1 });
+      reqNum(player.hitReachPx, "KR_CONFIG.game.player.hitReachPx", { min: 1 });
+      reqNum(player.autoForwardReachPx, "KR_CONFIG.game.player.autoForwardReachPx", { min: 0 });
+      reqNum(player.swingMs, "KR_CONFIG.game.player.swingMs", { min: 1, integer: true });
+      reqNum(player.bodyRadiusPx, "KR_CONFIG.game.player.bodyRadiusPx", { min: 1, integer: true });
+      reqNum(player.headRadiusPx, "KR_CONFIG.game.player.headRadiusPx", { min: 1, integer: true });
+      reqNum(player.paddleLengthPx, "KR_CONFIG.game.player.paddleLengthPx", { min: 1, integer: true });
+      reqNum(player.paddleThicknessPx, "KR_CONFIG.game.player.paddleThicknessPx", { min: 1, integer: true });
+      reqNum(player.lateralLeanPx, "KR_CONFIG.game.player.lateralLeanPx", { min: 0 });
+
+      const rush = reqObj(cfg.rush, "KR_CONFIG.rush");
+      reqNum(rush.onboardingShield, "KR_CONFIG.rush.onboardingShield", { min: 0, integer: true });
+      reqNum(rush.reboundDelayMs, "KR_CONFIG.rush.reboundDelayMs", { min: 1, integer: true });
+      reqStr(rush.defaultBallType, "KR_CONFIG.rush.defaultBallType");
+      reqStr(rush.defaultExchangeStage, "KR_CONFIG.rush.defaultExchangeStage");
+      reqStr(rush.defaultResponseType, "KR_CONFIG.rush.defaultResponseType");
+      reqObj(rush.speedCurve, "KR_CONFIG.rush.speedCurve");
+      reqNum(rush.speedCurve.base, "KR_CONFIG.rush.speedCurve.base", { min: 0.1 });
+      reqNum(rush.speedCurve.accelPerSec, "KR_CONFIG.rush.speedCurve.accelPerSec", { min: 0 });
+      reqObj(rush.spawnInterval, "KR_CONFIG.rush.spawnInterval");
+      reqNum(rush.spawnInterval.initialMs, "KR_CONFIG.rush.spawnInterval.initialMs", { min: 1, integer: true });
+      reqNum(rush.spawnInterval.decayPerSec, "KR_CONFIG.rush.spawnInterval.decayPerSec", { min: 0 });
+      reqNum(rush.spawnInterval.minMs, "KR_CONFIG.rush.spawnInterval.minMs", { min: 1, integer: true });
+      reqObj(rush.hitWindow, "KR_CONFIG.rush.hitWindow");
+      reqNum(rush.hitWindow.initialMs, "KR_CONFIG.rush.hitWindow.initialMs", { min: 1, integer: true });
+      reqNum(rush.hitWindow.decayPerSec, "KR_CONFIG.rush.hitWindow.decayPerSec", { min: 0 });
+      reqNum(rush.hitWindow.minMs, "KR_CONFIG.rush.hitWindow.minMs", { min: 1, integer: true });
+      reqObj(rush.kitchenShare, "KR_CONFIG.rush.kitchenShare");
+      reqNum(rush.kitchenShare.base, "KR_CONFIG.rush.kitchenShare.base", { min: 0, max: 1 });
+      reqNum(rush.kitchenShare.growthPerSec, "KR_CONFIG.rush.kitchenShare.growthPerSec", { min: 0 });
+      reqNum(rush.kitchenShare.max, "KR_CONFIG.rush.kitchenShare.max", { min: 0, max: 1 });
+      if (rush.ballTypes != null) {
+        reqObj(rush.ballTypes, "KR_CONFIG.rush.ballTypes");
+        Object.keys(rush.ballTypes).forEach((key) => {
+          const bt = reqObj(rush.ballTypes[key], "KR_CONFIG.rush.ballTypes." + key);
+          reqNum(bt.unlockAfterSec, "KR_CONFIG.rush.ballTypes." + key + ".unlockAfterSec", { min: 0 });
+          reqNum(bt.weight, "KR_CONFIG.rush.ballTypes." + key + ".weight", { min: 0 });
+          reqNum(bt.speedMultiplier, "KR_CONFIG.rush.ballTypes." + key + ".speedMultiplier", { min: 0.01 });
+          reqNum(bt.hitWindowMultiplier, "KR_CONFIG.rush.ballTypes." + key + ".hitWindowMultiplier", { min: 0.01 });
+          reqNum(bt.radiusMultiplier, "KR_CONFIG.rush.ballTypes." + key + ".radiusMultiplier", { min: 0.01 });
+          reqBool(bt.forceKitchen, "KR_CONFIG.rush.ballTypes." + key + ".forceKitchen");
         });
       }
+
+      const classic = reqObj(cfg.classic, "KR_CONFIG.classic");
+      reqNum(classic.targetScore, "KR_CONFIG.classic.targetScore", { min: 1, integer: true });
+      reqNum(classic.winBy, "KR_CONFIG.classic.winBy", { min: 1, integer: true });
+      reqNum(classic.betweenShotsMs, "KR_CONFIG.classic.betweenShotsMs", { min: 1, integer: true });
+      reqNum(classic.betweenRalliesMs, "KR_CONFIG.classic.betweenRalliesMs", { min: 1, integer: true });
+      reqNum(classic.opponentReturnBase, "KR_CONFIG.classic.opponentReturnBase", { min: 0, max: 1 });
+      reqNum(classic.opponentReturnDecayPerShot, "KR_CONFIG.classic.opponentReturnDecayPerShot", { min: 0, max: 1 });
+      reqNum(classic.opponentReturnMin, "KR_CONFIG.classic.opponentReturnMin", { min: 0, max: 1 });
+      reqNum(classic.opponentFaultBase, "KR_CONFIG.classic.opponentFaultBase", { min: 0, max: 1 });
+      reqNum(classic.opponentFaultMax, "KR_CONFIG.classic.opponentFaultMax", { min: 0, max: 1 });
+      reqNum(classic.serveIndicatorMs, "KR_CONFIG.classic.serveIndicatorMs", { min: 1, integer: true });
+      reqNum(classic.sideOutIndicatorMs, "KR_CONFIG.classic.sideOutIndicatorMs", { min: 1, integer: true });
+      reqBool(classic.playerStartsServing, "KR_CONFIG.classic.playerStartsServing");
+      reqNum(classic.preServePauseMs, "KR_CONFIG.classic.preServePauseMs", { min: 1, integer: true });
+      reqNum(classic.rallyStartSlowMs, "KR_CONFIG.classic.rallyStartSlowMs", { min: 0, integer: true });
+      reqNum(classic.playerReturnWindowBonusMs, "KR_CONFIG.classic.playerReturnWindowBonusMs", { min: 0, integer: true });
+      reqBool(classic.rushCarryoverDisabled, "KR_CONFIG.classic.rushCarryoverDisabled");
+      reqStr(classic.serviceCourtRightLabel, "KR_CONFIG.classic.serviceCourtRightLabel");
+      reqStr(classic.serviceCourtLeftLabel, "KR_CONFIG.classic.serviceCourtLeftLabel");
 
       const daily = reqObj(cfg.daily, "KR_CONFIG.daily");
       reqBool(daily.enabled, "KR_CONFIG.daily.enabled");
@@ -1179,18 +1424,63 @@
 
       const canvas = reqObj(cfg.canvas, "KR_CONFIG.canvas");
       reqNum(canvas.kitchenLineY, "KR_CONFIG.canvas.kitchenLineY", { min: 0.01, max: 0.99 });
+      reqNum(canvas.netYFrac, "KR_CONFIG.canvas.netYFrac", { min: 0.01, max: 0.99 });
+      reqNum(canvas.perspectiveTopInsetFrac, "KR_CONFIG.canvas.perspectiveTopInsetFrac", { min: 0, max: 0.49 });
+      reqNum(canvas.perspectiveBottomInsetFrac, "KR_CONFIG.canvas.perspectiveBottomInsetFrac", { min: 0, max: 0.49 });
+      reqNum(canvas.playerScaleNear, "KR_CONFIG.canvas.playerScaleNear", { min: 0.1, max: 4 });
+      reqNum(canvas.playerScaleFar, "KR_CONFIG.canvas.playerScaleFar", { min: 0.1, max: 4 });
+      reqNum(canvas.landingMarkerRadiusPx, "KR_CONFIG.canvas.landingMarkerRadiusPx", { min: 1, integer: true });
+      reqNum(canvas.landingMarkerStrokePx, "KR_CONFIG.canvas.landingMarkerStrokePx", { min: 1, integer: true });
+      reqNum(canvas.trajectoryGuideDashPx, "KR_CONFIG.canvas.trajectoryGuideDashPx", { min: 1, integer: true });
+      reqNum(canvas.devicePixelRatioMax, "KR_CONFIG.canvas.devicePixelRatioMax", { min: 1, max: 4 });
+      reqNum(canvas.serviceTargetGlowAlpha, "KR_CONFIG.canvas.serviceTargetGlowAlpha", { min: 0, max: 1 });
+      reqNum(canvas.serviceGuideWidthPx, "KR_CONFIG.canvas.serviceGuideWidthPx", { min: 1, integer: true });
+      reqNum(canvas.serviceGuideDashPx, "KR_CONFIG.canvas.serviceGuideDashPx", { min: 1, integer: true });
+      reqNum(canvas.serviceGuideShowMs, "KR_CONFIG.canvas.serviceGuideShowMs", { min: 1, integer: true });
+      reqNum(canvas.opponentDepthFrac, "KR_CONFIG.canvas.opponentDepthFrac", { min: 0.05, max: 0.45 });
+      reqNum(canvas.opponentXOffsetFrac, "KR_CONFIG.canvas.opponentXOffsetFrac", { min: 0, max: 0.4 });
+      reqNum(canvas.opponentBodyScale, "KR_CONFIG.canvas.opponentBodyScale", { min: 0.2, max: 2 });
+      reqNum(canvas.opponentPaddleScale, "KR_CONFIG.canvas.opponentPaddleScale", { min: 0.2, max: 2 });
+      reqNum(canvas.devicePixelRatioMax, "KR_CONFIG.canvas.devicePixelRatioMax", { min: 1, max: 4 });
       reqNum(canvas.minLandingYFrac, "KR_CONFIG.canvas.minLandingYFrac", { min: 0, max: 0.99 });
       reqNum(canvas.ballRadius, "KR_CONFIG.canvas.ballRadius", { min: 1, integer: true });
       reqNum(canvas.hitTolerancePx, "KR_CONFIG.canvas.hitTolerancePx", { min: 0, integer: true });
       reqNum(canvas.shadowGrowthFactor, "KR_CONFIG.canvas.shadowGrowthFactor", { min: 0, max: 1 });
       reqNum(canvas.bounceHeight, "KR_CONFIG.canvas.bounceHeight", { min: 0 });
       reqNum(canvas.bounceAnimMs, "KR_CONFIG.canvas.bounceAnimMs", { min: 1, integer: true });
-      reqNum(canvas.smashOutMs, "KR_CONFIG.canvas.smashOutMs", { min: 1, integer: true });
-      reqNum(canvas.smashOutDistance, "KR_CONFIG.canvas.smashOutDistance", { min: 1 });
+      reqNum(canvas.hitOutMs, "KR_CONFIG.canvas.hitOutMs", { min: 1, integer: true });
+      reqNum(canvas.hitOutDistance, "KR_CONFIG.canvas.hitOutDistance", { min: 1 });
       reqNum(canvas.scorePopupMs, "KR_CONFIG.canvas.scorePopupMs", { min: 1, integer: true });
+
+      const controls = reqObj(cfg.controls, "KR_CONFIG.controls");
+      reqBool(controls.keyboardEnabled, "KR_CONFIG.controls.keyboardEnabled");
+      reqBool(controls.pointerMoveEnabled, "KR_CONFIG.controls.pointerMoveEnabled");
+      reqBool(controls.touchButtonsEnabled, "KR_CONFIG.controls.touchButtonsEnabled");
+      reqNum(controls.touchNudgeMs, "KR_CONFIG.controls.touchNudgeMs", { min: 1, integer: true });
+      reqNum(controls.pointerSmoothing, "KR_CONFIG.controls.pointerSmoothing", { min: 0, max: 1 });
+      if (!Array.isArray(controls.leftKeys) || controls.leftKeys.length < 1) fail("KR_CONFIG.controls.leftKeys must be a non-empty array");
+      if (!Array.isArray(controls.rightKeys) || controls.rightKeys.length < 1) fail("KR_CONFIG.controls.rightKeys must be a non-empty array");
+      if (!Array.isArray(controls.hitKeys) || controls.hitKeys.length < 1) fail("KR_CONFIG.controls.hitKeys must be a non-empty array");
 
       const limits = reqObj(cfg.limits, "KR_CONFIG.limits");
       reqNum(limits.freeRuns, "KR_CONFIG.limits.freeRuns", { min: 0, integer: true });
+
+      const houseAd = reqObj(cfg.houseAd, "KR_CONFIG.houseAd");
+      reqBool(houseAd.enabled, "KR_CONFIG.houseAd.enabled");
+      reqIntArray(houseAd.showAfterRunCompletes, "KR_CONFIG.houseAd.showAfterRunCompletes");
+      reqNum(houseAd.hideMs, "KR_CONFIG.houseAd.hideMs", { min: 0, integer: true });
+
+      const waitlist = reqObj(cfg.waitlist, "KR_CONFIG.waitlist");
+      reqBool(waitlist.enabled, "KR_CONFIG.waitlist.enabled");
+      reqIntArray(waitlist.showAfterRunCompletes, "KR_CONFIG.waitlist.showAfterRunCompletes");
+      reqStr(waitlist.toEmailObfuscated, "KR_CONFIG.waitlist.toEmailObfuscated");
+      reqStr(waitlist.subjectPrefix, "KR_CONFIG.waitlist.subjectPrefix");
+
+      const statsSharing = reqObj(cfg.statsSharing, "KR_CONFIG.statsSharing");
+      reqBool(statsSharing.enabled, "KR_CONFIG.statsSharing.enabled");
+      reqIntArray(statsSharing.promptAfterRunCompletes, "KR_CONFIG.statsSharing.promptAfterRunCompletes");
+      reqStr(statsSharing.emailSubject, "KR_CONFIG.statsSharing.emailSubject");
+      reqStr(statsSharing.schemaVersion, "KR_CONFIG.statsSharing.schemaVersion");
 
       const sprint = reqObj(cfg.sprint, "KR_CONFIG.sprint");
       reqNum(sprint.durationMs, "KR_CONFIG.sprint.durationMs", { min: 1, integer: true });
@@ -1199,20 +1489,20 @@
 
       const audio = reqObj(cfg.audio, "KR_CONFIG.audio");
       reqBool(audio.enabled, "KR_CONFIG.audio.enabled");
-      reqNum(audio.smashVolume, "KR_CONFIG.audio.smashVolume", { min: 0, max: 1 });
+      reqNum(audio.hitVolume, "KR_CONFIG.audio.hitVolume", { min: 0, max: 1 });
       reqNum(audio.faultVolume, "KR_CONFIG.audio.faultVolume", { min: 0, max: 1 });
       reqNum(audio.bounceVolume, "KR_CONFIG.audio.bounceVolume", { min: 0, max: 1 });
 
       const challenges = reqObj(cfg.challenges, "KR_CONFIG.challenges");
-      reqNum(challenges.cleanRunMinSmashes, "KR_CONFIG.challenges.cleanRunMinSmashes", { min: 1, integer: true });
+      reqNum(challenges.cleanRunMinScore, "KR_CONFIG.challenges.cleanRunMinScore", { min: 1, integer: true });
       reqNum(challenges.streakThreshold, "KR_CONFIG.challenges.streakThreshold", { min: 1, integer: true });
       reqNum(challenges.streakTargetBonus, "KR_CONFIG.challenges.streakTargetBonus", { min: 1, integer: true });
       reqNum(challenges.faultThreshold, "KR_CONFIG.challenges.faultThreshold", { min: 0, integer: true });
       reqNum(challenges.lowAccuracyPct, "KR_CONFIG.challenges.lowAccuracyPct", { min: 0, max: 100, integer: true });
-      reqNum(challenges.lowAccuracyMinSmashes, "KR_CONFIG.challenges.lowAccuracyMinSmashes", { min: 1, integer: true });
+      reqNum(challenges.lowAccuracyMinScore, "KR_CONFIG.challenges.lowAccuracyMinScore", { min: 1, integer: true });
 
       const juice = reqObj(cfg.juice, "KR_CONFIG.juice");
-      reqNum(juice.smashFlashMs, "KR_CONFIG.juice.smashFlashMs", { min: 1, integer: true });
+      reqNum(juice.hitFlashMs, "KR_CONFIG.juice.hitFlashMs", { min: 1, integer: true });
       reqNum(juice.faultFlashMs, "KR_CONFIG.juice.faultFlashMs", { min: 1, integer: true });
       reqNum(juice.faultShakeMs, "KR_CONFIG.juice.faultShakeMs", { min: 1, integer: true });
       reqNum(juice.faultShakeIntensity, "KR_CONFIG.juice.faultShakeIntensity", { min: 0 });
@@ -1239,14 +1529,40 @@
 
       reqStr(cfg.premiumCodeRegex, "KR_CONFIG.premiumCodeRegex");
       try { new RegExp(cfg.premiumCodeRegex); } catch (_) { fail("KR_CONFIG.premiumCodeRegex invalid"); }
-      reqStr(cfg.stripeEarlyPaymentUrl, "KR_CONFIG.stripeEarlyPaymentUrl");
-      reqStr(cfg.stripeStandardPaymentUrl, "KR_CONFIG.stripeStandardPaymentUrl");
+      reqCheckoutUrl(cfg.stripeEarlyPaymentUrl, "KR_CONFIG.stripeEarlyPaymentUrl");
+      reqCheckoutUrl(cfg.stripeStandardPaymentUrl, "KR_CONFIG.stripeStandardPaymentUrl");
     },
 
     applyBrandText: function () {
       try {
-        const brandHtml = String((window.KR_WORDING && window.KR_WORDING.brand && window.KR_WORDING.brand.creatorLineHtml) || "").trim();
-        const brandText = String((window.KR_WORDING && window.KR_WORDING.brand && window.KR_WORDING.brand.creatorLine) || "").trim();
+        const getTrimmedString = (value) => {
+          if (value == null) return "";
+          return String(value).trim();
+        };
+        const getNestedString = (root, path) => {
+          let cur = root;
+          for (const key of path) {
+            if (!cur || typeof cur !== "object") throw new Error("KR_CONFIG_BOOT.applyBrandText: missing path segment " + path.join("."));
+            cur = cur[key];
+          }
+          return getTrimmedString(cur);
+        };
+        const setMetaContent = (selector, value) => {
+          const content = getTrimmedString(value);
+          if (!content) return;
+          const node = document.querySelector(selector);
+          if (node) node.setAttribute("content", content);
+        };
+        const setLinkHref = (selector, value) => {
+          const href = getTrimmedString(value);
+          if (!href) return;
+          const node = document.querySelector(selector);
+          if (node) node.setAttribute("href", href);
+        };
+        const cfg = window.KR_CONFIG;
+        const wording = window.KR_WORDING;
+        const brandHtml = getNestedString(wording, ["brand", "creatorLineHtml"]);
+        const brandText = getNestedString(wording, ["brand", "creatorLine"]);
 
         if (brandHtml || brandText) {
           document.querySelectorAll('[data-kr-brand="creatorLine"]').forEach((node) => {
@@ -1256,8 +1572,8 @@
           });
         }
 
-        const version = String(window.KR_CONFIG?.version || "").trim();
-        const versionPrefix = String(window.KR_WORDING?.system?.versionPrefix || "").trim();
+        const version = getTrimmedString(cfg.version);
+        const versionPrefix = getNestedString(wording, ["system", "versionPrefix"]);
         if (version) {
           document.querySelectorAll("[data-kr-version]").forEach((node) => {
             if (node) node.textContent = `${versionPrefix}${version}`;
@@ -1266,32 +1582,60 @@
 
         const tyf = document.getElementById("kr-parent-link");
         const tyfSep = document.querySelector(".kr-footer-sep--parent");
-        const parentUrl = String(window.KR_CONFIG?.identity?.parentUrl || "").trim();
+        const parentUrl = getTrimmedString(cfg.identity.parentUrl);
 
         if (tyf && parentUrl) {
           tyf.setAttribute("href", parentUrl);
           let label = parentUrl;
-          try { label = new URL(parentUrl).hostname.replace(/^www\./i, ""); } catch (_) { }
+          try { label = new URL(parentUrl).hostname.replace(/^www\./i, ""); } catch (_) {}
           tyf.textContent = label;
-          if (tyfSep) tyfSep.style.display = "";
+          if (tyfSep) tyfSep.hidden = false;
         } else {
           if (tyf) { tyf.textContent = ""; tyf.removeAttribute("href"); }
-          if (tyfSep) tyfSep.style.display = "none";
+          if (tyfSep) tyfSep.hidden = true;
         }
 
-        const fw = window.KR_WORDING?.footer || {};
+        const seo = (cfg && cfg.seo && typeof cfg.seo === "object") ? cfg.seo : null;
+        if (seo) {
+          const pageType = getTrimmedString(document.documentElement.getAttribute("data-kr-page"));
+          if (!pageType) throw new Error("KR_CONFIG_BOOT.applyBrandText: data-kr-page missing");
+          if (pageType === "success") {
+            const successTitle = getTrimmedString(seo.successTitle);
+            const successDescription = getTrimmedString(seo.successDescription);
+            if (successTitle) document.title = successTitle;
+            setMetaContent('meta[name="description"]', successDescription);
+            setLinkHref('link[rel="canonical"]', seo.canonicalUrl + 'success.html');
+          } else {
+            const title = getTrimmedString(seo.title);
+            const description = getTrimmedString(seo.description);
+            if (title) document.title = title;
+            setMetaContent('meta[name="description"]', description);
+            setMetaContent('meta[name="twitter:title"]', title);
+            setMetaContent('meta[name="twitter:description"]', description);
+            setMetaContent('meta[name="twitter:url"]', seo.canonicalUrl);
+            setMetaContent('meta[name="twitter:image"]', seo.shareImageUrl);
+            setMetaContent('meta[property="og:title"]', title);
+            setMetaContent('meta[property="og:description"]', description);
+            setMetaContent('meta[property="og:url"]', seo.canonicalUrl);
+            setMetaContent('meta[property="og:image"]', seo.shareImageUrl);
+            setLinkHref('link[rel="canonical"]', seo.canonicalUrl);
+          }
+          setMetaContent('meta[name="theme-color"]', seo.themeColor);
+        }
+
+        const fw = window.KR_WORDING.footer;
         const privacy = document.getElementById("kr-privacy-link");
         const terms = document.getElementById("kr-terms-link");
-        if (privacy) privacy.textContent = String(fw.privacy || "").trim();
-        if (terms) terms.textContent = String(fw.terms || "").trim();
+        if (privacy) privacy.textContent = String(fw.privacy).trim();
+        if (terms) terms.textContent = String(fw.terms).trim();
 
         document.querySelectorAll(".kr-footer-row--links .kr-footer-sep").forEach((sep) => {
           if (!sep) return;
           const prev = sep.previousElementSibling;
           const next = sep.nextElementSibling;
-          const prevText = prev ? String(prev.textContent || "").trim() : "";
-          const nextText = next ? String(next.textContent || "").trim() : "";
-          sep.style.display = (prevText && nextText) ? "" : "none";
+          const prevText = prev ? String(prev.textContent == null ? "" : prev.textContent).trim() : "";
+          const nextText = next ? String(next.textContent == null ? "" : next.textContent).trim() : "";
+          sep.hidden = !(prevText && nextText);
         });
       } catch (_) { }
     }

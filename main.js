@@ -8,6 +8,19 @@
   // ============================================
   // escapeHtml (strict contract)
   // ============================================
+
+  function requiredString(value, name) {
+    const s = String(value == null ? "" : value).trim();
+    if (!s) throw new Error(name + " missing");
+    return s;
+  }
+
+  function getSystemWording() {
+    const system = window.KR_WORDING && window.KR_WORDING.system;
+    if (!system || typeof system !== "object") throw new Error("KR_MAIN: KR_WORDING.system missing");
+    return system;
+  }
+
   function escapeHtmlSafe(str) {
     const fn = window.KR_UTILS && typeof window.KR_UTILS.escapeHtml === "function"
       ? window.KR_UTILS.escapeHtml
@@ -48,10 +61,11 @@
     const root = document.getElementById("app");
     if (!root) return;
 
-    const appName = escapeHtmlSafe(window.KR_CONFIG?.identity?.appName || "");
-    const w = window.KR_WORDING?.system;
+    const cfg = window.KR_CONFIG;
+    const w = getSystemWording();
+    const appName = escapeHtmlSafe(requiredString(cfg && cfg.identity && cfg.identity.appName, "KR_CONFIG.identity.appName"));
     const safeMsg = escapeHtmlSafe(message);
-    const reloadLabel = escapeHtmlSafe(w?.reloadCta || "");
+    const reloadLabel = escapeHtmlSafe(requiredString(w.reloadCta, "KR_WORDING.system.reloadCta"));
 
     // Fail-closed: render only elements that have content
     let html = '<div class="kr-card kr-card--error">';
@@ -77,9 +91,9 @@
   window.addEventListener("error", (event) => {
     Logger.error("Global error:", event.error || event);
     const isDev = window.KR_CONFIG?.debug?.enabled;
-    const w = window.KR_WORDING?.system;
+    const w = getSystemWording();
     const errorMsg = event.message || event.error?.message || "";
-    showFatal(isDev ? `JavaScript Error: ${errorMsg}` : (w?.fatalGeneric || ""));
+    showFatal(isDev ? `JavaScript Error: ${errorMsg}` : requiredString(w.fatalGeneric, "KR_WORDING.system.fatalGeneric"));
     // Also log to console even in production for debugging
     if (!isDev) console.error("[KR Fatal]", errorMsg, event.error);
   });
@@ -87,9 +101,9 @@
   window.addEventListener("unhandledrejection", (event) => {
     Logger.error("Unhandled promise rejection:", event.reason);
     const isDev = window.KR_CONFIG?.debug?.enabled;
-    const w = window.KR_WORDING?.system;
+    const w = getSystemWording();
     const errorMsg = event.reason?.message || "";
-    showFatal(isDev ? `Promise Error: ${errorMsg}` : (w?.fatalPromise || ""));
+    showFatal(isDev ? `Promise Error: ${errorMsg}` : requiredString(w.fatalPromise, "KR_WORDING.system.fatalPromise"));
     // Also log to console even in production for debugging
     if (!isDev) console.error("[KR Fatal]", errorMsg, event.reason);
   });
@@ -109,7 +123,7 @@
     }
 
     function showUpdateToast(message) {
-      const msg = String(message || "").trim();
+      const msg = requiredString(message, "KR_MAIN.showUpdateToast().message");
       if (!msg) return;
 
       const node = document.getElementById("update-toast");
@@ -124,11 +138,7 @@
     }
 
     window.addEventListener("load", () => {
-      const version = String(cfg?.version || "").trim();
-      if (!version) {
-        Logger.warn("KR_CONFIG.version missing/empty: skipping SW registration (fail-closed)");
-        return;
-      }
+      const version = requiredString(cfg?.version, "KR_CONFIG.version");
 
       const v = encodeURIComponent(version);
       const swUrl = `./sw.js?v=${v}`;
@@ -151,8 +161,8 @@
 
               newWorker.addEventListener("statechange", () => {
                 if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-                  const msg = String(window.KR_WORDING?.system?.updateAvailable || "").trim();
-                  if (msg) showUpdateToast(msg);
+                              const msg = requiredString(getSystemWording().updateAvailable, "KR_WORDING.system.updateAvailable");
+                  showUpdateToast(msg);
                 }
               });
             });
@@ -174,38 +184,38 @@
 
     if (!window.KR_CONFIG || typeof window.KR_CONFIG !== "object") {
       Logger.error("KR_CONFIG not found or invalid");
-      showFatal(w?.fatalConfig || "");
+      showFatal(requiredString(w.fatalConfig, "KR_WORDING.system.fatalConfig"));
       return false;
     }
 
     if (!window.KR_ENUMS || typeof window.KR_ENUMS !== "object") {
       Logger.error("KR_ENUMS not found or invalid");
-      showFatal(w?.fatalConfig || "");
+      showFatal(requiredString(w.fatalConfig, "KR_WORDING.system.fatalConfig"));
       return false;
     }
 
     if (!window.KR_WORDING || typeof window.KR_WORDING !== "object") {
       Logger.error("KR_WORDING not found or invalid");
-      showFatal(w?.fatalWording || "");
+      showFatal(requiredString(w.fatalWording, "KR_WORDING.system.fatalWording"));
       return false;
     }
 
     if (!window.KR_UTILS || typeof window.KR_UTILS.escapeHtml !== "function") {
       Logger.error("KR_UTILS.escapeHtml not found or invalid");
-      showFatal(w?.fatalConfig || "");
+      showFatal(requiredString(w.fatalConfig, "KR_WORDING.system.fatalConfig"));
       return false;
     }
 
     if (!window.localStorage) {
       Logger.error("localStorage not supported");
-      showFatal(w?.fatalStorage || "");
+      showFatal(requiredString(w.fatalStorage, "KR_WORDING.system.fatalStorage"));
       return false;
     }
 
     const appContainer = document.getElementById("app");
     if (!appContainer) {
       Logger.error("App container not found");
-      showFatal(w?.fatalContainer || "");
+      showFatal(requiredString(w.fatalContainer, "KR_WORDING.system.fatalContainer"));
       return false;
     }
 
@@ -216,7 +226,7 @@
       window.KR_CONFIG_BOOT.validateConfigStrict();
     } catch (error) {
       Logger.error("Strict config validation failed:", error?.message || error);
-      showFatal(w?.fatalConfig || "");
+      showFatal(requiredString(w.fatalConfig, "KR_WORDING.system.fatalConfig"));
       return false;
     }
 
@@ -230,7 +240,7 @@
     if (missing.length > 0) {
       const w = window.KR_WORDING?.system;
       Logger.error(`Missing modules: ${missing.join(", ")}`);
-      showFatal(w?.fatalModules || "");
+      showFatal(requiredString(w.fatalModules, "KR_WORDING.system.fatalModules"));
       return false;
     }
 
@@ -245,8 +255,8 @@
     const root = document.getElementById("app");
     if (!root) return;
 
-    const w = window.KR_WORDING?.system;
-    const label = String(w?.loadingLabel || "").trim();
+    const w = getSystemWording();
+    const label = requiredString(w.loadingLabel, "KR_WORDING.system.loadingLabel");
 
     let html = '<div class="kr-loading"><div class="kr-loading-spinner"></div>';
     if (label) html += '<p class="kr-muted">' + escapeHtmlSafe(label) + '</p>';
@@ -320,9 +330,9 @@
       Logger.log(`Kitchen Rush v${config.version} started successfully`);
     } catch (error) {
       Logger.error("Startup error:", error);
-      const w = window.KR_WORDING?.system;
+      const w = getSystemWording();
       showFatal(
-        `${w?.fatalGeneric || ""}${window.KR_CONFIG?.debug?.enabled ? ` Error: ${error.message}` : ""}`
+        `${requiredString(w.fatalGeneric, "KR_WORDING.system.fatalGeneric")}${window.KR_CONFIG?.debug?.enabled ? ` Error: ${error.message}` : ""}`
       );
     }
   }
@@ -333,8 +343,8 @@
   // ============================================
   document.addEventListener("DOMContentLoaded", () => {
     const cfg = window.KR_CONFIG;
-    const version = String(cfg?.version || "").trim();
-    const env = String(cfg?.environment || "").trim();
+    const version = requiredString(cfg && cfg.version, "KR_CONFIG.version");
+    const env = requiredString(cfg && cfg.environment, "KR_CONFIG.environment");
 
     if (!version) Logger.warn("KR_CONFIG.version missing/empty");
     if (!env) Logger.warn("KR_CONFIG.environment missing/empty");
@@ -364,14 +374,14 @@
       wording: window.KR_WORDING,
       get storage() { return window.storageManager; },
       resetStorage() {
-        const cfg = window.KR_CONFIG || {};
-        const storageKey = String(cfg?.storage?.storageKey || "").trim();
+        const cfg = window.KR_CONFIG;
+        const storageKey = requiredString(cfg && cfg.storage && cfg.storage.storageKey, "KR_CONFIG.storage.storageKey");
         if (storageKey) {
           localStorage.removeItem(storageKey);
         }
 
         // Vanity code key cleanup
-        const vanityKey = String(cfg?.storage?.vanityCodeStorageKey || "").trim();
+        const vanityKey = requiredString(cfg && cfg.storage && cfg.storage.vanityCodeStorageKey, "KR_CONFIG.storage.vanityCodeStorageKey");
         if (vanityKey) localStorage.removeItem(vanityKey);
 
         location.reload();

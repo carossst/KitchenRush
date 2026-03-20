@@ -1,26 +1,26 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-kr-page="index">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Kitchen Rush — Pickleball Smash Game</title>
+  <title>Kitchen Rush — Mobile Arcade Pickleball Game</title>
 
   <!-- SEO -->
   <meta name="description"
-    content="A fast arcade game inspired by pickleball. Smash balls, stay out of the Kitchen, beat your best. No ads. No account.">
-  <meta name="author" content="Kitchen Rush">
+    content="A mobile arcade game of reflexes, precision, and quick court reads inspired by pickleball. No ads. No account.">
+  <meta name="author" content="Carole Stromboni">
 
   <!-- Canonical Link -->
-  <link rel="canonical" href="https://kitchenrush.app/">
+  <link rel="canonical" href="https://www.bonjourpickleball.fr/">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:image" content="https://kitchenrush.app/icons/kr-icon-512x512.png">
-  <meta name="twitter:url" content="https://kitchenrush.app/">
-  <meta name="twitter:title" content="Kitchen Rush — Pickleball Smash Game">
+  <meta name="twitter:image" content="https://www.bonjourpickleball.fr/icons/kr-icon-512x512.png">
+  <meta name="twitter:url" content="https://www.bonjourpickleball.fr/">
+  <meta name="twitter:title" content="Kitchen Rush — Mobile Arcade Pickleball Game">
   <meta name="twitter:description"
-    content="Smash balls, stay out of the Kitchen. 3 lives. How many can you smash?">
+    content="Reflexes, precision, and quick court reads inspired by pickleball.">
 
   <!-- PWA & UI -->
   <meta name="theme-color" content="#1a2332">
@@ -31,11 +31,11 @@
 
   <!-- Open Graph -->
   <meta property="og:type" content="website">
-  <meta property="og:image" content="https://kitchenrush.app/icons/kr-icon-512x512.png">
-  <meta property="og:url" content="https://kitchenrush.app/">
-  <meta property="og:title" content="Kitchen Rush — Pickleball Smash Game">
+  <meta property="og:image" content="https://www.bonjourpickleball.fr/icons/kr-icon-512x512.png">
+  <meta property="og:url" content="https://www.bonjourpickleball.fr/">
+  <meta property="og:title" content="Kitchen Rush — Mobile Arcade Pickleball Game">
   <meta property="og:description"
-    content="A fast arcade game inspired by pickleball. Smash balls, stay out of the Kitchen.">
+    content="A mobile arcade game of reflexes, precision, and quick court reads inspired by pickleball.">
   <meta property="og:site_name" content="Kitchen Rush">
 
   <!-- Icons & manifest -->
@@ -132,45 +132,7 @@
   <script defer src="./pwa.js"></script>
   <script defer src="./email.js"></script>
   <script defer src="./main.js"></script>
-
-  <script>
-    (() => {
-      function getByPath(root, path) {
-        const p = String(path || "").trim();
-        if (!p) return null;
-        const parts = p.split(".");
-        let cur = root;
-        for (const k of parts) {
-          if (!cur || typeof cur !== "object") return null;
-          cur = cur[k];
-        }
-        return (typeof cur === "string") ? cur : null;
-      }
-
-      function applyWordingToDom() {
-        const w = window.KR_WORDING;
-        if (!w || typeof w !== "object") return;
-
-        try {
-          document.querySelectorAll("[data-kr-wording]").forEach((el) => {
-            const key = el ? el.getAttribute("data-kr-wording") : "";
-            const text = getByPath(w, key);
-            if (typeof text === "string") el.textContent = text;
-          });
-        } catch (_) { }
-
-        try {
-          document.querySelectorAll("[data-kr-aria-label]").forEach((el) => {
-            const key = el ? el.getAttribute("data-kr-aria-label") : "";
-            const text = getByPath(w, key);
-            if (typeof text === "string") el.setAttribute("aria-label", text);
-          });
-        } catch (_) { }
-      }
-
-      document.addEventListener("DOMContentLoaded", applyWordingToDom);
-    })();
-  </script>
+  <script defer src="./wording-dom.js"></script>
 </body>
 
 </html>
