@@ -484,6 +484,8 @@ void function () {
         document.removeEventListener("visibilitychange", this._visibilityHandler);
         this._visibilityHandler = null;
       }
+      // V2: Teardown input system
+      this._teardownInputV2();
     }
 
     this.render();
@@ -772,6 +774,8 @@ void function () {
   };
 
 
+
+
   // ============================================
   // Game loop (Canvas requestAnimationFrame)
   // ============================================
@@ -784,9 +788,14 @@ void function () {
       var dtMs = ts - self._lastFrameTs;
       self._lastFrameTs = ts;
 
+      // Feed input to game engine
+      var inp = self._runtime.inputState || {};
+      self.game.setInput(inp.left, inp.right, inp.hit);
+
       var state = self.game.update(dtMs);
-      self._renderCanvas(state);
-      self._renderHUD(state);
+      self._renderCanvasV2(state);
+      self._renderHUDV2(state);
+      self._checkGameEventsV2(state);
 
       if (state.done) { self._finishRun(state); return; }
       self._rafId = requestAnimationFrame(loop);
@@ -801,9 +810,9 @@ void function () {
 
 
   // ============================================
-  // Canvas rendering
+  // V2 Canvas rendering
   // ============================================
-  UI.prototype._renderCanvas = function (state) {
+  UI.prototype._renderCanvasV2 = function (state) {
     var canvas = this._canvas;
     if (!canvas) return;
     var ctx = this._ctx;
@@ -811,28 +820,23 @@ void function () {
 
     var w = canvas.width;
     var h = canvas.height;
-    var canvasCfg = this.config.canvas || {};
-    var colors = canvasCfg.colors;
-    // Fail-closed: if colors not configured, render nothing (blank canvas)
+    var colors = this.config.canvas && this.config.canvas.colors;
     if (!colors || typeof colors !== "object") return;
 
-    var kitchenLineY = Number(canvasCfg.kitchenLineY) * h;
-    if (!Number.isFinite(kitchenLineY) || kitchenLineY <= 0) return;
+    var court = state.court;
+    if (!court) return;
 
     var juice = this._runtime.juice;
     var n = performance.now();
-    // Game-time clock for ball animation comparisons.
-    // Ball timestamps (bouncedAt, smashedAt, etc.) are in game-time, not wall-time.
     var gt = state.elapsedMs;
 
-    // Bounce animation config
-    var bounceHeight = requiredConfigNumber(canvasCfg.bounceHeight, "KR_CONFIG.canvas.bounceHeight", { min: 0 });
-    var bounceAnimMs = requiredConfigNumber(canvasCfg.bounceAnimMs, "KR_CONFIG.canvas.bounceAnimMs", { min: 1, integer: true });
-    var smashOutMs = requiredConfigNumber(canvasCfg.smashOutMs, "KR_CONFIG.canvas.smashOutMs", { min: 1, integer: true });
-    var smashOutDistance = requiredConfigNumber(canvasCfg.smashOutDistance, "KR_CONFIG.canvas.smashOutDistance", { min: 1 });
-    var scorePopupMs = requiredConfigNumber(canvasCfg.scorePopupMs, "KR_CONFIG.canvas.scorePopupMs", { min: 1, integer: true });
+    var netYpx = court.netY * h;
+    var kitchenLineYpx = court.kitchenLineY * h;
+    var playerYpx = court.playerY * h;
+    var controlsYpx = court.controlsY * h;
+    var opponentYpx = court.opponentY * h;
 
-    // Screen shake offset
+    // Screen shake
     var shakeX = 0, shakeY = 0;
     if (juice.shakeUntil > n) {
       var intensity = juice.shakeIntensity || 6;
@@ -844,398 +848,154 @@ void function () {
     if (shakeX || shakeY) ctx.translate(shakeX, shakeY);
 
     // Court background
-    ctx.clearRect(-10, -10, w + 20, h + 20);
-
-    // Milestone tint: shift court hue at milestones
-    var milestones = state.milestonesReached || [];
-    var courtColor = colors.courtBg;
-    var kitchenColor = colors.kitchenBg;
-    if (milestones.length >= 3 && colors.milestone3CourtBg) {
-      courtColor = colors.milestone3CourtBg; kitchenColor = colors.milestone3KitchenBg || kitchenColor;
-    } else if (milestones.length >= 2 && colors.milestone2CourtBg) {
-      courtColor = colors.milestone2CourtBg; kitchenColor = colors.milestone2KitchenBg || kitchenColor;
-    } else if (milestones.length >= 1 && colors.milestone1CourtBg) {
-      courtColor = colors.milestone1CourtBg; kitchenColor = colors.milestone1KitchenBg || kitchenColor;
-    }
-
-    ctx.fillStyle = courtColor;
+    ctx.fillStyle = colors.courtBg || "#0a1628";
     ctx.fillRect(0, 0, w, h);
 
-    // Kitchen zone (darker)
-    ctx.fillStyle = kitchenColor;
-    ctx.fillRect(0, kitchenLineY, w, h - kitchenLineY);
+    // Kitchen zone
+    ctx.fillStyle = colors.kitchenBg || "#2a1a0a";
+    ctx.fillRect(0, netYpx, w, kitchenLineYpx - netYpx);
 
-    // Kitchen label text
+    // Kitchen label
     if (colors.kitchenLabelColor) {
-      ctx.font = "bold " + Math.round(w * 0.05) + "px system-ui, sans-serif";
+      ctx.font = "bold " + Math.round(w * 0.04) + "px system-ui, sans-serif";
       ctx.fillStyle = colors.kitchenLabelColor;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("KITCHEN", w / 2, kitchenLineY + (h - kitchenLineY) / 2);
+      ctx.fillText("KITCHEN", w / 2, netYpx + (kitchenLineYpx - netYpx) / 2);
     }
 
-    // Milestone glow: brief flash when milestone first reached
-    var msGlowMs = requiredConfigNumber(this.config?.juice?.milestoneGlowMs, "KR_CONFIG.juice.milestoneGlowMs", { min: 1, integer: true });
-    if (state.lastMilestoneAt && (gt - state.lastMilestoneAt) < msGlowMs) {
-      var glowAlpha = Math.max(0, 0.15 * (1 - (gt - state.lastMilestoneAt) / msGlowMs));
-      ctx.fillStyle = "rgba(255,255,255," + glowAlpha + ")";
-      ctx.fillRect(0, 0, w, h);
-      // Play milestone sound once
-      if (!juice.milestoneGlowUntil || juice.milestoneGlowUntil < state.lastMilestoneAt) {
-        juice.milestoneGlowUntil = state.lastMilestoneAt + msGlowMs;
-        this._playSound("milestone");
-      }
-    }
-
-    // Kitchen line (solid, prominent)
-    ctx.strokeStyle = colors.kitchenLine;
+    // Kitchen line
+    ctx.strokeStyle = colors.kitchenLine || "#ff6b4a";
     ctx.lineWidth = 3;
     ctx.setLineDash([]);
     ctx.beginPath();
-    ctx.moveTo(0, kitchenLineY);
-    ctx.lineTo(w, kitchenLineY);
+    ctx.moveTo(0, kitchenLineYpx);
+    ctx.lineTo(w, kitchenLineYpx);
     ctx.stroke();
 
-    // Net at top (subtle)
-    ctx.strokeStyle = "rgba(255,255,255,0.15)";
-    ctx.lineWidth = 2;
+    // Net
+    ctx.strokeStyle = colors.netColor || "#e0e0e0";
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(0, h * 0.02);
-    ctx.lineTo(w, h * 0.02);
+    ctx.moveTo(0, netYpx);
+    ctx.lineTo(w, netYpx);
     ctx.stroke();
-
-    // First Kitchen ball: pulse the kitchen line + zone
-    var balls = state.balls || [];
-    var hasFirstKitchen = false;
-    for (var fi = 0; fi < balls.length; fi++) {
-      if (balls[fi].isFirstKitchen && (balls[fi].state === "FALLING" || balls[fi].state === "LANDED")) {
-        hasFirstKitchen = true; break;
-      }
-    }
-    if (hasFirstKitchen) {
-      var pulseAlpha = 0.15 + 0.15 * Math.sin(n / 150);
-      ctx.fillStyle = "rgba(255,204,0," + pulseAlpha + ")";
-      ctx.fillRect(0, kitchenLineY, w, h - kitchenLineY);
-      ctx.strokeStyle = "rgba(255,204,0," + (pulseAlpha + 0.2) + ")";
-      ctx.lineWidth = 4;
+    // Net posts
+    ctx.fillStyle = colors.netColor || "#e0e0e0";
+    ctx.fillRect(0, netYpx - 8, 4, 16);
+    ctx.fillRect(w - 4, netYpx - 8, 4, 16);
+    // Net mesh
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 6]);
+    for (var ni = 1; ni <= 3; ni++) {
       ctx.beginPath();
-      ctx.moveTo(0, kitchenLineY);
-      ctx.lineTo(w, kitchenLineY);
+      ctx.moveTo(4, netYpx - 6 + ni * 4);
+      ctx.lineTo(w - 4, netYpx - 6 + ni * 4);
       ctx.stroke();
     }
+    ctx.setLineDash([]);
 
-    // Balls
-    for (var i = 0; i < balls.length; i++) {
-      var b = balls[i];
-
-      // Calculate visual Y (with bounce animation)
-      var visualY = b.y;
-      var visualRadius = b.radius;
-      var bounceOffset = 0;
-
-      // Bounce animation: ball jumps up after landing
-      if (b.state === "BOUNCING" && b.bouncedAt > 0) {
-        var sinceBounce = gt - b.bouncedAt;
-        if (sinceBounce < bounceAnimMs) {
-          var t_bounce = sinceBounce / bounceAnimMs;
-          // Parabolic bounce: up then down
-          bounceOffset = Math.sin(t_bounce * Math.PI) * bounceHeight * h;
-          visualY = b.y - bounceOffset;
-          // Slight squash at start, stretch at peak
-          if (t_bounce < 0.2) {
-            visualRadius = b.radius * (1 + 0.15 * (1 - t_bounce / 0.2));
-          }
-        }
-      }
-
-      // Landed squash effect (brief)
-      if (b.state === "LANDED" && b.landedAt > 0) {
-        var sinceLand = gt - b.landedAt;
-        if (sinceLand < 100) {
-          var squashT = sinceLand / 100;
-          visualRadius = b.radius * (1 + 0.2 * (1 - squashT));
-        }
-      }
-
-      // Smash-out animation: ball flies away
-      if (b.state === "SMASHED" && b.smashedAt > 0) {
-        var sinceSmash = gt - b.smashedAt;
-        if (sinceSmash < smashOutMs) {
-          var smashT = sinceSmash / smashOutMs;
-          var eased = 1 - Math.pow(1 - smashT, 3); // ease-out cubic
-          var angle = b.smashOutAngle || -Math.PI / 2;
-          visualY = b.y + Math.sin(angle) * smashOutDistance * eased;
-          var visualX_offset = Math.cos(angle) * smashOutDistance * eased;
-          b._renderX = b.x + visualX_offset;
-          visualRadius = b.radius * (1 - smashT * 0.5);
-          ctx.globalAlpha = Math.max(0, 1 - smashT);
-          ctx.fillStyle = colors.ballSmashed;
-          ctx.beginPath();
-          ctx.arc(b._renderX || b.x, visualY, Math.max(1, visualRadius), 0, Math.PI * 2);
-          ctx.fill();
-          ctx.globalAlpha = 1;
-          continue; // Skip normal rendering for smash-out balls
-        } else {
-          ctx.globalAlpha = 0;
-          continue; // Fully faded
-        }
-      }
-
-      // Faulted flash
-      if (b.state === "FAULTED") {
-        var sinceFault = gt - (b.faultedAt || 0);
-        if (sinceFault < 300) {
-          ctx.globalAlpha = Math.max(0, 0.7 * (1 - sinceFault / 300));
-          ctx.fillStyle = colors.ballFaulted;
-          // Expand ring
-          var faultRad = b.radius + (sinceFault / 300) * 20;
-          ctx.beginPath();
-          ctx.arc(b.x, b.y, faultRad, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-        continue;
-      }
-
-      // Missed fade
-      if (b.state === "MISSED") {
-        var sinceMiss = gt - (b.missedAt || 0);
-        if (sinceMiss < 400) {
-          ctx.globalAlpha = Math.max(0, 0.4 * (1 - sinceMiss / 400));
-          ctx.fillStyle = colors.ballMissed;
-          ctx.beginPath();
-          ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-        continue;
-      }
-
-      // Trail (falling balls only)
-      if (b.state === "FALLING" && b.trail && b.trail.length > 0) {
-        for (var ti = 0; ti < b.trail.length; ti++) {
-          var trailAlpha = 0.05 + 0.05 * (ti / b.trail.length);
-          var trailRadius = b.radius * (0.3 + 0.4 * (ti / b.trail.length));
-          ctx.globalAlpha = trailAlpha;
-          ctx.fillStyle = b.inKitchen ? colors.ballKitchen : colors.ballDefault;
-          ctx.beginPath();
-          ctx.arc(b.trail[ti].x, b.trail[ti].y, trailRadius, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-      }
-
-      // Shadow (falling + landed + bouncing)
-      if ((b.state === "FALLING" || b.state === "LANDED" || b.state === "BOUNCING") && b.landingY > 0) {
-        var progress = Math.min(1, b.y / b.landingY);
-        var sf = Number(canvasCfg.shadowGrowthFactor);
-        var sr = b.radius * (0.4 + progress * (Number.isFinite(sf) ? sf : 0));
-        // Shadow is always at ground level (landingY), size increases with height
-        var shadowAlpha = 0.2 * progress;
-        if (b.state === "BOUNCING" && bounceOffset > 0) {
-          sr = b.radius * (0.6 + 0.4 * (1 - bounceOffset / (bounceHeight * h)));
-          shadowAlpha = 0.25;
-        }
-        ctx.globalAlpha = shadowAlpha;
-        ctx.fillStyle = colors.shadow;
-        ctx.beginPath();
-        ctx.ellipse(b.x, b.landingY + b.radius * 0.3, sr, sr * 0.35, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-      }
-
-      // "WAIT!" text above Kitchen balls while falling
-      if (b.inKitchen && b.state === "FALLING" && b.y > h * 0.15) {
-        var waitAlpha = 0.4 + 0.3 * Math.sin(n / 200);
-        ctx.globalAlpha = waitAlpha;
-        ctx.font = "bold " + Math.round(b.radius * 1.1) + "px system-ui, sans-serif";
-        ctx.fillStyle = colors.waitIndicator || "#ffd60a";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "bottom";
-        ctx.fillText("WAIT", b.x, b.y - b.radius - 6);
-        ctx.globalAlpha = 1;
-      }
-
-      // Ball color by state
-      ctx.globalAlpha = 1;
-      var bt = b.ballType || "normal";
-      if (bt === "dink" && colors.ballDink) ctx.fillStyle = colors.ballDink;
-      else if (bt === "lob" && colors.ballLob) ctx.fillStyle = colors.ballLob;
-      else if (bt === "fast" && colors.ballFast) ctx.fillStyle = colors.ballFast;
-      else if (b.inKitchen) ctx.fillStyle = colors.ballKitchen;
-      else ctx.fillStyle = colors.ballDefault;
-
-      // Ball glow (outer ring for visibility)
-      var glowColor = ctx.fillStyle;
-      ctx.save();
-      ctx.shadowColor = glowColor;
-      ctx.shadowBlur = 12;
-
-      // Ball body
-      ctx.beginPath();
-      ctx.arc(b.x, visualY, visualRadius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      // Inner highlight (gives 3D feel)
-      var grad = ctx.createRadialGradient(b.x - visualRadius * 0.3, visualY - visualRadius * 0.3, visualRadius * 0.1, b.x, visualY, visualRadius);
-      grad.addColorStop(0, "rgba(255,255,255,0.4)");
-      grad.addColorStop(1, "rgba(255,255,255,0)");
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(b.x, visualY, visualRadius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Bounce flash: bright ring at exact moment of bounce (Kitchen balls)
-      if (b.state === "BOUNCING" && b.bouncedAt > 0) {
-        var sinceBounceFlash = gt - b.bouncedAt;
-        var bounceFlashMs = requiredConfigNumber(this.config?.juice?.bounceRingMs, "KR_CONFIG.juice.bounceRingMs", { min: 1, integer: true });
-        if (sinceBounceFlash < bounceFlashMs) {
-          var bounceAlpha = Math.max(0, 1 - sinceBounceFlash / bounceFlashMs);
-          var bounceRad = visualRadius + 6 + (sinceBounceFlash / bounceFlashMs) * 15;
-          ctx.strokeStyle = "rgba(6,214,160," + bounceAlpha.toFixed(2) + ")";
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.arc(b.x, visualY, bounceRad, 0, Math.PI * 2);
-          ctx.stroke();
-
-          // "NOW!" text briefly
-          if (sinceBounceFlash < bounceFlashMs * 0.6) {
-            ctx.globalAlpha = bounceAlpha;
-            ctx.font = "bold " + Math.round(b.radius * 1.2) + "px system-ui, sans-serif";
-            ctx.fillStyle = "#06d6a0";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "bottom";
-            ctx.fillText("NOW!", b.x, visualY - visualRadius - 8);
-            ctx.globalAlpha = 1;
-          }
-
-          // Play bounce sound once per ball
-          if (!juice.bounceFlashBalls[b.id]) {
-            juice.bounceFlashBalls[b.id] = true;
-            this._playSound("bounce");
-          }
-        }
-      }
-
-      // Bounce indicator ring (Kitchen balls post-bounce = smashable, pulsing)
-      if (b.state === "BOUNCING") {
-        var pulseScale = 1 + 0.1 * Math.sin(n / 80);
-        ctx.strokeStyle = colors.bounceRing;
-        ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.8;
-        ctx.beginPath();
-        ctx.arc(b.x, visualY, (visualRadius + 5) * pulseScale, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-      }
-
-      // Miss sound (when ball transitions to MISSED)
-      if (b.state === "MISSED" && b.id && !juice.bounceFlashBalls["miss_" + b.id]) {
-        juice.bounceFlashBalls["miss_" + b.id] = true;
-        this._playSound("miss");
-      }
-
-      ctx.globalAlpha = 1;
+    // Court lines
+    if (colors.courtLines) {
+      ctx.strokeStyle = colors.courtLines;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(w / 2, kitchenLineYpx); ctx.lineTo(w / 2, h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(w * 0.05, netYpx); ctx.lineTo(w * 0.05, h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(w * 0.95, netYpx); ctx.lineTo(w * 0.95, h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(w * 0.05, h * 0.95); ctx.lineTo(w * 0.95, h * 0.95); ctx.stroke();
     }
 
-    // Score popups (+1 floating up)
-    if (juice.scorePopups) {
-      for (var sp = juice.scorePopups.length - 1; sp >= 0; sp--) {
-        var popup = juice.scorePopups[sp];
-        var popElapsed = n - popup.at;
-        if (popElapsed > scorePopupMs) {
-          juice.scorePopups.splice(sp, 1);
-          continue;
-        }
-        var popT = popElapsed / scorePopupMs;
-        var popAlpha = Math.max(0, 1 - popT);
-        var popY = popup.y - popT * 60;
-        ctx.globalAlpha = popAlpha;
-        ctx.font = "bold " + Math.round(24 + (1 - popT) * 8) + "px system-ui, sans-serif";
-        ctx.fillStyle = colors.scorePopup || "#06d6a0";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("+1", popup.x, popY);
-        ctx.globalAlpha = 1;
-      }
+    // Opponent silhouette
+    var oppX = state.opponentX || w / 2;
+    var oppW = w * 0.06;
+    var oppH = h * 0.06;
+    ctx.fillStyle = colors.opponentColor || "#667788";
+    ctx.beginPath();
+    ctx.arc(oppX, opponentYpx - oppH * 0.3, oppW * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(oppX - oppW * 0.35, opponentYpx - oppH * 0.1, oppW * 0.7, oppH * 0.7);
+
+    // Ball
+    var ball = state.ball;
+    if (ball) {
+      this._renderBallV2(ctx, ball, colors, w, h, gt, n, juice);
     }
 
-    // Smash flash: bright burst at tap point (larger, more particles)
+    // Player
+    var playerX = state.playerX || w / 2;
+    var pState = state.playerState || "idle";
+    this._renderPlayerV2(ctx, playerX, playerYpx, pState, colors, w, h, n);
+
+    // Controls zone
+    ctx.fillStyle = "rgba(255,255,255,0.03)";
+    ctx.fillRect(0, controlsYpx, w, h - controlsYpx);
+    var zoneW = w * 0.4;
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(4, controlsYpx + 4, zoneW - 8, h - controlsYpx - 8);
+    ctx.strokeRect(w - zoneW + 4, controlsYpx + 4, zoneW - 8, h - controlsYpx - 8);
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.strokeRect(zoneW + 4, controlsYpx + 4, w * 0.2 - 8, h - controlsYpx - 8);
+    ctx.font = Math.round(w * 0.03) + "px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.2)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    var ctrlMidY = controlsYpx + (h - controlsYpx) / 2;
+    ctx.fillText("\u25C4", zoneW / 2, ctrlMidY);
+    ctx.fillText("\u25BA", w - zoneW / 2, ctrlMidY);
+    ctx.fillText("HIT", w / 2, ctrlMidY);
+
+    // Juice: smash flash
     if (juice.flashType === "smash" && juice.flashUntil > n) {
-      var smashFlashDur = requiredConfigNumber(this.config?.juice?.smashFlashMs, "KR_CONFIG.juice.smashFlashMs", { min: 1, integer: true });
-      var flashProgress = 1 - (juice.flashUntil - n) / smashFlashDur;
-      var flashAlpha = Math.max(0, 0.9 * (1 - flashProgress));
-      var flashRad = 25 + flashProgress * 50;
-      ctx.fillStyle = "rgba(6,214,160," + flashAlpha.toFixed(2) + ")";
+      var smashFlashDur = requiredConfigNumber(this.config?.juice?.smashFlashMs, "juice.smashFlashMs", { min: 1, integer: true });
+      var flashP = 1 - (juice.flashUntil - n) / smashFlashDur;
+      var flashA = Math.max(0, 0.8 * (1 - flashP));
+      ctx.fillStyle = "rgba(6,214,160," + flashA.toFixed(2) + ")";
       ctx.beginPath();
-      ctx.arc(juice.flashX, juice.flashY, flashRad, 0, Math.PI * 2);
+      ctx.arc(juice.flashX, juice.flashY, 20 + flashP * 40, 0, Math.PI * 2);
       ctx.fill();
-
-      // Ring expanding outward
-      ctx.strokeStyle = "rgba(255,255,255," + (flashAlpha * 0.6).toFixed(2) + ")";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(juice.flashX, juice.flashY, flashRad * 1.3, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Micro-particles (8 expanding dots)
-      for (var pi = 0; pi < 8; pi++) {
-        var angle = (Math.PI * 2 / 8) * pi + flashProgress * 0.8;
-        var dist = 20 + flashProgress * 40;
-        var px = juice.flashX + Math.cos(angle) * dist;
-        var py = juice.flashY + Math.sin(angle) * dist;
-        var pSize = 3 - flashProgress * 2.5;
-        if (pSize > 0) {
-          ctx.fillStyle = "rgba(255,255,255," + (flashAlpha * 0.7).toFixed(2) + ")";
-          ctx.beginPath();
-          ctx.arc(px, py, pSize, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
     }
 
-    // Fault flash: red vignette
+    // Juice: fault vignette
     if (juice.flashType === "fault" && juice.flashUntil > n) {
-      var faultFlashDur = requiredConfigNumber(this.config?.juice?.faultFlashMs, "KR_CONFIG.juice.faultFlashMs", { min: 1, integer: true });
-      var faultProgress = 1 - (juice.flashUntil - n) / faultFlashDur;
-      var faultAlpha = Math.max(0, 0.35 * (1 - faultProgress));
-      // Red vignette from edges
+      var faultFlashDur = requiredConfigNumber(this.config?.juice?.faultFlashMs, "juice.faultFlashMs", { min: 1, integer: true });
+      var faultP = 1 - (juice.flashUntil - n) / faultFlashDur;
+      var faultA = Math.max(0, 0.3 * (1 - faultP));
       var vigGrad = ctx.createRadialGradient(w / 2, h / 2, w * 0.3, w / 2, h / 2, w * 0.8);
       vigGrad.addColorStop(0, "rgba(239,71,111,0)");
-      vigGrad.addColorStop(1, "rgba(239,71,111," + faultAlpha.toFixed(2) + ")");
+      vigGrad.addColorStop(1, "rgba(239,71,111," + faultA.toFixed(2) + ")");
       ctx.fillStyle = vigGrad;
       ctx.fillRect(0, 0, w, h);
     }
 
-    // Sprint penalty flash "-2s" overlay
+    // Score popups
+    var scorePopupMs = requiredConfigNumber(this.config?.canvas?.scorePopupMs, "canvas.scorePopupMs", { min: 1, integer: true });
+    if (juice.scorePopups) {
+      for (var sp = juice.scorePopups.length - 1; sp >= 0; sp--) {
+        var popup = juice.scorePopups[sp];
+        var popElapsed = n - popup.at;
+        if (popElapsed > scorePopupMs) { juice.scorePopups.splice(sp, 1); continue; }
+        var popT = popElapsed / scorePopupMs;
+        ctx.globalAlpha = Math.max(0, 1 - popT);
+        ctx.font = "bold " + Math.round(22 + (1 - popT) * 6) + "px system-ui, sans-serif";
+        ctx.fillStyle = colors.scorePopup || "#06d6a0";
+        ctx.textAlign = "center";
+        ctx.fillText("+1", popup.x, popup.y - popT * 50);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // Sprint penalty flash
     if (juice.sprintPenaltyUntil > n) {
-      var penProgress = 1 - (juice.sprintPenaltyUntil - n) / 400;
-      var penAlpha = Math.max(0, 0.9 * (1 - penProgress));
-      ctx.font = "bold 32px system-ui, sans-serif";
-      ctx.fillStyle = "rgba(239,71,111," + penAlpha.toFixed(2) + ")";
+      var penP = 1 - (juice.sprintPenaltyUntil - n) / 400;
+      var penA = Math.max(0, 0.9 * (1 - penP));
+      ctx.font = "bold 28px system-ui, sans-serif";
+      ctx.fillStyle = "rgba(239,71,111," + penA.toFixed(2) + ")";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       var penText = String(this.wording?.sprint?.penaltyFlash || "").trim();
-      if (penText) ctx.fillText(penText, w / 2, h * 0.3 - penProgress * 20);
-    }
-
-    // Paddle (bottom area visual indicator)
-    if (colors.paddle) {
-      var paddleY = h * 0.92;
-      var paddleW = w * 0.25;
-      var paddleH = 6;
-      var paddleX = w / 2 - paddleW / 2;
-      ctx.fillStyle = colors.paddle;
-      ctx.globalAlpha = 0.4;
-      ctx.beginPath();
-      if (ctx.roundRect) {
-        ctx.roundRect(paddleX, paddleY, paddleW, paddleH, 3);
-      } else {
-        ctx.rect(paddleX, paddleY, paddleW, paddleH);
-      }
-      ctx.fill();
-      ctx.globalAlpha = 1;
+      if (penText) ctx.fillText(penText, w / 2, h * 0.3 - penP * 20);
     }
 
     ctx.restore();
@@ -1243,9 +1003,207 @@ void function () {
 
 
   // ============================================
-  // HUD rendering (DOM overlay on canvas)
+  // V2: Ball renderer
   // ============================================
-  UI.prototype._renderHUD = function (state) {
+  UI.prototype._renderBallV2 = function (ctx, b, colors, w, h, gt, n, juice) {
+    var BALL_STATES = window.KR_Game.BALL_STATES;
+
+    // Shadow at bounce point
+    if (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.BOUNCED) {
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = colors.shadow || "#000";
+      ctx.beginPath();
+      ctx.ellipse(b.targetX, b.shadowY + b.radius * 0.3, b.radius * 0.8, b.radius * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Ball color by type
+    var bt = b.ballType || "normal";
+    if (bt === "dink" && colors.ballDink) ctx.fillStyle = colors.ballDink;
+    else if (bt === "lob" && colors.ballLob) ctx.fillStyle = colors.ballLob;
+    else if (bt === "fast" && colors.ballFast) ctx.fillStyle = colors.ballFast;
+    else ctx.fillStyle = colors.ballDefault || "#ffd60a";
+
+    if (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.BOUNCED) {
+      // WAIT indicator for kitchen balls in flight
+      if (b.inKitchen && b.state === BALL_STATES.TRAVELING) {
+        var waitAlpha = 0.5 + 0.3 * Math.sin(gt / 200);
+        ctx.globalAlpha = waitAlpha;
+        ctx.font = "bold " + Math.round(b.radius * 1.1) + "px system-ui, sans-serif";
+        ctx.fillStyle = colors.waitIndicator || "#ff6b4a";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText("WAIT", b.x, b.y - b.radius - 6);
+        ctx.globalAlpha = 1;
+        // Reset fill
+        if (bt === "dink" && colors.ballDink) ctx.fillStyle = colors.ballDink;
+        else if (bt === "lob" && colors.ballLob) ctx.fillStyle = colors.ballLob;
+        else if (bt === "fast" && colors.ballFast) ctx.fillStyle = colors.ballFast;
+        else ctx.fillStyle = colors.ballDefault || "#ffd60a";
+      }
+
+      // Bounce flash ring
+      if (b.state === BALL_STATES.BOUNCED && b.bouncedAt > 0) {
+        var sinceBounce = gt - b.bouncedAt;
+        if (sinceBounce < 300) {
+          var bAlpha = Math.max(0, 1 - sinceBounce / 300);
+          ctx.strokeStyle = "rgba(6,214,160," + bAlpha.toFixed(2) + ")";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.radius + 4 + (sinceBounce / 300) * 12, 0, Math.PI * 2);
+          ctx.stroke();
+          if (b.inKitchen && sinceBounce < 180) {
+            ctx.globalAlpha = bAlpha;
+            ctx.font = "bold " + Math.round(b.radius * 1.2) + "px system-ui, sans-serif";
+            ctx.fillStyle = "#06d6a0";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "bottom";
+            ctx.fillText("NOW!", b.x, b.y - b.radius - 8);
+            ctx.globalAlpha = 1;
+          }
+          if (!juice.bounceFlashBalls[b.id]) {
+            juice.bounceFlashBalls[b.id] = true;
+            this._playSound("bounce");
+          }
+        }
+        // Pulsing ring while waiting
+        var pulseScale = 1 + 0.08 * Math.sin(gt / 80);
+        ctx.strokeStyle = colors.bounceRing || "#06d6a0";
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, (b.radius + 4) * pulseScale, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+
+      // Ball with glow
+      ctx.save();
+      ctx.shadowColor = ctx.fillStyle;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Highlight
+      var grad = ctx.createRadialGradient(b.x - b.radius * 0.3, b.y - b.radius * 0.3, b.radius * 0.1, b.x, b.y, b.radius);
+      grad.addColorStop(0, "rgba(255,255,255,0.4)");
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // HIT: returning to opponent
+    if (b.state === "HIT" || b.state === BALL_STATES.HIT) {
+      var sinceHit = gt - b.hitAt;
+      var retT = Math.min(1, sinceHit / (b.returnTravelMs || 500));
+      ctx.globalAlpha = Math.max(0, 1 - retT * 0.7);
+      ctx.fillStyle = colors.ballSmashed || "#06d6a0";
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, Math.max(2, b.radius * (1 - retT * 0.4)), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // FAULTED
+    if (b.state === "FAULTED" && b.faultedAt > 0) {
+      var sinceFault = gt - b.faultedAt;
+      if (sinceFault < 400) {
+        ctx.globalAlpha = Math.max(0, 0.7 * (1 - sinceFault / 400));
+        ctx.fillStyle = colors.ballFaulted || "#ef476f";
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.radius + (sinceFault / 400) * 15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // MISSED
+    if (b.state === "MISSED" && b.missedAt > 0) {
+      var sinceMiss = gt - b.missedAt;
+      if (sinceMiss < 500) {
+        ctx.globalAlpha = Math.max(0, 0.4 * (1 - sinceMiss / 500));
+        ctx.fillStyle = colors.ballMissed || "#6c757d";
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+  };
+
+
+  // ============================================
+  // V2: Player renderer
+  // ============================================
+  UI.prototype._renderPlayerV2 = function (ctx, x, y, pState, colors, w, h, n) {
+    var pColor = colors.playerColor || "#44ccff";
+    var pOutline = colors.playerOutline || "#2288bb";
+    var pW = w * 0.07;
+    var pH = h * 0.09;
+
+    ctx.fillStyle = pColor;
+    ctx.strokeStyle = pOutline;
+    ctx.lineWidth = 2;
+
+    // Body
+    var bodyW = pW * 0.6;
+    var bodyH = pH * 0.5;
+    ctx.fillRect(x - bodyW / 2, y - pH * 0.3, bodyW, bodyH);
+    ctx.strokeRect(x - bodyW / 2, y - pH * 0.3, bodyW, bodyH);
+
+    // Head
+    ctx.beginPath();
+    ctx.arc(x, y - pH * 0.45, pW * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Legs
+    var legW = bodyW * 0.3;
+    var legH = pH * 0.3;
+    ctx.fillRect(x - bodyW * 0.3, y + pH * 0.2, legW, legH);
+    ctx.fillRect(x + bodyW * 0.05, y + pH * 0.2, legW, legH);
+
+    // Paddle arm
+    var paddleAngle = 0;
+    if (pState === "swing") paddleAngle = -0.3 + Math.sin(n / 40) * 0.2;
+    else if (pState === "runLeft") paddleAngle = 0.2;
+    else if (pState === "runRight") paddleAngle = -0.2;
+
+    var paddleLen = pW * 0.7;
+    ctx.save();
+    ctx.translate(x + bodyW * 0.3, y - pH * 0.15);
+    ctx.rotate(paddleAngle);
+    ctx.fillStyle = pColor;
+    ctx.fillRect(0, -3, paddleLen * 0.5, 6);
+    ctx.fillStyle = pOutline;
+    ctx.fillRect(paddleLen * 0.4, -8, paddleLen * 0.5, 16);
+    ctx.restore();
+
+    // Motion lines when running
+    if (pState === "runLeft" || pState === "runRight") {
+      var leanDir = (pState === "runLeft") ? 1 : -1;
+      ctx.strokeStyle = "rgba(255,255,255,0.15)";
+      ctx.lineWidth = 1;
+      for (var ml = 0; ml < 3; ml++) {
+        var mlX = x + leanDir * (pW * 0.5 + ml * 4);
+        ctx.beginPath();
+        ctx.moveTo(mlX, y - pH * 0.1 + ml * 8);
+        ctx.lineTo(mlX + leanDir * 8, y - pH * 0.1 + ml * 8);
+        ctx.stroke();
+      }
+    }
+  };
+
+
+  // ============================================
+  // V2: HUD rendering
+  // ============================================
+  UI.prototype._renderHUDV2 = function (state) {
     var hudEl = el("kr-hud");
     if (!hudEl) return;
 
@@ -1261,7 +1219,6 @@ void function () {
           '<div class="kr-hud-lives">' + livesHtml + '</div>' +
           '<div class="kr-hud-score">' + state.smashes + '</div>' +
         '</div>';
-
     } else if (state.mode === MODES.SPRINT) {
       var remaining = Math.max(0, Math.ceil((state.sprintRemainingMs || 0) / 1000));
       var timerLabel = fillTemplate(this.wording?.sprint?.timerLabel || "", { remaining: remaining });
@@ -1273,81 +1230,133 @@ void function () {
     }
   };
 
-  // HUD pulse scheduling: after a delta display (+1, -1, -2s), schedule cleanup render
-  UI.prototype._scheduleHudPulseCleanup = function () {
-    if (this._runtime.hudPulseCleanupTimerId) clearTimeout(this._runtime.hudPulseCleanupTimerId);
-    var ms = requiredConfigNumber(this.config?.ui?.gameplayPulseMs, "KR_CONFIG.ui.gameplayPulseMs", { min: 1, integer: true });
+
+  // ============================================
+  // V2: Input system (touch zones + keyboard)
+  // ============================================
+  UI.prototype._setupInputV2 = function () {
     var self = this;
-    this._runtime.hudPulseCleanupTimerId = setTimeout(function () {
-      self._runtime.hudPulseCleanupTimerId = null;
-      // No explicit action needed: HUD re-renders every frame via _renderHUD
-    }, ms);
-  };
-
-
-  // ============================================
-  // Canvas tap handler
-  // ============================================
-  UI.prototype._handleCanvasTap = function (e) {
-    if (this.state !== STATES.PLAYING) return;
-    if (this._runtime.tapLocked) return;
+    if (!this._runtime.inputState) {
+      this._runtime.inputState = { left: false, right: false, hit: false };
+    }
 
     var canvas = this._canvas;
     if (!canvas) return;
 
-    var rect = canvas.getBoundingClientRect();
-    var rawX = (e.clientX || (e.touches && e.touches[0] && e.touches[0].clientX) || 0) - rect.left;
-    var rawY = (e.clientY || (e.touches && e.touches[0] && e.touches[0].clientY) || 0) - rect.top;
+    var getZone = function (clientX, cRect) {
+      var x = clientX - cRect.left;
+      var ratio = x / cRect.width;
+      if (ratio < 0.4) return "left";
+      if (ratio > 0.6) return "right";
+      return "hit";
+    };
 
-    var scaleX = canvas.width / rect.width;
-    var scaleY = canvas.height / rect.height;
+    var isInControlsZone = function (clientY, cRect) {
+      var y = clientY - cRect.top;
+      var ctrlY = ((self.config.court && self.config.court.controlsY) || 0.85) * cRect.height;
+      return y >= ctrlY;
+    };
 
-    var result = this.game.tap(rawX * scaleX, rawY * scaleY);
-    if (!result) return;
+    var activeTouches = {};
 
-    // Unlock audio on first tap (iOS/Chrome requirement)
-    if (window.KR_Audio && typeof window.KR_Audio.unlock === "function") window.KR_Audio.unlock();
+    canvas.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      // Unlock audio on first touch
+      if (window.KR_Audio && typeof window.KR_Audio.unlock === "function") window.KR_Audio.unlock();
+      var rect = canvas.getBoundingClientRect();
+      var zone = isInControlsZone(e.clientY, rect) ? getZone(e.clientX, rect) : "hit";
+      activeTouches[e.pointerId] = zone;
+      self._runtime.inputState[zone] = true;
+    });
+
+    canvas.addEventListener("pointermove", function (e) {
+      if (!activeTouches[e.pointerId]) return;
+      var rect = canvas.getBoundingClientRect();
+      var oldZone = activeTouches[e.pointerId];
+      var newZone = isInControlsZone(e.clientY, rect) ? getZone(e.clientX, rect) : "hit";
+      if (newZone !== oldZone) {
+        self._runtime.inputState[oldZone] = false;
+        self._runtime.inputState[newZone] = true;
+        activeTouches[e.pointerId] = newZone;
+      }
+    });
+
+    var pointerUp = function (e) {
+      var zone = activeTouches[e.pointerId];
+      if (zone) { self._runtime.inputState[zone] = false; delete activeTouches[e.pointerId]; }
+    };
+    canvas.addEventListener("pointerup", pointerUp);
+    canvas.addEventListener("pointercancel", pointerUp);
+
+    // Keyboard
+    this._keydownHandler = function (e) {
+      if (self.state !== STATES.PLAYING) return;
+      if (e.key === "ArrowLeft" || e.key === "a") { self._runtime.inputState.left = true; e.preventDefault(); }
+      if (e.key === "ArrowRight" || e.key === "d") { self._runtime.inputState.right = true; e.preventDefault(); }
+      if (e.key === " " || e.key === "ArrowUp" || e.key === "w") { self._runtime.inputState.hit = true; e.preventDefault(); }
+    };
+    this._keyupHandler = function (e) {
+      if (e.key === "ArrowLeft" || e.key === "a") self._runtime.inputState.left = false;
+      if (e.key === "ArrowRight" || e.key === "d") self._runtime.inputState.right = false;
+      if (e.key === " " || e.key === "ArrowUp" || e.key === "w") self._runtime.inputState.hit = false;
+    };
+    document.addEventListener("keydown", this._keydownHandler);
+    document.addEventListener("keyup", this._keyupHandler);
+  };
+
+  UI.prototype._teardownInputV2 = function () {
+    if (this._keydownHandler) { document.removeEventListener("keydown", this._keydownHandler); this._keydownHandler = null; }
+    if (this._keyupHandler) { document.removeEventListener("keyup", this._keyupHandler); this._keyupHandler = null; }
+    this._runtime.inputState = { left: false, right: false, hit: false };
+  };
+
+
+  // ============================================
+  // V2: Check game events for juice/audio
+  // ============================================
+  UI.prototype._checkGameEventsV2 = function (state) {
+    var ball = state.ball;
+    if (!ball) return;
 
     var juice = this._runtime.juice;
     var n = performance.now();
+    var lastCheck = this._runtime._lastBallState || {};
+    var BALL_STATES = window.KR_Game.BALL_STATES;
+    var prevState = lastCheck.state || "";
+    var curState = ball.state;
 
-    // Haptic + audio + visual juice
-    if (result.smash) {
-      this._haptic("smash");
-      this._playSound("smash");
-      // Flash effect at ball position
-      juice.flashType = "smash";
-      juice.flashUntil = n + requiredConfigNumber(this.config?.juice?.smashFlashMs, "KR_CONFIG.juice.smashFlashMs", { min: 1, integer: true });
-      juice.flashX = result.ball ? result.ball.x : 0;
-      juice.flashY = result.ball ? result.ball.y : 0;
-      // Score popup
-      if (!juice.scorePopups) juice.scorePopups = [];
-      juice.scorePopups.push({
-        x: result.ball ? result.ball.x : w / 2,
-        y: result.ball ? result.ball.y : h / 2,
-        at: n
-      });
-    }
-    if (result.fault) {
-      this._haptic("fault");
-      this._playSound("fault");
-      // Flash + shake
-      juice.flashType = "fault";
-      juice.flashUntil = n + requiredConfigNumber(this.config?.juice?.faultFlashMs, "KR_CONFIG.juice.faultFlashMs", { min: 1, integer: true });
-      juice.flashX = result.ball ? result.ball.x : 0;
-      juice.flashY = result.ball ? result.ball.y : 0;
-      juice.shakeUntil = n + requiredConfigNumber(this.config?.juice?.faultShakeMs, "KR_CONFIG.juice.faultShakeMs", { min: 1, integer: true });
-      juice.shakeIntensity = requiredConfigNumber(this.config?.juice?.faultShakeIntensity, "KR_CONFIG.juice.faultShakeIntensity", { min: 0 });
-
-      // Sprint: penalty flash "-2s"
-      if (this._runtime.runMode === MODES.SPRINT) {
-        juice.sprintPenaltyUntil = n + requiredConfigNumber(this.config?.juice?.sprintPenaltyMs, "KR_CONFIG.juice.sprintPenaltyMs", { min: 1, integer: true });
+    if (curState !== prevState || (lastCheck.id && lastCheck.id !== ball.id)) {
+      if (curState === BALL_STATES.HIT && prevState !== BALL_STATES.HIT) {
+        this._haptic("smash");
+        this._playSound("smash");
+        juice.flashType = "smash";
+        juice.flashUntil = n + requiredConfigNumber(this.config?.juice?.smashFlashMs, "juice.smashFlashMs", { min: 1, integer: true });
+        juice.flashX = ball.x; juice.flashY = ball.y;
+        if (!juice.scorePopups) juice.scorePopups = [];
+        juice.scorePopups.push({ x: ball.x, y: ball.y, at: n });
+        this._handleMicroFeedback({ smash: true, fault: false, ball: ball });
+      }
+      if (curState === "FAULTED" && prevState !== "FAULTED") {
+        this._haptic("fault");
+        this._playSound("fault");
+        juice.flashType = "fault";
+        juice.flashUntil = n + requiredConfigNumber(this.config?.juice?.faultFlashMs, "juice.faultFlashMs", { min: 1, integer: true });
+        juice.flashX = ball.x; juice.flashY = ball.y;
+        juice.shakeUntil = n + requiredConfigNumber(this.config?.juice?.faultShakeMs, "juice.faultShakeMs", { min: 1, integer: true });
+        juice.shakeIntensity = requiredConfigNumber(this.config?.juice?.faultShakeIntensity, "juice.faultShakeIntensity", { min: 0 });
+        if (this._runtime.runMode === MODES.SPRINT) {
+          juice.sprintPenaltyUntil = n + requiredConfigNumber(this.config?.juice?.sprintPenaltyMs, "juice.sprintPenaltyMs", { min: 1, integer: true });
+        }
+        this._handleMicroFeedback({ smash: false, fault: true, ball: ball });
+      }
+      if (curState === "MISSED" && prevState !== "MISSED") {
+        this._playSound("miss");
       }
     }
 
-    // microFeedback
-    this._handleMicroFeedback(result);
+    this._runtime._lastBallState = { state: curState, id: ball.id };
   };
+
 
 
   // ============================================
@@ -1570,7 +1579,7 @@ void function () {
         totalMissed: result.totalMissed || 0,
         totalSpawned: result.totalSpawned || 0,
         elapsedMs: result.elapsedMs || 0,
-        bestStreak: (this._runtime.microFeedback) ? this._runtime.microFeedback.maxSmashStreak : 0
+        bestStreak: result.bestStreak || 0
       };
       var rr = this.storage
         ? (this.storage.recordRunComplete(nextRunNumber, result.smashes, meta) || {}) : {};
@@ -1591,7 +1600,7 @@ void function () {
       totalMissed: result.totalMissed || 0,
       totalSpawned: result.totalSpawned || 0,
       elapsedMs: result.elapsedMs || 0,
-      bestStreak: (this._runtime.microFeedback) ? this._runtime.microFeedback.maxSmashStreak : 0
+      bestStreak: result.bestStreak || 0
     };
 
     // Game over audio
@@ -2601,7 +2610,9 @@ void function () {
       this._ctx = canvas.getContext("2d");
 
       var self = this;
-      canvas.addEventListener("pointerdown", function (e) { self._handleCanvasTap(e); });
+
+      // V2: Setup touch zones + keyboard input system
+      this._setupInputV2();
 
       // T5: Resize canvas on orientation change / window resize
       if (typeof ResizeObserver !== "undefined") {

@@ -705,7 +705,7 @@
 
     // Personal best (RUN mode only)
     const mode = String(meta && meta.mode || "").trim().toUpperCase();
-    const isRun = (mode === MODES.RUN);
+    const isRun = (mode === this.modes.RUN);
 
     const pb = this.data.personalBest || { bestSmashes: 0, achievedAt: 0 };
     const prevBest = clampNonNegativeInt(pb.bestSmashes);

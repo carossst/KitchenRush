@@ -187,6 +187,24 @@
 
 
     // ============================================
+    // COURT — V2 game layout (fractions of canvas height)
+    // ============================================
+    court: {
+      netY: 0.30,              // filet: 30% from top
+      kitchenLineY: 0.48,     // kitchen line: 48% from top (kitchen = between net and this)
+      playerY: 0.78,           // player fixed Y position
+      opponentY: 0.12,         // opponent Y position
+      controlsY: 0.85,         // touch controls zone starts here
+
+      // Player movement speed (pixels per frame at 60fps)
+      playerSpeed: 4.5,
+
+      // Hit range (max X distance between player and ball to hit)
+      hitRange: 55
+    },
+
+
+    // ============================================
     // CANVAS — rendering dimensions & layout
     // ============================================
     canvas: {
@@ -228,41 +246,48 @@
 
       // Canvas colors (non-DOM: CSS cannot style canvas content)
       colors: {
-        courtBg: "#1b4332",
-        kitchenBg: "#081c15",
-        kitchenLine: "#ffffff66",
-        kitchenLabelColor: "#ffffff33",
+        // V2: Court colors (blue-night theme per briefing)
+        courtBg: "#0a1628",          // bleu-nuit profond
+        kitchenBg: "#2a1a0a",        // rouge-corail sombre (warm zone)
+        kitchenLine: "#ff6b4a",      // corail vif — kitchen delimiter
+        kitchenLabelColor: "#ff6b4a44",
+        netColor: "#e0e0e0",         // blanc/gris clair
 
-        ballDefault: "#e0fbfc",
-        ballKitchen: "#ffd60a",
+        // Player/opponent
+        playerColor: "#44ccff",      // cyan — distinct du terrain et kitchen
+        playerOutline: "#2288bb",
+        opponentColor: "#667788",    // gris-bleu — silhouette discrète
+
+        // Ball
+        ballDefault: "#ffd60a",      // jaune vif exclusif (per briefing)
+        ballKitchen: "#ffd60a",      // same yellow — kitchen is the ZONE not the ball color
         ballSmashed: "#06d6a0",
         ballFaulted: "#ef476f",
         ballMissed: "#6c757d",
         bounceRing: "#06d6a0",
         shadow: "#000000",
 
-        // Paddle
-        paddle: "#e0fbfc",
-        paddleGlow: "rgba(224,251,252,0.3)",
-
         // Score popup
         scorePopup: "#06d6a0",
 
         // "WAIT" indicator on kitchen balls
-        waitIndicator: "#ffd60a",
+        waitIndicator: "#ff6b4a",
 
         // V2: Ball type colors
-        ballDink: "#98c1d9",      // soft blue — "slow, wait"
-        ballLob: "#e0aaff",       // lavender — "big, floaty"
-        ballFast: "#ff8800",      // orange — "speed, danger"
+        ballDink: "#98c1d9",
+        ballLob: "#e0aaff",
+        ballFast: "#ff8800",
 
-        // Milestone tint colors (court + kitchen at 25/50/100 Smashes)
-        milestone1CourtBg: "#1a3a3a",
-        milestone1KitchenBg: "#0f2a2a",
-        milestone2CourtBg: "#3a2a1a",
+        // Court lines
+        courtLines: "#ffffff30",
+
+        // Milestone tint colors
+        milestone1CourtBg: "#0a1a2a",
+        milestone1KitchenBg: "#2a1a10",
+        milestone2CourtBg: "#1a1a0a",
         milestone2KitchenBg: "#2a1a0f",
-        milestone3CourtBg: "#2a1a3a",
-        milestone3KitchenBg: "#1a0f2a"
+        milestone3CourtBg: "#1a0a2a",
+        milestone3KitchenBg: "#2a0f1a"
       }
     },
 
