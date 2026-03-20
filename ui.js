@@ -893,7 +893,7 @@ void function () {
   };
 
   UI.prototype._getCanvasMetrics = function () {
-    var app = this._app;
+    var app = this.appEl;
     if (!app) throw new Error("KR_UI._getCanvasMetrics(): app root missing");
     var appW = Math.max(1, Math.round(app.clientWidth));
     var appH = Math.max(1, Math.round(app.clientHeight));

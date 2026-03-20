@@ -294,6 +294,7 @@
       });
 
       ui.init();
+      if (ui && typeof ui.runBootSmokeChecks === "function") ui.runBootSmokeChecks();
 
       // Boot optimization: auto-redeem premium code if saved by success.html
       if (ui && typeof ui.promptAutoRedeemIfReady === "function") {

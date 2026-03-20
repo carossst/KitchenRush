@@ -52,7 +52,7 @@
   window.KR_CONFIG = {
 
     // Product version (UI display, logs, SW cache key)
-    version: "35.2",
+    version: "35.4",
 
     // Storage schema version (localStorage).
     // Change ONLY if you accept a migration/wipe.
@@ -900,6 +900,7 @@
       scoreLabel: "",
       scoreAriaTemplate: "Score: {playerScore}-{opponentScore}",
       gameOverTitle: "Game over",
+      dailyBadge: "Daily Challenge",
 
       // Start-of-run overlay (economy)
       startRunTypeFree: "FREE RUN",
