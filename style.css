@@ -524,6 +524,12 @@ a:focus-visible {
   font-style: italic;
 }
 
+.kr-end-next-run {
+  margin: var(--gap-1) 0 0;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+}
+
 .kr-end-debrief {
   margin: var(--gap-1) 0;
   font-size: var(--fs-sm);

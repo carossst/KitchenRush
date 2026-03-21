@@ -145,12 +145,23 @@
       reqNum(game.lives, "KR_CONFIG.game.lives", { min: 1, integer: true });
       reqNum(game.onboardingShield, "KR_CONFIG.game.onboardingShield", { min: 0, integer: true });
       reqNum(game.reboundDelayMs, "KR_CONFIG.game.reboundDelayMs", { min: 1, integer: true });
+      if (game.service != null) {
+        const service = reqObj(game.service, "KR_CONFIG.game.service");
+        reqNum(service.centerMarginFrac, "KR_CONFIG.game.service.centerMarginFrac", { min: 0, max: 0.49 });
+        reqNum(service.sidelineMarginFrac, "KR_CONFIG.game.service.sidelineMarginFrac", { min: 0, max: 0.49 });
+        reqNum(service.depthMinFrac, "KR_CONFIG.game.service.depthMinFrac", { min: 0, max: 1 });
+        reqNum(service.depthMaxFrac, "KR_CONFIG.game.service.depthMaxFrac", { min: 0, max: 1 });
+        if (Number(service.depthMaxFrac) < Number(service.depthMinFrac)) {
+          fail("KR_CONFIG.game.service.depthMaxFrac must be >= depthMinFrac");
+        }
+      }
       const timing = reqObj(game.timing, "KR_CONFIG.game.timing");
       reqNum(timing.niceThreshold, "KR_CONFIG.game.timing.niceThreshold", { min: 0, max: 1 });
       reqNum(timing.perfectThreshold, "KR_CONFIG.game.timing.perfectThreshold", { min: 0, max: 1 });
       reqNum(timing.sweetSpot, "KR_CONFIG.game.timing.sweetSpot", { min: 0, max: 1 });
       reqNum(timing.falloffWindow, "KR_CONFIG.game.timing.falloffWindow", { min: 0.01, max: 1 });
       reqNum(timing.autoHitGraceFrac, "KR_CONFIG.game.timing.autoHitGraceFrac", { min: 0, max: 1 });
+      reqNum(timing.minBounceVisibleMs, "KR_CONFIG.game.timing.minBounceVisibleMs", { min: 0, integer: true });
       reqNum(timing.basePoints, "KR_CONFIG.game.timing.basePoints", { min: 1, integer: true });
       reqNum(timing.perfectPoints, "KR_CONFIG.game.timing.perfectPoints", { min: 1, integer: true });
       if (Number(timing.perfectThreshold) < Number(timing.niceThreshold)) fail("KR_CONFIG.game.timing.perfectThreshold must be >= niceThreshold");
@@ -186,10 +197,16 @@
         Object.keys(game.ballTypes).forEach((key) => {
           const bt = reqObj(game.ballTypes[key], "KR_CONFIG.game.ballTypes." + key);
           reqNum(bt.unlockAfterSec, "KR_CONFIG.game.ballTypes." + key + ".unlockAfterSec", { min: 0 });
+          if (bt.unlockAfterScore != null) reqNum(bt.unlockAfterScore, "KR_CONFIG.game.ballTypes." + key + ".unlockAfterScore", { min: 0, integer: true });
           reqNum(bt.weight, "KR_CONFIG.game.ballTypes." + key + ".weight", { min: 0 });
+          if (bt.weightGrowthPerSec != null) reqNum(bt.weightGrowthPerSec, "KR_CONFIG.game.ballTypes." + key + ".weightGrowthPerSec", { min: 0 });
+          if (bt.weightGrowthPerScore != null) reqNum(bt.weightGrowthPerScore, "KR_CONFIG.game.ballTypes." + key + ".weightGrowthPerScore", { min: 0 });
           reqNum(bt.speedMultiplier, "KR_CONFIG.game.ballTypes." + key + ".speedMultiplier", { min: 0.01 });
           reqNum(bt.tapWindowMultiplier, "KR_CONFIG.game.ballTypes." + key + ".tapWindowMultiplier", { min: 0.01 });
           reqNum(bt.radiusMultiplier, "KR_CONFIG.game.ballTypes." + key + ".radiusMultiplier", { min: 0.01 });
+          if (bt.arcHeightMultiplier != null) reqNum(bt.arcHeightMultiplier, "KR_CONFIG.game.ballTypes." + key + ".arcHeightMultiplier", { min: 0.1, max: 3 });
+          if (bt.bounceHeightMultiplier != null) reqNum(bt.bounceHeightMultiplier, "KR_CONFIG.game.ballTypes." + key + ".bounceHeightMultiplier", { min: 0.05, max: 3 });
+          if (bt.reboundDelayMultiplier != null) reqNum(bt.reboundDelayMultiplier, "KR_CONFIG.game.ballTypes." + key + ".reboundDelayMultiplier", { min: 0.05, max: 3 });
           reqBool(bt.forceKitchen, "KR_CONFIG.game.ballTypes." + key + ".forceKitchen");
         });
       }
@@ -205,16 +222,50 @@
       reqNum(canvas.ballRadius, "KR_CONFIG.canvas.ballRadius", { min: 1, integer: true });
       reqNum(canvas.opponentCourtScale, "KR_CONFIG.canvas.opponentCourtScale", { min: 0.1, max: 1 });
       reqNum(canvas.sidelineInsetFrac, "KR_CONFIG.canvas.sidelineInsetFrac", { min: 0.01, max: 0.3 });
+      if (canvas.nearSidelineInsetFrac != null) reqNum(canvas.nearSidelineInsetFrac, "KR_CONFIG.canvas.nearSidelineInsetFrac", { min: 0.01, max: 0.3 });
+      if (canvas.netSidelineInsetFrac != null) reqNum(canvas.netSidelineInsetFrac, "KR_CONFIG.canvas.netSidelineInsetFrac", { min: 0.05, max: 0.4 });
+      if (canvas.farSidelineInsetFrac != null) reqNum(canvas.farSidelineInsetFrac, "KR_CONFIG.canvas.farSidelineInsetFrac", { min: 0.1, max: 0.45 });
+      reqNum(canvas.kitchenLineWidth, "KR_CONFIG.canvas.kitchenLineWidth", { min: 1 });
+      reqNum(canvas.baselineLineWidth, "KR_CONFIG.canvas.baselineLineWidth", { min: 1 });
+      reqNum(canvas.sidelineLineWidth, "KR_CONFIG.canvas.sidelineLineWidth", { min: 1 });
+      reqNum(canvas.centerLineWidth, "KR_CONFIG.canvas.centerLineWidth", { min: 1 });
       reqNum(canvas.netCenterSagPx, "KR_CONFIG.canvas.netCenterSagPx", { min: 0, integer: true });
       reqNum(canvas.netPostHeightPx, "KR_CONFIG.canvas.netPostHeightPx", { min: 1, integer: true });
+      reqNum(canvas.netLineWidth, "KR_CONFIG.canvas.netLineWidth", { min: 1 });
+      reqNum(canvas.netBandDepthPx, "KR_CONFIG.canvas.netBandDepthPx", { min: 1, integer: true });
+      reqNum(canvas.netMeshRows, "KR_CONFIG.canvas.netMeshRows", { min: 1, integer: true });
+      reqNum(canvas.netMeshColGapPx, "KR_CONFIG.canvas.netMeshColGapPx", { min: 4, integer: true });
+      reqNum(canvas.netNearHighlightThresholdPx, "KR_CONFIG.canvas.netNearHighlightThresholdPx", { min: 0, integer: true });
+      reqNum(canvas.netNearHighlightWidth, "KR_CONFIG.canvas.netNearHighlightWidth", { min: 1 });
       reqNum(canvas.hitTolerancePx, "KR_CONFIG.canvas.hitTolerancePx", { min: 0, integer: true });
       reqNum(canvas.shadowGrowthFactor, "KR_CONFIG.canvas.shadowGrowthFactor", { min: 0, max: 1 });
       reqNum(canvas.shadowMinScale, "KR_CONFIG.canvas.shadowMinScale", { min: 0.05, max: 3 });
       reqNum(canvas.shadowMaxScale, "KR_CONFIG.canvas.shadowMaxScale", { min: 0.05, max: 4 });
       reqNum(canvas.landingMarkerRadiusPx, "KR_CONFIG.canvas.landingMarkerRadiusPx", { min: 1, integer: true });
       reqNum(canvas.landingMarkerPulseMs, "KR_CONFIG.canvas.landingMarkerPulseMs", { min: 1, integer: true });
+      reqNum(canvas.serveLabelMs, "KR_CONFIG.canvas.serveLabelMs", { min: 0, integer: true });
+      reqNum(canvas.specialBallBadgeMs, "KR_CONFIG.canvas.specialBallBadgeMs", { min: 0, integer: true });
+      reqNum(canvas.ballOutlineWidth, "KR_CONFIG.canvas.ballOutlineWidth", { min: 0 });
+      reqNum(canvas.ballGlowScale, "KR_CONFIG.canvas.ballGlowScale", { min: 1, max: 4 });
+      reqNum(canvas.ballDepthScaleNear, "KR_CONFIG.canvas.ballDepthScaleNear", { min: 0.2, max: 2 });
+      reqNum(canvas.ballDepthScaleFar, "KR_CONFIG.canvas.ballDepthScaleFar", { min: 0.2, max: 2 });
+      reqNum(canvas.ballHeightScaleNear, "KR_CONFIG.canvas.ballHeightScaleNear", { min: 0.1, max: 2 });
+      reqNum(canvas.ballHeightScaleFar, "KR_CONFIG.canvas.ballHeightScaleFar", { min: 0.1, max: 2 });
       reqNum(canvas.playerDepthScaleNear, "KR_CONFIG.canvas.playerDepthScaleNear", { min: 0.5, max: 2 });
       reqNum(canvas.playerDepthScaleFar, "KR_CONFIG.canvas.playerDepthScaleFar", { min: 0.5, max: 2 });
+      reqNum(canvas.playerOutlineWidth, "KR_CONFIG.canvas.playerOutlineWidth", { min: 0.5, max: 8 });
+      reqNum(canvas.opponentOutlineWidth, "KR_CONFIG.canvas.opponentOutlineWidth", { min: 0.5, max: 8 });
+      reqNum(canvas.actorIdleBreathePx, "KR_CONFIG.canvas.actorIdleBreathePx", { min: 0, max: 12 });
+      reqNum(canvas.playerRunLeanPx, "KR_CONFIG.canvas.playerRunLeanPx", { min: 0, max: 20 });
+      reqNum(canvas.playerSwingArcScale, "KR_CONFIG.canvas.playerSwingArcScale", { min: 0.5, max: 3 });
+      reqNum(canvas.opponentReadyOffsetPx, "KR_CONFIG.canvas.opponentReadyOffsetPx", { min: 0, max: 12 });
+      reqNum(canvas.opponentSwingArcScale, "KR_CONFIG.canvas.opponentSwingArcScale", { min: 0.5, max: 3 });
+      reqNum(canvas.impactDustCount, "KR_CONFIG.canvas.impactDustCount", { min: 0, max: 12, integer: true });
+      reqNum(canvas.trajectoryTrailSegments, "KR_CONFIG.canvas.trajectoryTrailSegments", { min: 0, max: 12, integer: true });
+      reqNum(canvas.trajectoryTrailAlpha, "KR_CONFIG.canvas.trajectoryTrailAlpha", { min: 0, max: 1 });
+      reqNum(canvas.controlZoneInsetPx, "KR_CONFIG.canvas.controlZoneInsetPx", { min: 0, integer: true });
+      reqNum(canvas.controlZoneFontFrac, "KR_CONFIG.canvas.controlZoneFontFrac", { min: 0.005, max: 0.05 });
+      reqNum(canvas.controlZoneLabelYFrac, "KR_CONFIG.canvas.controlZoneLabelYFrac", { min: 0.1, max: 0.95 });
       reqNum(canvas.bounceSecondHopScale, "KR_CONFIG.canvas.bounceSecondHopScale", { min: 0, max: 1 });
       reqNum(canvas.bounceSquashMaxFrac, "KR_CONFIG.canvas.bounceSquashMaxFrac", { min: 0, max: 0.8 });
       reqNum(canvas.bounceHeight, "KR_CONFIG.canvas.bounceHeight", { min: 0 });
@@ -256,6 +307,9 @@
       reqNum(challenges.faultThreshold, "KR_CONFIG.challenges.faultThreshold", { min: 0, integer: true });
       reqNum(challenges.lowAccuracyPct, "KR_CONFIG.challenges.lowAccuracyPct", { min: 0, max: 100, integer: true });
       reqNum(challenges.lowAccuracyMinSmashes, "KR_CONFIG.challenges.lowAccuracyMinSmashes", { min: 1, integer: true });
+      reqNum(challenges.improvedAccuracyMinGainPct, "KR_CONFIG.challenges.improvedAccuracyMinGainPct", { min: 1, max: 100, integer: true });
+      reqNum(challenges.fewerFaultsMinDelta, "KR_CONFIG.challenges.fewerFaultsMinDelta", { min: 1, integer: true });
+      reqNum(challenges.betterStreakMinDelta, "KR_CONFIG.challenges.betterStreakMinDelta", { min: 1, integer: true });
 
       const juice = reqObj(cfg.juice, "KR_CONFIG.juice");
       reqNum(juice.smashFlashMs, "KR_CONFIG.juice.smashFlashMs", { min: 1, integer: true });
@@ -275,6 +329,7 @@
       reqNum(ui.dailyObjectiveOverlayMs, "KR_CONFIG.ui.dailyObjectiveOverlayMs", { min: 1, integer: true });
       reqNum(ui.lifeLostOverlayMs, "KR_CONFIG.ui.lifeLostOverlayMs", { min: 1, integer: true });
       reqNum(ui.desktopClickHitReleaseMs, "KR_CONFIG.ui.desktopClickHitReleaseMs", { min: 0, integer: true });
+      reqNum(ui.opponentSwingMs, "KR_CONFIG.ui.opponentSwingMs", { min: 1, integer: true });
       reqNum(ui.firstFaultExplainUntilFaultCount, "KR_CONFIG.ui.firstFaultExplainUntilFaultCount", { min: 0, integer: true });
       reqNum(ui.lastLifeTriggerLives, "KR_CONFIG.ui.lastLifeTriggerLives", { min: 0, integer: true });
       reqNum(ui.gameplayPulseMs, "KR_CONFIG.ui.gameplayPulseMs", { min: 1, integer: true });

@@ -87,6 +87,7 @@
       sweetSpot: reqNum(timing.sweetSpot, "game.timing.sweetSpot", { min: 0, max: 1 }),
       falloffWindow: reqNum(timing.falloffWindow, "game.timing.falloffWindow", { min: 0.01, max: 1 }),
       autoHitGraceFrac: reqNum(timing.autoHitGraceFrac, "game.timing.autoHitGraceFrac", { min: 0, max: 1 }),
+      minBounceVisibleMs: reqNum(timing.minBounceVisibleMs, "game.timing.minBounceVisibleMs", { min: 0, integer: true }),
       basePoints: reqNum(timing.basePoints, "game.timing.basePoints", { min: 1, integer: true }),
       perfectPoints: reqNum(timing.perfectPoints, "game.timing.perfectPoints", { min: 1, integer: true })
     };
@@ -144,7 +145,7 @@
     return {
       netY: reqNum(c.netY, "court.netY", { min: 0.05, max: 0.3 }),
       kitchenLineY: reqNum(c.kitchenLineY, "court.kitchenLineY", { min: 0.2, max: 0.6 }),
-      baselineY: (Number.isFinite(Number(c.baselineY)) && Number(c.baselineY) >= 0.5 && Number(c.baselineY) <= 0.99) ? Number(c.baselineY) : 0.82,
+      baselineY: reqNum(c.baselineY, "court.baselineY", { min: 0.5, max: 0.99 }),
       playerY: reqNum(c.playerY, "court.playerY", { min: 0.5, max: 0.9 }),
       opponentY: reqNum(c.opponentY, "court.opponentY", { min: 0.02, max: 0.2 }),
       controlsY: reqNum(c.controlsY, "court.controlsY", { min: 0.8, max: 1.0 })
@@ -154,14 +155,14 @@
   function getTrajectoryConfig(config) {
     var t = (config.game && config.game.trajectory) || {};
     return {
-      lateralSpreadFrac: Number.isFinite(Number(t.lateralSpreadFrac)) ? Number(t.lateralSpreadFrac) : 0.28,
-      edgeMarginFrac: Number.isFinite(Number(t.edgeMarginFrac)) ? Number(t.edgeMarginFrac) : 0.1,
-      arcMinFrac: Number.isFinite(Number(t.arcMinFrac)) ? Number(t.arcMinFrac) : 0.028,
-      arcMaxFrac: Number.isFinite(Number(t.arcMaxFrac)) ? Number(t.arcMaxFrac) : 0.14,
-      arcDepthWeight: Number.isFinite(Number(t.arcDepthWeight)) ? Number(t.arcDepthWeight) : 0.45,
-      descentPower: Number.isFinite(Number(t.descentPower)) ? Number(t.descentPower) : 1.18,
-      returnArcScale: Number.isFinite(Number(t.returnArcScale)) ? Number(t.returnArcScale) : 0.75,
-      returnTravelScale: Number.isFinite(Number(t.returnTravelScale)) ? Number(t.returnTravelScale) : 0.82
+      lateralSpreadFrac: reqNum(t.lateralSpreadFrac, "game.trajectory.lateralSpreadFrac", { min: 0, max: 1 }),
+      edgeMarginFrac: reqNum(t.edgeMarginFrac, "game.trajectory.edgeMarginFrac", { min: 0, max: 0.5 }),
+      arcMinFrac: reqNum(t.arcMinFrac, "game.trajectory.arcMinFrac", { min: 0.001, max: 1 }),
+      arcMaxFrac: reqNum(t.arcMaxFrac, "game.trajectory.arcMaxFrac", { min: 0.001, max: 1 }),
+      arcDepthWeight: reqNum(t.arcDepthWeight, "game.trajectory.arcDepthWeight", { min: 0, max: 1 }),
+      descentPower: reqNum(t.descentPower, "game.trajectory.descentPower", { min: 0.1, max: 4 }),
+      returnArcScale: reqNum(t.returnArcScale, "game.trajectory.returnArcScale", { min: 0.1, max: 2 }),
+      returnTravelScale: reqNum(t.returnTravelScale, "game.trajectory.returnTravelScale", { min: 0.1, max: 2 })
     };
   }
 
@@ -175,7 +176,51 @@
     if (ballType === "lob") return arcHeight * 1.35;
     if (ballType === "dink") return arcHeight * 0.78;
     if (ballType === "fast") return arcHeight * 0.88;
+    if (ballType === "skid") return arcHeight * 0.62;
+    if (ballType === "heavy") return arcHeight * 0.8;
     return arcHeight;
+  }
+
+  function getServiceConfig(config) {
+    var s = (config && config.game && config.game.service) ? config.game.service : {};
+    return {
+      centerMarginFrac: reqNum(s.centerMarginFrac, "game.service.centerMarginFrac", { min: 0, max: 0.5 }),
+      sidelineMarginFrac: reqNum(s.sidelineMarginFrac, "game.service.sidelineMarginFrac", { min: 0, max: 0.5 }),
+      depthMinFrac: reqNum(s.depthMinFrac, "game.service.depthMinFrac", { min: 0, max: 1 }),
+      depthMaxFrac: reqNum(s.depthMaxFrac, "game.service.depthMaxFrac", { min: 0, max: 1 })
+    };
+  }
+
+  function retargetBallAsDiagonalServe(ball, config, canvasW, canvasH, court, rng) {
+    var rand = (typeof rng === "function") ? rng : Math.random;
+    var serviceCfg = getServiceConfig(config);
+    var centerX = canvasW * 0.5;
+    var sidelineMargin = canvasW * serviceCfg.sidelineMarginFrac;
+    var centerMargin = canvasW * serviceCfg.centerMarginFrac;
+    var serveToRight = ball.startX < centerX;
+    var xMin = serveToRight ? (centerX + centerMargin) : sidelineMargin;
+    var xMax = serveToRight ? (canvasW - sidelineMargin) : (centerX - centerMargin);
+    var netYpx = court.netY * canvasH;
+    var kitchenLineYpx = court.kitchenLineY * canvasH;
+    var baselineYpx = court.baselineY * canvasH;
+    var serviceDepth = Math.max(0, baselineYpx - kitchenLineYpx);
+    var depthMin = kitchenLineYpx + serviceDepth * serviceCfg.depthMinFrac;
+    var depthMax = kitchenLineYpx + serviceDepth * serviceCfg.depthMaxFrac;
+    ball.inKitchen = false;
+    ball.targetX = lerp(xMin, xMax, centeredRand(rand));
+    ball.targetY = lerp(depthMin, depthMax, centeredRand(rand));
+    ball.shadowY = ball.targetY;
+    ball.arcHeight = getFlightArcHeight(
+      ball.startX,
+      netYpx * 0.55,
+      ball.targetX,
+      ball.targetY,
+      canvasH,
+      getTrajectoryConfig(config),
+      ball.ballType
+    );
+    ball.isServe = true;
+    ball.serveToRight = serveToRight;
   }
 
 
@@ -184,7 +229,7 @@
   // ============================================
   var _nextBallId = 0;
 
-  function createBallFromOpponent(config, elapsedSec, canvasW, canvasH, court, playerX, playerY, rng, modifier) {
+  function createBallFromOpponent(config, elapsedSec, currentScore, canvasW, canvasH, court, playerX, playerY, rng, modifier) {
     var rand = (typeof rng === "function") ? rng : Math.random;
     var gameCfg = config.game || {};
     var trajectoryCfg = getTrajectoryConfig(config);
@@ -194,7 +239,7 @@
     if (modifier && modifier.forceBallType) {
       ballType = modifier.forceBallType;
     } else {
-      ballType = pickBallType(config, elapsedSec, rng);
+      ballType = pickBallType(config, elapsedSec, currentScore, rng);
     }
     var typeConfig = (gameCfg.ballTypes && gameCfg.ballTypes[ballType]) || null;
     var speedMul = typeConfig ? reqNum(typeConfig.speedMultiplier, "ballType.speedMul", { min: 0.01 }) : 1;
@@ -258,6 +303,9 @@
     var startY = court.opponentY * canvasH;
 
     var arcHeight = getFlightArcHeight(startX, startY, targetX, targetY, canvasH, trajectoryCfg, ballType);
+    if (typeConfig && typeConfig.arcHeightMultiplier != null) {
+      arcHeight *= reqNum(typeConfig.arcHeightMultiplier, "ballType.arcHeightMultiplier", { min: 0.1, max: 3 });
+    }
 
     var radiusMul = typeConfig ? reqNum(typeConfig.radiusMultiplier, "ballType.radius", { min: 0.01 }) : 1;
     var baseRadius = reqNum(config.canvas.ballRadius, "canvas.ballRadius", { min: 1 });
@@ -292,8 +340,16 @@
       spawnedAt: gameTime(),
       landedAt: 0, bouncedAt: 0, hitAt: 0, missedAt: 0, faultedAt: 0,
       tapWindowMs: tapWindowMs,
-      reboundDelayMs: Math.floor(reqNum(gameCfg.reboundDelayMs, "game.reboundDelayMs", { min: 1 })),
-      bounceHeightPx: reqNum(config.canvas.bounceHeight, "canvas.bounceHeight", { min: 0 }) * canvasH,
+      reboundDelayMs: Math.floor(
+        reqNum(gameCfg.reboundDelayMs, "game.reboundDelayMs", { min: 1 }) *
+        (typeConfig && typeConfig.reboundDelayMultiplier != null
+          ? reqNum(typeConfig.reboundDelayMultiplier, "ballType.reboundDelayMultiplier", { min: 0.05, max: 3 })
+          : 1)
+      ),
+      bounceHeightPx: reqNum(config.canvas.bounceHeight, "canvas.bounceHeight", { min: 0 }) * canvasH *
+        (typeConfig && typeConfig.bounceHeightMultiplier != null
+          ? reqNum(typeConfig.bounceHeightMultiplier, "ballType.bounceHeightMultiplier", { min: 0.05, max: 3 })
+          : 1),
       bounceAnimMs: Math.floor(reqNum(config.canvas.bounceAnimMs, "canvas.bounceAnimMs", { min: 1 })),
       bounceSecondHopScale: reqNum(config.canvas.bounceSecondHopScale, "canvas.bounceSecondHopScale", { min: 0, max: 1 }),
       returnStartX: 0, returnStartY: 0,
@@ -301,6 +357,8 @@
       returnArcHeight: 0, returnTravelMs: 0,
       speed: speed,
       shadowY: targetY,
+      isServe: false,
+      serveToRight: false,
       // Auto-hit: did auto-hit already fire?
       autoHitFired: false,
       // Timing bonus: how close to optimal timing the player hit (0-1, 1=perfect)
@@ -312,10 +370,11 @@
   // ============================================
   // Ball type selection
   // ============================================
-  function pickBallType(config, elapsedSec, rng) {
+  function pickBallType(config, elapsedSec, currentScore, rng) {
     var types = config.game && config.game.ballTypes;
     if (!types || typeof types !== "object") return "normal";
     var rand = (typeof rng === "function") ? rng : Math.random;
+    var score = Math.max(0, Math.floor(Number(currentScore || 0)));
     var candidates = [];
     var totalWeight = 1;
     for (var key in types) {
@@ -323,8 +382,17 @@
       var t = types[key];
       if (!t || typeof t !== "object") continue;
       var unlock = reqNum(t.unlockAfterSec, "ballType." + key + ".unlock", { min: 0 });
-      if (elapsedSec >= unlock) {
+      var unlockScore = (t.unlockAfterScore != null)
+        ? reqNum(t.unlockAfterScore, "ballType." + key + ".unlockAfterScore", { min: 0, integer: true })
+        : 0;
+      if (elapsedSec >= unlock && score >= unlockScore) {
         var w = reqNum(t.weight, "ballType." + key + ".weight", { min: 0 });
+        if (t.weightGrowthPerSec != null) {
+          w += Math.max(0, elapsedSec - unlock) * reqNum(t.weightGrowthPerSec, "ballType." + key + ".weightGrowthPerSec", { min: 0 });
+        }
+        if (t.weightGrowthPerScore != null) {
+          w += Math.max(0, score - unlockScore) * reqNum(t.weightGrowthPerScore, "ballType." + key + ".weightGrowthPerScore", { min: 0 });
+        }
         if (w > 0) { candidates.push({ type: key, weight: w }); totalWeight += w; }
       }
     }
@@ -448,12 +516,17 @@
         playerX: canvasW / 2,
         playerY: court.playerY * canvasH,
         playerMinY: court.netY * canvasH + 10,
-        playerMaxY: (court.baselineY || 0.82) * canvasH + 30, // can go slightly behind baseline
+        playerMaxY: court.baselineY * canvasH + 30, // can go slightly behind baseline
         playerState: "idle",
         playerSwingUntil: 0,
 
         opponentX: canvasW / 2,
         opponentTargetX: canvasW / 2,
+        opponentState: "idle",
+        opponentSwingUntil: 0,
+        opponentBounceAt: 0,
+        opponentBounceUntil: 0,
+        opponentBounceX: 0,
 
         lives: lives,
         maxLives: lives,
@@ -602,6 +675,9 @@
       if (r.playerState === "swing" && gameTime() > r.playerSwingUntil) {
         r.playerState = "idle";
       }
+      if (r.opponentState === "swing" && gameTime() > r.opponentSwingUntil) {
+        r.opponentState = "idle";
+      }
 
       // ── Opponent movement ──
       if (r.ball && r.ball.state === BALL_STATES.HIT) {
@@ -622,6 +698,15 @@
 
       // ── Spawn ball ──
       if (!r.ball) {
+        if (r.opponentBounceUntil > 0) {
+          if (r.elapsedMs >= r.opponentBounceUntil) {
+            r.opponentBounceAt = 0;
+            r.opponentBounceUntil = 0;
+            if (r.doubleBouncePhase === 1) r.doubleBouncePhase = 2;
+          } else {
+            return this.getState();
+          }
+        }
         this._spawnBall(r, elapsedSec);
         return this.getState();
       }
@@ -700,7 +785,11 @@
           }
 
           // Auto-hit after short grace period (give player chance to time it)
-          var gracePeriodMs = ball.tapWindowMs * getTimingConfig(r.config).autoHitGraceFrac;
+          var timingCfg = getTimingConfig(r.config);
+          var gracePeriodMs = Math.max(
+            ball.tapWindowMs * timingCfg.autoHitGraceFrac,
+            reqNum(timingCfg.minBounceVisibleMs, "game.timing.minBounceVisibleMs", { min: 0 })
+          );
           if (sinceBounce >= gracePeriodMs) {
             ball.autoHitFired = true;
             ball.timingBonus = 0;
@@ -724,6 +813,11 @@
         ball.x = retPos.x;
         ball.y = retPos.y;
         if (retPos.t >= 1) {
+          if (r.doubleBouncePhase === 1) {
+            r.opponentBounceAt = gameTime();
+            r.opponentBounceUntil = gameTime() + ball.reboundDelayMs;
+            r.opponentBounceX = ball.returnTargetX;
+          }
           r.ball = null;
           r.waitUntil = r.elapsedMs + 150;
         }
@@ -859,14 +953,15 @@
 
 
     _spawnBall(r, elapsedSec) {
-      // After the player's first legal return, the opponent-side forced bounce
-      // happens offscreen before the next incoming ball is spawned.
-      if (r.doubleBouncePhase === 1) r.doubleBouncePhase = 2;
-
       var ball = createBallFromOpponent(
-        r.config, elapsedSec, r.canvasW, r.canvasH, r.court,
+        r.config, elapsedSec, r.smashes, r.canvasW, r.canvasH, r.court,
         r.playerX, r.playerY, r.rng, r.modifier
       );
+
+      r.opponentX = ball.startX;
+      r.opponentTargetX = ball.startX;
+      r.opponentState = "swing";
+      r.opponentSwingUntil = r.elapsedMs + Math.floor(reqNum(r.config?.ui?.opponentSwingMs, "ui.opponentSwingMs", { min: 1 }));
 
       if (r.totalSpawned < r.onboardingShield) {
         ball.inKitchen = false;
@@ -875,6 +970,10 @@
         var rand = (typeof r.rng === "function") ? r.rng : Math.random;
         ball.targetY = kitchenLineYpx + rand() * (baselineYpx - kitchenLineYpx - 20) + 10;
         ball.shadowY = ball.targetY;
+      }
+
+      if (r.doubleBouncePhase === 0) {
+        retargetBallAsDiagonalServe(ball, r.config, r.canvasW, r.canvasH, r.court, r.rng);
       }
 
       ball.mustBounceReason = ball.inKitchen ? "kitchen" : (r.doubleBouncePhase === 0 ? "double_bounce" : "");
@@ -934,6 +1033,8 @@
           travelMs: b.travelMs,
           tapWindowMs: b.tapWindowMs,
           shadowY: b.shadowY || b.targetY,
+          isServe: !!b.isServe,
+          serveToRight: !!b.serveToRight,
           returnStartX: b.returnStartX, returnStartY: b.returnStartY,
           returnTargetX: b.returnTargetX, returnTargetY: b.returnTargetY,
           returnArcHeight: b.returnArcHeight || 0,
@@ -962,6 +1063,10 @@
         playerY: r.playerY,
         playerState: r.playerState,
         opponentX: r.opponentX,
+        opponentState: r.opponentState,
+        opponentBounceAt: r.opponentBounceAt,
+        opponentBounceUntil: r.opponentBounceUntil,
+        opponentBounceX: r.opponentBounceX,
         ball: ballState,
 
         rallyCount: r.rallyCount,

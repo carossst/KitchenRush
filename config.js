@@ -70,7 +70,7 @@
   window.KR_CONFIG = {
 
     // Product version (UI display, logs, SW cache key)
-    version: "1",
+    version: "2",
 
     // Storage schema version (localStorage).
     // Change ONLY if you accept a migration/wipe.
@@ -122,6 +122,7 @@
         sweetSpot: 0.3,
         falloffWindow: 0.5,
         autoHitGraceFrac: 0.4,
+        minBounceVisibleMs: 140,
         basePoints: 1,
         perfectPoints: 2
       },
@@ -157,12 +158,20 @@
       trajectory: {
         lateralSpreadFrac: 0.28,
         edgeMarginFrac: 0.1,
-        arcMinFrac: 0.028,
-        arcMaxFrac: 0.14,
-        arcDepthWeight: 0.45,
-        descentPower: 1.18,
-        returnArcScale: 0.75,
-        returnTravelScale: 0.82
+        arcMinFrac: 0.032,
+        arcMaxFrac: 0.16,
+        arcDepthWeight: 0.5,
+        descentPower: 1.1,
+        returnArcScale: 0.82,
+        returnTravelScale: 0.88
+      },
+
+      // Opening serve tuning: first incoming ball should read like a real diagonal serve.
+      service: {
+        centerMarginFrac: 0.06,
+        sidelineMarginFrac: 0.1,
+        depthMinFrac: 0.18,
+        depthMaxFrac: 0.68
       },
 
       // Milestones (Smash counts triggering visual feedback)
@@ -174,29 +183,77 @@
         // Dink: slow, always Kitchen, large tap window (easy — but must wait)
         dink: {
           unlockAfterSec: 18,
+          unlockAfterScore: 3,
           weight: 0.2,              // spawn probability weight when unlocked
+          weightGrowthPerSec: 0.0005,
+          weightGrowthPerScore: 0.012,
           speedMultiplier: 0.5,
           forceKitchen: true,
           tapWindowMultiplier: 1.8,
-          radiusMultiplier: 0.8
+          radiusMultiplier: 0.84,
+          arcHeightMultiplier: 0.9,
+          bounceHeightMultiplier: 0.72,
+          reboundDelayMultiplier: 1.05
         },
         // Lob: high arc, slow, lands anywhere, long float = patience test
         lob: {
           unlockAfterSec: 34,
+          unlockAfterScore: 6,
           weight: 0.15,
+          weightGrowthPerSec: 0.0009,
+          weightGrowthPerScore: 0.01,
           speedMultiplier: 0.35,
           forceKitchen: false,
           tapWindowMultiplier: 0.85,
-          radiusMultiplier: 1.3
+          radiusMultiplier: 1.18,
+          arcHeightMultiplier: 1.18,
+          bounceHeightMultiplier: 1.05,
+          reboundDelayMultiplier: 1.06
         },
         // Fast: speed ball, short tap window, never Kitchen (pure reflex)
         fast: {
           unlockAfterSec: 55,
+          unlockAfterScore: 10,
           weight: 0.15,
-          speedMultiplier: 1.8,
+          weightGrowthPerSec: 0.0012,
+          weightGrowthPerScore: 0.012,
+          speedMultiplier: 1.58,
           forceKitchen: false,
-          tapWindowMultiplier: 0.72,
-          radiusMultiplier: 0.9
+          tapWindowMultiplier: 0.76,
+          radiusMultiplier: 0.9,
+          arcHeightMultiplier: 0.86,
+          bounceHeightMultiplier: 0.95,
+          reboundDelayMultiplier: 0.9
+        },
+        // Skid: flat, fast, low bounce. Reads like a skidding drive in frontal view.
+        skid: {
+          unlockAfterSec: 68,
+          unlockAfterScore: 14,
+          weight: 0.12,
+          weightGrowthPerSec: 0.0016,
+          weightGrowthPerScore: 0.014,
+          speedMultiplier: 1.18,
+          forceKitchen: false,
+          tapWindowMultiplier: 0.82,
+          radiusMultiplier: 0.92,
+          arcHeightMultiplier: 0.72,
+          bounceHeightMultiplier: 0.54,
+          reboundDelayMultiplier: 0.88
+        },
+        // Heavy: fuller body, deeper ball, shorter read but more physical bounce.
+        heavy: {
+          unlockAfterSec: 82,
+          unlockAfterScore: 18,
+          weight: 0.1,
+          weightGrowthPerSec: 0.0018,
+          weightGrowthPerScore: 0.015,
+          speedMultiplier: 1.0,
+          forceKitchen: false,
+          tapWindowMultiplier: 0.9,
+          radiusMultiplier: 1.12,
+          arcHeightMultiplier: 0.9,
+          bounceHeightMultiplier: 0.78,
+          reboundDelayMultiplier: 0.98
         }
       }
     },
@@ -227,6 +284,29 @@
       repeatFaultOverlayMs: 800
     },
 
+    // ============================================
+    // RENDER PERFORMANCE — adaptive quality for mobile browsers
+    // ============================================
+    renderPerformance: {
+      enabled: true,
+      sampleFrames: 24,
+      downgradeAvgFrameMs: 19.5,
+      upgradeAvgFrameMs: 17.2,
+      cooldownMs: 1200,
+      lowQualityTrailSegments: 1,
+      minQualityTrailSegments: 0,
+      lowQualityDustCount: 2,
+      minQualityDustCount: 0,
+      lowQualityNetMeshRows: 2,
+      minQualityNetMeshRows: 1,
+      lowQualityNetHighlightWidth: 5,
+      minQualityNetHighlightWidth: 0,
+      hideSpecialBallBadgesAtTier: 1,
+      hideReturnTrailAtTier: 1,
+      hideSprintSuccessPulseAtTier: 1,
+      hideScoreTimingLabelAtTier: 1
+    },
+
 
     // ============================================
     // COURT — V2 game layout (fractions of canvas height)
@@ -238,21 +318,21 @@
       // Backcourt = 15ft = 68.2% of a half-court.
       // We keep the player's half readable at near-full depth and compress
       // the opponent half only in render, not in game rules.
-      netY: 0.26,
+      netY: 0.28,
       kitchenLineY: 0.46,
       baselineY: 0.88,
-      playerY: 0.73,
-      opponentY: 0.15,
+      playerY: 0.75,
+      opponentY: 0.13,
       controlsY: 0.90,
 
       // Player movement speed (pixels per frame at 60fps)
-      playerSpeed: 4.9,
+      playerSpeed: 4.55,
 
       // Desktop mouse-follow dead zone in canvas pixels
       desktopMouseDeadZonePx: 8,
 
       // Hit range (max X distance between player and ball to hit)
-      hitRange: 64
+      hitRange: 56
     },
 
 
@@ -274,10 +354,23 @@
       ballRadius: 18,
 
       // Frontal court rendering
-      opponentCourtScale: 0.55,
+      opponentCourtScale: 0.62,
       sidelineInsetFrac: 0.08,
-      netCenterSagPx: 5,
-      netPostHeightPx: 18,
+      nearSidelineInsetFrac: 0.05,
+      netSidelineInsetFrac: 0.15,
+      farSidelineInsetFrac: 0.24,
+      kitchenLineWidth: 4,
+      baselineLineWidth: 3,
+      sidelineLineWidth: 2.5,
+      centerLineWidth: 1.5,
+      netCenterSagPx: 4,
+      netPostHeightPx: 20,
+      netLineWidth: 4,
+      netBandDepthPx: 12,
+      netMeshRows: 4,
+      netMeshColGapPx: 16,
+      netNearHighlightThresholdPx: 20,
+      netNearHighlightWidth: 8,
 
       // Hit tolerance (pixels) — tap doesn't need pixel-perfect precision
       hitTolerancePx: 50,
@@ -287,18 +380,39 @@
 
       // Shadow growth factor (0..1 range relative to ball y-position)
       shadowGrowthFactor: 0.7,
-      shadowMinScale: 0.4,
-      shadowMaxScale: 1.15,
-      landingMarkerRadiusPx: 24,
+      shadowMinScale: 0.34,
+      shadowMaxScale: 1.04,
+      landingMarkerRadiusPx: 18,
       landingMarkerPulseMs: 700,
+      serveLabelMs: 900,
+      specialBallBadgeMs: 1050,
+      ballOutlineWidth: 2,
+      ballGlowScale: 1.38,
+      ballDepthScaleNear: 1.02,
+      ballDepthScaleFar: 0.7,
+      ballHeightScaleNear: 0.82,
+      ballHeightScaleFar: 0.6,
       playerDepthScaleNear: 0.88,
       playerDepthScaleFar: 1.06,
+      playerOutlineWidth: 1.5,
+      opponentOutlineWidth: 1.8,
+      actorIdleBreathePx: 0.8,
+      playerRunLeanPx: 3.5,
+      playerSwingArcScale: 1.15,
+      opponentReadyOffsetPx: 1.8,
+      opponentSwingArcScale: 1.1,
+      impactDustCount: 4,
+      trajectoryTrailSegments: 3,
+      trajectoryTrailAlpha: 0.16,
+      controlZoneInsetPx: 4,
+      controlZoneFontFrac: 0.019,
+      controlZoneLabelYFrac: 0.64,
       bounceSecondHopScale: 0.22,
-      bounceSquashMaxFrac: 0.28,
+      bounceSquashMaxFrac: 0.22,
 
       // Bounce animation: ball jumps up visually after landing
-      bounceHeight: 0.08,      // fraction of canvas height
-      bounceAnimMs: 250,       // duration of bounce animation
+      bounceHeight: 0.068,      // fraction of canvas height
+      bounceAnimMs: 280,       // duration of bounce animation
 
       // Smash-out animation: ball flies away after being smashed
       smashOutMs: 300,         // duration of fly-away animation
@@ -314,27 +428,38 @@
       colors: {
         // V2: Court colors (blue-night theme per briefing)
         courtBg: "#0a1628",          // bleu-nuit profond
+        courtFarBg: "#102233",
+        courtNearBg: "#173f2c",
         kitchenBg: "#2a1a0a",        // rouge-corail sombre (warm zone)
+        opponentKitchenBg: "rgba(255,124,74,0.2)",
         kitchenLine: "#ff6b4a",      // corail vif — kitchen delimiter
         kitchenLabelColor: "#ff6b4a44",
         netColor: "#e0e0e0",         // blanc/gris clair
         opponentKitchenOverlay: "rgba(255,255,255,0.05)",
-        serviceBoxTint: "rgba(255,255,255,0.03)",
+        serviceBoxTint: "rgba(255,255,255,0.05)",
+        serviceBoxTintFar: "rgba(255,255,255,0.09)",
 
         // Player/opponent
         playerColor: "#44ccff",      // cyan — distinct du terrain et kitchen
         playerOutline: "#2288bb",
-        opponentColor: "#667788",    // gris-bleu — silhouette discrète
+        opponentColor: "#667788",    // legacy
+        opponentFill: "#90a9bf",
+        opponentOutline: "#d8e4ef",
+        opponentRacket: "#f0f5f9",
         opponentShadow: "rgba(0,0,0,0.18)",
+        trajectoryTrail: "rgba(255,255,255,0.18)",
+        returnTrail: "rgba(6,214,160,0.22)",
 
         // Ball
         ballDefault: "#ffd60a",      // jaune vif exclusif (per briefing)
         ballKitchen: "#ffd60a",      // same yellow — kitchen is the ZONE not the ball color
+        ballOutline: "#071926",
         ballSmashed: "#06d6a0",
         ballFaulted: "#ef476f",
         ballMissed: "#6c757d",
         bounceRing: "#06d6a0",
         shadow: "#000000",
+        powerBadgeBg: "rgba(8,18,28,0.8)",
 
         // Score popup
         scorePopup: "#06d6a0",
@@ -346,19 +471,27 @@
         ballDink: "#98c1d9",
         ballLob: "#e0aaff",
         ballFast: "#ff8800",
+        ballSkid: "#ff5d8f",
+        ballHeavy: "#ffd166",
 
         // Court lines
-        courtLines: "#ffffff30",
+        courtLines: "#ffffff40",
+        courtLinesStrong: "#ffffff8f",
+        courtLinesSoft: "#ffffff46",
+        centerLine: "#ffffff66",
 
         // V2: UI overlay colors (drawn on canvas)
-        netMesh: "rgba(255,255,255,0.15)",
-        controlZoneBg: "rgba(255,255,255,0.03)",
-        controlZoneBorder: "rgba(255,255,255,0.08)",
-        controlZoneHitBorder: "rgba(255,255,255,0.12)",
-        controlZoneText: "rgba(255,255,255,0.2)",
+        netMesh: "rgba(255,255,255,0.14)",
+        controlZoneBg: "rgba(255,255,255,0.012)",
+        controlZoneBorder: "rgba(255,255,255,0.03)",
+        controlZoneHitBorder: "rgba(255,255,255,0.05)",
+        controlZoneText: "rgba(255,255,255,0.1)",
         bounceRingFlash: "#06d6a0",
         faultVignetteColor: "239,71,111",
         smashFlashColor: "6,214,160",
+        whiteRgb: "255,255,255",
+        shadowRgb: "0,0,0",
+        goldRgb: "255,215,0",
         highlightWhite: "rgba(255,255,255,0.4)",
         motionLines: "rgba(255,255,255,0.15)",
         playerGlow: "rgba(68,204,255,0.25)",
@@ -414,7 +547,10 @@
       streakTargetBonus: 3,   // target = streak + this
       faultThreshold: 2,      // show fault coaching if faults ≥ this
       lowAccuracyPct: 60,     // show accuracy challenge if < this %
-      lowAccuracyMinSmashes: 3 // min smashes for accuracy to be meaningful
+      lowAccuracyMinSmashes: 3, // min smashes for accuracy to be meaningful
+      improvedAccuracyMinGainPct: 8,
+      fewerFaultsMinDelta: 1,
+      betterStreakMinDelta: 2
     },
 
     // ============================================
@@ -614,6 +750,7 @@
       runStartOverlayFastTrackMs: 900,
       dailyObjectiveOverlayMs: 1400,
       desktopClickHitReleaseMs: 50,
+      opponentSwingMs: 220,
       firstFaultExplainUntilFaultCount: 1,
       lastLifeTriggerLives: 1,
 

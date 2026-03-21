@@ -34,6 +34,13 @@ void function () {
     return n;
   }
 
+  function rgbaFromTuple(rgb, alpha) {
+    var s = String(rgb || "").trim();
+    if (!s) return "";
+    var a = Math.max(0, Math.min(1, Number(alpha || 0)));
+    return "rgba(" + s + "," + a.toFixed(3) + ")";
+  }
+
   function formatCents(cents, currency) {
     const c = Number(cents);
     if (!Number.isFinite(c) || c <= 0) return "";
@@ -764,7 +771,7 @@ void function () {
 
     var netYpx = court.netY * h;
     var kitchenLineYpx = court.kitchenLineY * h;
-    var baselineYpx = (court.baselineY || 0.82) * h;
+    var baselineYpx = court.baselineY * h;
     var playerYpx = court.playerY * h;
     var controlsYpx = court.controlsY * h;
     var opponentYpx = court.opponentY * h;
@@ -772,15 +779,93 @@ void function () {
     var kitchenDepthPx = Math.max(1, kitchenLineYpx - netYpx);
     var oppScale = requiredConfigNumber(this.config?.canvas?.opponentCourtScale, "canvas.opponentCourtScale", { min: 0.1, max: 1 });
     var sidelineInsetFrac = requiredConfigNumber(this.config?.canvas?.sidelineInsetFrac, "canvas.sidelineInsetFrac", { min: 0.01, max: 0.3 });
+    var nearSidelineInsetFrac = requiredConfigNumber(this.config?.canvas?.nearSidelineInsetFrac, "canvas.nearSidelineInsetFrac", { min: 0.01, max: 0.3 });
+    var netSidelineInsetFrac = requiredConfigNumber(this.config?.canvas?.netSidelineInsetFrac, "canvas.netSidelineInsetFrac", { min: 0.05, max: 0.4 });
+    var farSidelineInsetFrac = requiredConfigNumber(this.config?.canvas?.farSidelineInsetFrac, "canvas.farSidelineInsetFrac", { min: 0.1, max: 0.45 });
     var netCenterSagPx = requiredConfigNumber(this.config?.canvas?.netCenterSagPx, "canvas.netCenterSagPx", { min: 0, integer: true });
     var netPostHeightPx = requiredConfigNumber(this.config?.canvas?.netPostHeightPx, "canvas.netPostHeightPx", { min: 1, integer: true });
+    var kitchenLineWidth = requiredConfigNumber(this.config?.canvas?.kitchenLineWidth, "canvas.kitchenLineWidth", { min: 1, max: 12 });
+    var baselineLineWidth = requiredConfigNumber(this.config?.canvas?.baselineLineWidth, "canvas.baselineLineWidth", { min: 1, max: 12 });
+    var sidelineLineWidth = requiredConfigNumber(this.config?.canvas?.sidelineLineWidth, "canvas.sidelineLineWidth", { min: 1, max: 8 });
+    var centerLineWidth = requiredConfigNumber(this.config?.canvas?.centerLineWidth, "canvas.centerLineWidth", { min: 1, max: 6 });
+    var netLineWidth = requiredConfigNumber(this.config?.canvas?.netLineWidth, "canvas.netLineWidth", { min: 1, max: 12 });
+    var netBandDepthPx = requiredConfigNumber(this.config?.canvas?.netBandDepthPx, "canvas.netBandDepthPx", { min: 1, max: 30, integer: true });
+    var netMeshRows = requiredConfigNumber(this.config?.canvas?.netMeshRows, "canvas.netMeshRows", { min: 1, max: 12, integer: true });
+    var netMeshColGapPx = requiredConfigNumber(this.config?.canvas?.netMeshColGapPx, "canvas.netMeshColGapPx", { min: 4, max: 40, integer: true });
+    var netNearHighlightThresholdPx = requiredConfigNumber(this.config?.canvas?.netNearHighlightThresholdPx, "canvas.netNearHighlightThresholdPx", { min: 1, max: 80 });
+    var netNearHighlightWidth = requiredConfigNumber(this.config?.canvas?.netNearHighlightWidth, "canvas.netNearHighlightWidth", { min: 1, max: 20 });
+    var controlZoneInsetPx = requiredConfigNumber(this.config?.canvas?.controlZoneInsetPx, "canvas.controlZoneInsetPx", { min: 0, max: 20, integer: true });
+    var controlZoneFontFrac = requiredConfigNumber(this.config?.canvas?.controlZoneFontFrac, "canvas.controlZoneFontFrac", { min: 0.01, max: 0.06 });
+    var controlZoneLabelYFrac = requiredConfigNumber(this.config?.canvas?.controlZoneLabelYFrac, "canvas.controlZoneLabelYFrac", { min: 0.2, max: 0.9 });
     var oppHalfDepthPx = playerHalfDepthPx * oppScale;
     var oppBaselineYpx = Math.max(0, netYpx - oppHalfDepthPx);
     var oppKitchenLineYpx = Math.max(0, netYpx - kitchenDepthPx * oppScale);
     var sidelineInsetPx = w * sidelineInsetFrac;
+    var nearSidelineInsetPx = w * nearSidelineInsetFrac;
+    var netSidelineInsetPx = w * netSidelineInsetFrac;
+    var farSidelineInsetPx = w * farSidelineInsetFrac;
     var leftSidelineX = sidelineInsetPx;
     var rightSidelineX = w - sidelineInsetPx;
     var centerLineX = w / 2;
+
+    function lerpNum(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function edgesAtY(y) {
+      if (y >= netYpx) {
+        var t = Math.max(0, Math.min(1, (y - netYpx) / Math.max(1, baselineYpx - netYpx)));
+        var leftNear = w * nearSidelineInsetFrac;
+        var rightNear = w - leftNear;
+        var leftNet = w * netSidelineInsetFrac;
+        var rightNet = w - leftNet;
+        return {
+          left: lerpNum(leftNet, leftNear, t),
+          right: lerpNum(rightNet, rightNear, t)
+        };
+      }
+      var tOpp = Math.max(0, Math.min(1, (netYpx - y) / Math.max(1, netYpx - oppBaselineYpx)));
+      var leftNetOpp = w * netSidelineInsetFrac;
+      var rightNetOpp = w - leftNetOpp;
+      var leftFar = w * farSidelineInsetFrac;
+      var rightFar = w - leftFar;
+      return {
+        left: lerpNum(leftNetOpp, leftFar, tOpp),
+        right: lerpNum(rightNetOpp, rightFar, tOpp)
+      };
+    }
+
+    function drawQuad(topY, bottomY, fillStyle, alpha) {
+      var topEdges = edgesAtY(topY);
+      var bottomEdges = edgesAtY(bottomY);
+      ctx.save();
+      if (Number.isFinite(alpha)) ctx.globalAlpha = alpha;
+      ctx.fillStyle = fillStyle;
+      ctx.beginPath();
+      ctx.moveTo(topEdges.left, topY);
+      ctx.lineTo(topEdges.right, topY);
+      ctx.lineTo(bottomEdges.right, bottomY);
+      ctx.lineTo(bottomEdges.left, bottomY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function projectX(worldX, worldY) {
+      var nearLeft = w * nearSidelineInsetFrac;
+      var nearRight = w - nearLeft;
+      var frac = (worldX - nearLeft) / Math.max(1, nearRight - nearLeft);
+      frac = Math.max(0, Math.min(1, frac));
+      var edges = edgesAtY(worldY);
+      return lerpNum(edges.left, edges.right, frac);
+    }
+
+    function depthRatioAtY(y) {
+      var depthBase = (y >= netYpx)
+        ? Math.max(1, baselineYpx - netYpx)
+        : Math.max(1, netYpx - oppBaselineYpx);
+      return Math.max(0, Math.min(1, Math.abs(y - netYpx) / depthBase));
+    }
 
     // Screen shake
     var shakeX = 0, shakeY = 0;
@@ -794,29 +879,54 @@ void function () {
     if (shakeX || shakeY) ctx.translate(shakeX, shakeY);
 
     // Court background
-    ctx.fillStyle = colors.courtBg;
+    ctx.fillStyle = colors.courtFarBg;
     ctx.fillRect(0, 0, w, h);
+    drawQuad(netYpx, baselineYpx, colors.courtNearBg, 1);
 
     // Player kitchen zone
-    ctx.fillStyle = colors.kitchenBg;
-    ctx.fillRect(leftSidelineX, netYpx, rightSidelineX - leftSidelineX, kitchenLineYpx - netYpx);
+    drawQuad(netYpx, kitchenLineYpx, colors.kitchenBg, 1);
 
     // Opponent kitchen zone (compressed but symmetric for a frontal read)
-    ctx.save();
-    ctx.globalAlpha = 0.45;
-    ctx.fillStyle = colors.opponentKitchenOverlay;
-    ctx.fillRect(leftSidelineX, oppKitchenLineYpx, rightSidelineX - leftSidelineX, netYpx - oppKitchenLineYpx);
-    ctx.restore();
+    drawQuad(oppKitchenLineYpx, netYpx, colors.opponentKitchenBg, 1);
 
     // Service boxes: very light tint to reinforce the frontal court layout.
     if (colors.serviceBoxTint) {
       ctx.fillStyle = colors.serviceBoxTint;
-      ctx.fillRect(leftSidelineX, kitchenLineYpx, centerLineX - leftSidelineX, baselineYpx - kitchenLineYpx);
-      ctx.fillRect(centerLineX, kitchenLineYpx, rightSidelineX - centerLineX, baselineYpx - kitchenLineYpx);
+      var playerKitchenEdges = edgesAtY(kitchenLineYpx);
+      var playerBaselineEdges = edgesAtY(baselineYpx);
+      ctx.beginPath();
+      ctx.moveTo(playerKitchenEdges.left, kitchenLineYpx);
+      ctx.lineTo(centerLineX, kitchenLineYpx);
+      ctx.lineTo(centerLineX, baselineYpx);
+      ctx.lineTo(playerBaselineEdges.left, baselineYpx);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(centerLineX, kitchenLineYpx);
+      ctx.lineTo(playerKitchenEdges.right, kitchenLineYpx);
+      ctx.lineTo(playerBaselineEdges.right, baselineYpx);
+      ctx.lineTo(centerLineX, baselineYpx);
+      ctx.closePath();
+      ctx.fill();
       ctx.save();
-      ctx.globalAlpha = 0.65;
-      ctx.fillRect(leftSidelineX, oppKitchenLineYpx, centerLineX - leftSidelineX, oppBaselineYpx - oppKitchenLineYpx);
-      ctx.fillRect(centerLineX, oppKitchenLineYpx, rightSidelineX - centerLineX, oppBaselineYpx - oppKitchenLineYpx);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = colors.serviceBoxTintFar;
+      var oppKitchenEdges = edgesAtY(oppKitchenLineYpx);
+      var oppBaselineEdges = edgesAtY(oppBaselineYpx);
+      ctx.beginPath();
+      ctx.moveTo(oppKitchenEdges.left, oppKitchenLineYpx);
+      ctx.lineTo(centerLineX, oppKitchenLineYpx);
+      ctx.lineTo(centerLineX, oppBaselineYpx);
+      ctx.lineTo(oppBaselineEdges.left, oppBaselineYpx);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(centerLineX, oppKitchenLineYpx);
+      ctx.lineTo(oppKitchenEdges.right, oppKitchenLineYpx);
+      ctx.lineTo(oppBaselineEdges.right, oppBaselineYpx);
+      ctx.lineTo(centerLineX, oppBaselineYpx);
+      ctx.closePath();
+      ctx.fill();
       ctx.restore();
     }
 
@@ -832,31 +942,44 @@ void function () {
 
     // Kitchen lines
     ctx.strokeStyle = colors.kitchenLine;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = kitchenLineWidth;
     ctx.setLineDash([]);
     ctx.beginPath();
-    ctx.moveTo(leftSidelineX, kitchenLineYpx);
-    ctx.lineTo(rightSidelineX, kitchenLineYpx);
-    ctx.moveTo(leftSidelineX, oppKitchenLineYpx);
-    ctx.lineTo(rightSidelineX, oppKitchenLineYpx);
+    var playerKitchenEdges2 = edgesAtY(kitchenLineYpx);
+    var oppKitchenEdges2 = edgesAtY(oppKitchenLineYpx);
+    ctx.moveTo(playerKitchenEdges2.left, kitchenLineYpx);
+    ctx.lineTo(playerKitchenEdges2.right, kitchenLineYpx);
+    ctx.moveTo(oppKitchenEdges2.left, oppKitchenLineYpx);
+    ctx.lineTo(oppKitchenEdges2.right, oppKitchenLineYpx);
     ctx.stroke();
 
     // Court lines (frontal)
-    if (colors.courtLines) {
-      ctx.strokeStyle = colors.courtLines;
-      ctx.lineWidth = 2;
+    if (colors.courtLinesStrong && colors.courtLinesSoft && colors.centerLine) {
+      ctx.strokeStyle = colors.courtLinesSoft;
+      ctx.lineWidth = sidelineLineWidth;
+      var playerBaselineEdges2 = edgesAtY(baselineYpx);
+      var oppBaselineEdges2 = edgesAtY(oppBaselineYpx);
+      var netEdges = edgesAtY(netYpx);
       ctx.beginPath();
-      ctx.moveTo(leftSidelineX, oppBaselineYpx);
-      ctx.lineTo(leftSidelineX, baselineYpx);
-      ctx.moveTo(rightSidelineX, oppBaselineYpx);
-      ctx.lineTo(rightSidelineX, baselineYpx);
-      ctx.moveTo(leftSidelineX, baselineYpx);
-      ctx.lineTo(rightSidelineX, baselineYpx);
-      ctx.moveTo(leftSidelineX, oppBaselineYpx);
-      ctx.lineTo(rightSidelineX, oppBaselineYpx);
+      ctx.moveTo(oppBaselineEdges2.left, oppBaselineYpx);
+      ctx.lineTo(netEdges.left, netYpx);
+      ctx.lineTo(playerBaselineEdges2.left, baselineYpx);
+      ctx.moveTo(oppBaselineEdges2.right, oppBaselineYpx);
+      ctx.lineTo(netEdges.right, netYpx);
+      ctx.lineTo(playerBaselineEdges2.right, baselineYpx);
       ctx.stroke();
 
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = colors.courtLinesStrong;
+      ctx.lineWidth = baselineLineWidth;
+      ctx.beginPath();
+      ctx.moveTo(playerBaselineEdges2.left, baselineYpx);
+      ctx.lineTo(playerBaselineEdges2.right, baselineYpx);
+      ctx.moveTo(oppBaselineEdges2.left, oppBaselineYpx);
+      ctx.lineTo(oppBaselineEdges2.right, oppBaselineYpx);
+      ctx.stroke();
+
+      ctx.strokeStyle = colors.centerLine;
+      ctx.lineWidth = centerLineWidth;
       ctx.beginPath();
       ctx.moveTo(centerLineX, kitchenLineYpx);
       ctx.lineTo(centerLineX, baselineYpx);
@@ -865,62 +988,137 @@ void function () {
       ctx.stroke();
     }
 
+    if (state.opponentBounceUntil > gt && state.opponentBounceAt > 0) {
+      var oppBounceProgress = 1 - ((state.opponentBounceUntil - gt) / Math.max(1, state.opponentBounceUntil - state.opponentBounceAt));
+      oppBounceProgress = Math.max(0, Math.min(1, oppBounceProgress));
+      var oppBounceX = projectX((state.opponentBounceX != null ? state.opponentBounceX : state.opponentX), opponentYpx);
+      var oppBounceRadius = (10 + oppBounceProgress * 18) * oppScale;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0.18, 0.55 * (1 - oppBounceProgress));
+      ctx.strokeStyle = colors.bounceRing;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(oppBounceX, opponentYpx + 6, oppBounceRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = Math.max(0.24, 0.75 * (1 - oppBounceProgress));
+      ctx.fillStyle = colors.highlightWhite;
+      ctx.beginPath();
+      ctx.ellipse(oppBounceX, opponentYpx + 6, 10 * oppScale, 3 * oppScale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.8;
+      ctx.font = "bold " + Math.round(Math.max(10, w * 0.016)) + "px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      var returnBounceLabel = String((this.wording && this.wording.ui && this.wording.ui.returnBounceLabel) || "").trim();
+      if (returnBounceLabel) ctx.fillText(returnBounceLabel, oppBounceX, opponentYpx - 10);
+      ctx.restore();
+    }
+
+    // Ball
+    var ball = state.ball;
+    var renderBall = null;
+    if (ball) {
+      var BALL_STATES = this.gameApi && this.gameApi.BALL_STATES;
+      renderBall = Object.assign({}, ball);
+      var groundY = ball.targetY;
+      if (BALL_STATES && ball.state === BALL_STATES.TRAVELING) {
+        var tTravel = Math.max(0, Math.min(1, (gt - ball.spawnedAt) / Math.max(1, ball.travelMs)));
+        var yTravelT = Math.pow(tTravel, Number.isFinite(ball.descentPower) ? ball.descentPower : 1);
+        groundY = (ball.startY || 0) + ((ball.targetY || 0) - (ball.startY || 0)) * yTravelT;
+      } else if (BALL_STATES && ball.state === BALL_STATES.HIT) {
+        var tReturn = Math.max(0, Math.min(1, (gt - ball.hitAt) / Math.max(1, ball.returnTravelMs)));
+        groundY = (ball.returnStartY || 0) + ((ball.returnTargetY || 0) - (ball.returnStartY || 0)) * tReturn;
+      }
+      var ballHeightPx = Math.max(0, groundY - (ball.y || groundY));
+      var ballDepthRatioNear = depthRatioAtY(groundY);
+      var ballDepthScaleNear = requiredConfigNumber(this.config?.canvas?.ballDepthScaleNear, "canvas.ballDepthScaleNear", { min: 0.2, max: 2 });
+      var ballDepthScaleFar = requiredConfigNumber(this.config?.canvas?.ballDepthScaleFar, "canvas.ballDepthScaleFar", { min: 0.2, max: 2 });
+      var ballHeightScaleNear = requiredConfigNumber(this.config?.canvas?.ballHeightScaleNear, "canvas.ballHeightScaleNear", { min: 0.1, max: 2 });
+      var ballHeightScaleFar = requiredConfigNumber(this.config?.canvas?.ballHeightScaleFar, "canvas.ballHeightScaleFar", { min: 0.1, max: 2 });
+      var ballScreenScale = lerpNum(ballDepthScaleFar, ballDepthScaleNear, ballDepthRatioNear);
+      var heightScreenScale = lerpNum(ballHeightScaleFar, ballHeightScaleNear, ballDepthRatioNear);
+      renderBall.x = projectX(ball.x, groundY);
+      renderBall.y = groundY - ballHeightPx * heightScreenScale;
+      renderBall.targetX = projectX(ball.targetX, ball.targetY);
+      renderBall.targetY = ball.targetY;
+      renderBall.startX = projectX(ball.startX, ball.startY);
+      renderBall.startY = ball.startY;
+      renderBall.shadowY = groundY;
+      renderBall.radius = Math.max(4, ball.radius * ballScreenScale);
+      if (ball.y <= netYpx) {
+        this._renderBallV2(ctx, renderBall, colors, w, h, gt, n, juice);
+      }
+    }
+
+    // Opponent silhouette
+    var oppX = projectX(state.opponentX, opponentYpx);
+    this._renderOpponentV2(ctx, oppX, opponentYpx, state.opponentState || "idle", colors, w, h, n, oppScale, renderBall);
+
     // Net seen from the front, with a slight center sag (36in sides, 34in center)
     ctx.strokeStyle = colors.netColor;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = netLineWidth;
+    var netEdges2 = edgesAtY(netYpx);
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = colors.netColor;
     ctx.beginPath();
-    ctx.moveTo(leftSidelineX, netYpx);
-    ctx.quadraticCurveTo(centerLineX, netYpx + netCenterSagPx, rightSidelineX, netYpx);
+    ctx.moveTo(netEdges2.left, netYpx);
+    ctx.quadraticCurveTo(centerLineX, netYpx + netCenterSagPx, netEdges2.right, netYpx);
+    ctx.lineTo(netEdges2.right, netYpx + netBandDepthPx);
+    ctx.quadraticCurveTo(centerLineX, netYpx + netCenterSagPx + netBandDepthPx, netEdges2.left, netYpx + netBandDepthPx);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.beginPath();
+    ctx.moveTo(netEdges2.left, netYpx);
+    ctx.quadraticCurveTo(centerLineX, netYpx + netCenterSagPx, netEdges2.right, netYpx);
     ctx.stroke();
+
+    if (renderBall) {
+      var ballNearNet = Math.abs((renderBall.shadowY || renderBall.y) - netYpx) <= netNearHighlightThresholdPx;
+      if (ballNearNet) {
+        ctx.save();
+        ctx.globalAlpha = 0.16;
+        ctx.strokeStyle = colors.highlightWhite;
+        ctx.lineWidth = netNearHighlightWidth;
+        ctx.beginPath();
+        ctx.moveTo(netEdges2.left + 6, netYpx + 2);
+        ctx.quadraticCurveTo(centerLineX, netYpx + netCenterSagPx + 2, netEdges2.right - 6, netYpx + 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
 
     // Net posts
     ctx.fillStyle = colors.netColor;
-    ctx.fillRect(leftSidelineX - 2, netYpx - netPostHeightPx / 2, 4, netPostHeightPx);
-    ctx.fillRect(rightSidelineX - 2, netYpx - netPostHeightPx / 2, 4, netPostHeightPx);
+    ctx.fillRect(netEdges2.left - (netLineWidth / 2), netYpx - netPostHeightPx / 2, netLineWidth, netPostHeightPx);
+    ctx.fillRect(netEdges2.right - (netLineWidth / 2), netYpx - netPostHeightPx / 2, netLineWidth, netPostHeightPx);
 
     // Net mesh
     ctx.strokeStyle = colors.netMesh;
     ctx.lineWidth = 1;
-    for (var ni = 1; ni <= 3; ni++) {
-      var meshY = netYpx + ni * 3;
+    for (var ni = 1; ni <= netMeshRows; ni++) {
+      var meshY = netYpx + ni * (netBandDepthPx / (netMeshRows + 1));
       ctx.beginPath();
-      ctx.moveTo(leftSidelineX + 2, meshY);
-      ctx.lineTo(rightSidelineX - 2, meshY);
+      ctx.moveTo(netEdges2.left + 2, meshY);
+      ctx.lineTo(netEdges2.right - 2, meshY);
       ctx.stroke();
     }
     ctx.strokeStyle = colors.netMesh;
-    for (var mx = leftSidelineX + 10; mx < rightSidelineX; mx += 18) {
+    for (var mx = netEdges2.left + (netMeshColGapPx * 0.6); mx < netEdges2.right; mx += netMeshColGapPx) {
       ctx.beginPath();
       ctx.moveTo(mx, netYpx);
-      ctx.lineTo(mx, netYpx + 10);
+      ctx.lineTo(mx, netYpx + netBandDepthPx - 2);
       ctx.stroke();
     }
 
-    // Opponent silhouette
-    var oppX = state.opponentX || w / 2;
-    var oppW = w * (0.05 + oppScale * 0.02);
-    var oppH = h * (0.05 + oppScale * 0.02);
-    ctx.save();
-    ctx.fillStyle = colors.opponentShadow;
-    ctx.beginPath();
-    ctx.ellipse(oppX, opponentYpx + oppH * 0.78, oppW * 0.5, oppH * 0.16, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-    ctx.fillStyle = colors.opponentColor;
-    ctx.beginPath();
-    ctx.arc(oppX, opponentYpx - oppH * 0.35, oppW * 0.4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillRect(oppX - oppW * 0.35, opponentYpx - oppH * 0.1, oppW * 0.7, oppH * 0.75);
-
-    // Ball
-    var ball = state.ball;
-    if (ball) {
-      this._renderBallV2(ctx, ball, colors, w, h, gt, n, juice);
+    if (renderBall && ball.y > netYpx) {
+      this._renderBallV2(ctx, renderBall, colors, w, h, gt, n, juice);
     }
 
     // Player (V3: 2D position from game state)
-    var playerX = state.playerX || w / 2;
-    var playerYState = state.playerY || (court.playerY * h);
+    var playerX = projectX(state.playerX, state.playerY);
+    var playerYState = state.playerY;
     var pState = state.playerState || "idle";
     this._renderPlayerV2(ctx, playerX, playerYState, pState, colors, w, h, n, court);
 
@@ -930,14 +1128,14 @@ void function () {
     // Divider
     ctx.strokeStyle = colors.controlZoneBorder;
     ctx.lineWidth = 1;
-    ctx.strokeRect(4, controlsYpx + 4, w / 2 - 8, h - controlsYpx - 8);
+    ctx.strokeRect(controlZoneInsetPx, controlsYpx + controlZoneInsetPx, w / 2 - controlZoneInsetPx * 2, h - controlsYpx - controlZoneInsetPx * 2);
     ctx.strokeStyle = colors.controlZoneHitBorder;
-    ctx.strokeRect(w / 2 + 4, controlsYpx + 4, w / 2 - 8, h - controlsYpx - 8);
-    ctx.font = Math.round(w * 0.025) + "px system-ui, sans-serif";
+    ctx.strokeRect(w / 2 + controlZoneInsetPx, controlsYpx + controlZoneInsetPx, w / 2 - controlZoneInsetPx * 2, h - controlsYpx - controlZoneInsetPx * 2);
+    ctx.font = Math.round(w * controlZoneFontFrac) + "px system-ui, sans-serif";
     ctx.fillStyle = colors.controlZoneText;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    var ctrlMidY = controlsYpx + (h - controlsYpx) / 2;
+    var ctrlMidY = controlsYpx + (h - controlsYpx) * controlZoneLabelYFrac;
     var _uw = (this.wording && this.wording.ui) || {};
     var controlMoveLabel = String(_uw.controlMoveLabel || "").trim();
     var controlTimingLabel = String(_uw.controlTimingLabel || "").trim();
@@ -964,10 +1162,10 @@ void function () {
       var dmLabel = String(state.dailyModifier.label || "").trim();
       var dmDesc = String(state.dailyModifier.desc || "").trim();
       if (dmLabel) {
-        ctx.fillStyle = "rgba(255,215,0,0.15)";
+        ctx.fillStyle = rgbaFromTuple(colors.goldRgb, 0.15);
         ctx.fillRect(0, 0, w, Math.round(h * 0.04));
         ctx.font = "bold " + Math.round(w * 0.025) + "px system-ui, sans-serif";
-        ctx.fillStyle = "rgba(255,215,0,0.8)";
+        ctx.fillStyle = rgbaFromTuple(colors.goldRgb, 0.8);
         ctx.textAlign = "center";
         ctx.fillText(dmLabel + (dmDesc ? (" \u2014 " + dmDesc) : ""), w / 2, h * 0.025);
       }
@@ -1062,6 +1260,34 @@ void function () {
     var landingMarkerRadiusPx = requiredConfigNumber(this.config?.canvas?.landingMarkerRadiusPx, "canvas.landingMarkerRadiusPx", { min: 1, integer: true });
     var landingMarkerPulseMs = requiredConfigNumber(this.config?.canvas?.landingMarkerPulseMs, "canvas.landingMarkerPulseMs", { min: 1, integer: true });
     var bounceSquashMaxFrac = requiredConfigNumber(this.config?.canvas?.bounceSquashMaxFrac, "canvas.bounceSquashMaxFrac", { min: 0, max: 0.8 });
+    var serveLabelMs = requiredConfigNumber(this.config?.canvas?.serveLabelMs, "canvas.serveLabelMs", { min: 1, max: 4000, integer: true });
+    var specialBallBadgeMs = requiredConfigNumber(this.config?.canvas?.specialBallBadgeMs, "canvas.specialBallBadgeMs", { min: 1, max: 4000, integer: true });
+    var ballOutlineWidth = requiredConfigNumber(this.config?.canvas?.ballOutlineWidth, "canvas.ballOutlineWidth", { min: 0.5, max: 6 });
+    var ballGlowScale = requiredConfigNumber(this.config?.canvas?.ballGlowScale, "canvas.ballGlowScale", { min: 1, max: 3 });
+    var impactDustCount = requiredConfigNumber(this.config?.canvas?.impactDustCount, "canvas.impactDustCount", { min: 0, max: 24, integer: true });
+    var trailSegments = requiredConfigNumber(this.config?.canvas?.trajectoryTrailSegments, "canvas.trajectoryTrailSegments", { min: 0, max: 12, integer: true });
+    var trailAlpha = requiredConfigNumber(this.config?.canvas?.trajectoryTrailAlpha, "canvas.trajectoryTrailAlpha", { min: 0, max: 1 });
+    var courtCfg = this.config?.court || {};
+    var netY = requiredConfigNumber(courtCfg.netY, "KR_CONFIG.court.netY", { min: 0.05, max: 0.3 }) * h;
+    var baseY = requiredConfigNumber(courtCfg.baselineY, "KR_CONFIG.court.baselineY", { min: 0.5, max: 0.99 }) * h;
+    var depthRatio = Math.max(0, Math.min(1, (b.targetY - netY) / Math.max(1, baseY - netY)));
+    var markerScale = 0.8 + depthRatio * 0.4;
+    var specialBallLabel = "";
+    if (b.ballType === "dink") specialBallLabel = String((_uw2 && _uw2.specialBallDink) || "").trim();
+    else if (b.ballType === "lob") specialBallLabel = String((_uw2 && _uw2.specialBallLob) || "").trim();
+    else if (b.ballType === "fast") specialBallLabel = String((_uw2 && _uw2.specialBallFast) || "").trim();
+    else if (b.ballType === "skid") specialBallLabel = String((_uw2 && _uw2.specialBallSkid) || "").trim();
+    else if (b.ballType === "heavy") specialBallLabel = String((_uw2 && _uw2.specialBallHeavy) || "").trim();
+    var specialBallPrefix = String((_uw2 && _uw2.specialBallPrefix) || "").trim();
+    if (specialBallPrefix && specialBallLabel) specialBallLabel = specialBallPrefix + " " + specialBallLabel;
+    var showServeLabel = !!(b.isServe && (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.LANDED) && (gt - b.spawnedAt) <= serveLabelMs);
+    var showSpecialBadge = !!(
+      specialBallLabel &&
+      (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.LANDED || b.state === BALL_STATES.BOUNCED) &&
+      (gt - b.spawnedAt) <= specialBallBadgeMs &&
+      !showServeLabel &&
+      !(mustBounceReason === "kitchen" && b.state === BALL_STATES.TRAVELING)
+    );
 
     // V3: Show "MUST BOUNCE" indicator from the explicit ball state.
     var mustBounce = !!b.mustBounce;
@@ -1082,13 +1308,13 @@ void function () {
 
     if (mustBounce && (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.LANDED)) {
       var pulseT = (gt % landingMarkerPulseMs) / landingMarkerPulseMs;
-      var markerRadius = landingMarkerRadiusPx + pulseT * 10;
+      var markerRadius = (landingMarkerRadiusPx + pulseT * 10) * markerScale;
       var markerAlpha = (b.state === BALL_STATES.LANDED) ? 0.55 : (0.2 + (1 - pulseT) * 0.22);
       var markerColor = colors.waitIndicator;
       ctx.save();
       ctx.globalAlpha = markerAlpha;
       ctx.strokeStyle = markerColor;
-      ctx.lineWidth = (b.state === BALL_STATES.LANDED) ? 3 : 2;
+      ctx.lineWidth = ((b.state === BALL_STATES.LANDED) ? 3 : 2) * markerScale;
       ctx.beginPath();
       ctx.arc(b.targetX, b.targetY, markerRadius, 0, Math.PI * 2);
       ctx.stroke();
@@ -1117,9 +1343,27 @@ void function () {
     if (bt === "dink" && colors.ballDink) ctx.fillStyle = colors.ballDink;
     else if (bt === "lob" && colors.ballLob) ctx.fillStyle = colors.ballLob;
     else if (bt === "fast" && colors.ballFast) ctx.fillStyle = colors.ballFast;
+    else if (bt === "skid" && colors.ballSkid) ctx.fillStyle = colors.ballSkid;
+    else if (bt === "heavy" && colors.ballHeavy) ctx.fillStyle = colors.ballHeavy;
     else ctx.fillStyle = colors.ballDefault;
 
     if (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.LANDED || b.state === BALL_STATES.BOUNCED) {
+      if (b.state === BALL_STATES.TRAVELING && trailSegments > 0) {
+        ctx.save();
+        for (var ti = trailSegments; ti >= 1; ti--) {
+          var trailT = ti / (trailSegments + 1);
+          var trailX = b.x + ((b.shadowY != null ? b.targetX : b.x) - b.x) * trailT * 0.18;
+          var trailY = b.y + ((b.shadowY != null ? b.shadowY : b.y) - b.y) * trailT * 0.35;
+          var trailScale = 1 - trailT * 0.22;
+          ctx.globalAlpha = trailAlpha * (1 - trailT * 0.5);
+          ctx.fillStyle = colors.trajectoryTrail;
+          ctx.beginPath();
+          ctx.ellipse(trailX, trailY, b.radius * trailScale, b.radius * trailScale * 0.78, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
       // WAIT indicator for kitchen balls in flight
       if (mustBounceReason === "kitchen" && b.state === BALL_STATES.TRAVELING) {
         var waitAlpha = 0.5 + 0.3 * Math.sin(gt / 200);
@@ -1134,7 +1378,104 @@ void function () {
         if (bt === "dink" && colors.ballDink) ctx.fillStyle = colors.ballDink;
         else if (bt === "lob" && colors.ballLob) ctx.fillStyle = colors.ballLob;
         else if (bt === "fast" && colors.ballFast) ctx.fillStyle = colors.ballFast;
+        else if (bt === "skid" && colors.ballSkid) ctx.fillStyle = colors.ballSkid;
+        else if (bt === "heavy" && colors.ballHeavy) ctx.fillStyle = colors.ballHeavy;
         else ctx.fillStyle = colors.ballDefault;
+      }
+
+      if (bt === "lob") {
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        ctx.strokeStyle = colors.highlightWhite;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y - b.radius * 1.2, b.radius * 0.95, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      } else if (bt === "fast") {
+        ctx.save();
+        ctx.globalAlpha = 0.28;
+        ctx.strokeStyle = colors.ballFast || colors.ballDefault;
+        ctx.lineWidth = Math.max(1, b.radius * 0.18);
+        ctx.beginPath();
+        ctx.moveTo(b.x - b.radius * 2.1, b.y + b.radius * 0.25);
+        ctx.lineTo(b.x - b.radius * 0.5, b.y + b.radius * 0.1);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(b.x - b.radius * 1.7, b.y - b.radius * 0.2);
+        ctx.lineTo(b.x - b.radius * 0.3, b.y - b.radius * 0.12);
+        ctx.stroke();
+        ctx.restore();
+      } else if (bt === "skid") {
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = colors.ballSkid || colors.ballDefault;
+        ctx.lineWidth = Math.max(1, b.radius * 0.16);
+        ctx.beginPath();
+        ctx.moveTo(b.x - b.radius * 2.4, b.y + b.radius * 0.6);
+        ctx.lineTo(b.x - b.radius * 0.2, b.y + b.radius * 0.2);
+        ctx.stroke();
+        ctx.restore();
+      } else if (bt === "heavy") {
+        ctx.save();
+        ctx.globalAlpha = 0.18;
+        ctx.fillStyle = colors.ballHeavy || colors.ballDefault;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.radius * 1.7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else if (bt === "dink") {
+        ctx.save();
+        ctx.globalAlpha = 0.22;
+        ctx.strokeStyle = colors.ballDink || colors.ballDefault;
+        ctx.setLineDash([2, 3]);
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.radius * 1.35, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+
+      if (showServeLabel) {
+        var serveLabel = String((_uw2 && _uw2.serveLabel) || "").trim();
+        if (serveLabel) {
+          ctx.globalAlpha = 0.92;
+          ctx.font = "bold " + Math.round(Math.max(10, b.radius * 1.05)) + "px system-ui, sans-serif";
+          ctx.fillStyle = colors.highlightWhite;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          ctx.fillText(serveLabel, b.x, b.y - b.radius - 22);
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      if (showSpecialBadge) {
+        var badgeY = b.y - b.radius - (mustBounceReason === "kitchen" && b.state === BALL_STATES.TRAVELING ? 28 : 14);
+        var badgeFont = Math.round(Math.max(10, b.radius * 0.95));
+        ctx.save();
+        ctx.font = "bold " + badgeFont + "px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        var badgePadX = Math.round(badgeFont * 0.65);
+        var badgePadY = Math.round(badgeFont * 0.4);
+        var badgeW = ctx.measureText(specialBallLabel).width + badgePadX * 2;
+        var badgeH = badgeFont + badgePadY * 2;
+        ctx.globalAlpha = 0.78;
+        ctx.fillStyle = colors.powerBadgeBg;
+        ctx.fillRect(b.x - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH);
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = ctx.fillStyle;
+        if (b.ballType === "dink" && colors.ballDink) ctx.strokeStyle = colors.ballDink;
+        else if (b.ballType === "lob" && colors.ballLob) ctx.strokeStyle = colors.ballLob;
+        else if (b.ballType === "fast" && colors.ballFast) ctx.strokeStyle = colors.ballFast;
+        else if (b.ballType === "skid" && colors.ballSkid) ctx.strokeStyle = colors.ballSkid;
+        else if (b.ballType === "heavy" && colors.ballHeavy) ctx.strokeStyle = colors.ballHeavy;
+        ctx.strokeRect(b.x - badgeW / 2, badgeY - badgeH / 2, badgeW, badgeH);
+        ctx.fillStyle = colors.highlightWhite;
+        ctx.fillText(specialBallLabel, b.x, badgeY);
+        ctx.restore();
       }
 
       if (mustBounce && b.state === BALL_STATES.LANDED) {
@@ -1170,10 +1511,10 @@ void function () {
         if (sinceBounce < 400) {
           var shockT = sinceBounce / 400;
           var shockAlpha = Math.max(0, 0.8 * (1 - shockT));
-          ctx.strokeStyle = "rgba(255,255,255," + shockAlpha.toFixed(2) + ")";
-          ctx.lineWidth = Math.max(0.5, 3 - shockT * 2);
+          ctx.strokeStyle = rgbaFromTuple(colors.whiteRgb, shockAlpha);
+          ctx.lineWidth = Math.max(0.5, (3 - shockT * 2) * markerScale);
           ctx.beginPath();
-          ctx.arc(b.targetX, b.targetY, b.radius + shockT * 35, 0, Math.PI * 2);
+          ctx.arc(b.targetX, b.targetY, b.radius + shockT * 35 * markerScale, 0, Math.PI * 2);
           ctx.stroke();
         }
 
@@ -1191,13 +1532,14 @@ void function () {
         // 3) Dust particles
         if (sinceBounce < 350) {
           var dustT = sinceBounce / 350;
-          ctx.fillStyle = "rgba(255,255,255,0.5)";
-          for (var di = 0; di < 4; di++) {
-            var dAngle = (Math.PI / 2) + (di - 1.5) * 0.5;
+          for (var di = 0; di < impactDustCount; di++) {
+            var dustCenter = (impactDustCount - 1) / 2;
+            var dAngle = (Math.PI / 2) + (di - dustCenter) * 0.34;
             var dDist = dustT * 25;
             var dSize = 2 * (1 - dustT);
             if (dSize > 0) {
               ctx.globalAlpha = Math.max(0, 0.6 * (1 - dustT));
+              ctx.fillStyle = rgbaFromTuple(colors.whiteRgb, 0.5);
               ctx.beginPath();
               ctx.arc(b.targetX + Math.cos(dAngle) * dDist, b.targetY - Math.sin(dAngle) * dDist, dSize, 0, Math.PI * 2);
               ctx.fill();
@@ -1212,9 +1554,9 @@ void function () {
           var ringColor = b.inKitchen ? colors.kitchenLine : colors.bounceRingFlash;
           ctx.strokeStyle = ringColor;
           ctx.globalAlpha = bAlpha;
-          ctx.lineWidth = 3;
+          ctx.lineWidth = 3 * markerScale;
           ctx.beginPath();
-          ctx.arc(b.x, b.y, b.radius + 4 + (sinceBounce / 300) * 18, 0, Math.PI * 2);
+          ctx.arc(b.x, b.y, b.radius + 4 * markerScale + (sinceBounce / 300) * 18 * markerScale, 0, Math.PI * 2);
           ctx.stroke();
           ctx.globalAlpha = 1;
 
@@ -1240,10 +1582,10 @@ void function () {
         // 5) Pulsing ring while waiting
         var pulseScale = 1 + 0.12 * Math.sin(gt / 70);
         ctx.strokeStyle = colors.bounceRing;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2 * markerScale;
         ctx.globalAlpha = 0.7;
         ctx.beginPath();
-        ctx.arc(b.x, b.y, (b.radius + 6) * pulseScale, 0, Math.PI * 2);
+        ctx.arc(b.x, b.y, (b.radius + 6 * markerScale) * pulseScale, 0, Math.PI * 2);
         ctx.stroke();
         ctx.globalAlpha = 1;
       }
@@ -1253,17 +1595,30 @@ void function () {
       var ballRadiusX = b.radius * (1 + bounceSquashMaxFrac * squash);
       var ballRadiusY = b.radius * (1 - bounceSquashMaxFrac * 0.7 * squash);
       ctx.save();
-      ctx.shadowColor = ctx.fillStyle;
-      ctx.shadowBlur = 10;
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = ctx.fillStyle;
+      ctx.beginPath();
+      ctx.ellipse(b.x, b.y, ballRadiusX * ballGlowScale, ballRadiusY * ballGlowScale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      if (bt === "dink" && colors.ballDink) ctx.fillStyle = colors.ballDink;
+      else if (bt === "lob" && colors.ballLob) ctx.fillStyle = colors.ballLob;
+      else if (bt === "fast" && colors.ballFast) ctx.fillStyle = colors.ballFast;
+      else if (bt === "skid" && colors.ballSkid) ctx.fillStyle = colors.ballSkid;
+      else if (bt === "heavy" && colors.ballHeavy) ctx.fillStyle = colors.ballHeavy;
+      else ctx.fillStyle = colors.ballDefault;
       ctx.beginPath();
       ctx.ellipse(b.x, b.y, ballRadiusX, ballRadiusY, 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.lineWidth = ballOutlineWidth;
+      ctx.strokeStyle = colors.ballOutline;
+      ctx.stroke();
       ctx.restore();
 
       // Highlight
       var grad = ctx.createRadialGradient(b.x - ballRadiusX * 0.3, b.y - ballRadiusY * 0.3, Math.min(ballRadiusX, ballRadiusY) * 0.1, b.x, b.y, Math.max(ballRadiusX, ballRadiusY));
       grad.addColorStop(0, colors.highlightWhite);
-      grad.addColorStop(1, "rgba(255,255,255,0)");
+      grad.addColorStop(1, rgbaFromTuple(colors.whiteRgb, 0));
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.ellipse(b.x, b.y, ballRadiusX, ballRadiusY, 0, 0, Math.PI * 2);
@@ -1274,6 +1629,24 @@ void function () {
     if (b.state === "HIT" || b.state === BALL_STATES.HIT) {
       var sinceHit = gt - b.hitAt;
       var retT = Math.min(1, sinceHit / (b.returnTravelMs || 500));
+      if (trailSegments > 0) {
+        ctx.save();
+        for (var rti = trailSegments; rti >= 1; rti--) {
+          var returnTrailT = rti / (trailSegments + 1);
+          ctx.globalAlpha = trailAlpha * 1.15 * (1 - returnTrailT * 0.45) * (1 - retT * 0.35);
+          ctx.fillStyle = colors.returnTrail;
+          ctx.beginPath();
+          ctx.arc(
+            b.x + (returnTrailT * 18),
+            b.y + (returnTrailT * 10),
+            Math.max(1.5, b.radius * (0.9 - returnTrailT * 0.18)),
+            0,
+            Math.PI * 2
+          );
+          ctx.fill();
+        }
+        ctx.restore();
+      }
       ctx.globalAlpha = Math.max(0, 1 - retT * 0.7);
       ctx.fillStyle = colors.ballSmashed;
       ctx.beginPath();
@@ -1317,6 +1690,10 @@ void function () {
     var pColor = colors.playerColor;
     var pOutline = colors.playerOutline;
     var pGlow = colors.playerGlow;
+    var playerOutlineWidth = requiredConfigNumber(this.config?.canvas?.playerOutlineWidth, "canvas.playerOutlineWidth", { min: 0.5, max: 6 });
+    var actorIdleBreathePx = requiredConfigNumber(this.config?.canvas?.actorIdleBreathePx, "canvas.actorIdleBreathePx", { min: 0, max: 12 });
+    var playerRunLeanPx = requiredConfigNumber(this.config?.canvas?.playerRunLeanPx, "canvas.playerRunLeanPx", { min: 0, max: 20 });
+    var playerSwingArcScale = requiredConfigNumber(this.config?.canvas?.playerSwingArcScale, "canvas.playerSwingArcScale", { min: 0.5, max: 3 });
 
     // Scale relative to screen + depth in the frontal court view.
     var depthScaleNear = requiredConfigNumber(this.config?.canvas?.playerDepthScaleNear, "canvas.playerDepthScaleNear", { min: 0.5, max: 2 });
@@ -1331,45 +1708,51 @@ void function () {
 
     // Animation phase
     var t = n / 1000;
-    var breathe = Math.sin(t * 2) * 0.5; // idle breathing
+    var breathe = Math.sin(t * 2) * actorIdleBreathePx; // idle breathing
     var runCycle = Math.sin(t * 12) * 0.5; // running leg cycle
     var isRunning = (pState === "runLeft" || pState === "runRight");
     var isSwinging = (pState === "swing");
+    var readySet = isRunning ? 0 : 1;
 
     // Lean when running
     var lean = 0;
-    if (pState === "runLeft") lean = S(3);
-    if (pState === "runRight") lean = S(-3);
+    if (pState === "runLeft") lean = S(playerRunLeanPx);
+    if (pState === "runRight") lean = S(-playerRunLeanPx);
 
     ctx.save();
-    ctx.translate(x + lean, y);
+    ctx.translate(x + lean, y + S(readySet * 0.9));
 
     // Shadow on ground
     ctx.globalAlpha = 0.2;
-    ctx.fillStyle = "#000";
+    ctx.fillStyle = rgbaFromTuple(colors.shadowRgb, 1);
     ctx.beginPath();
     ctx.ellipse(0, S(22), S(14), S(4), 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    // Player glow (subtle)
-    ctx.shadowColor = pGlow;
-    ctx.shadowBlur = S(12);
+    // Flat glow underlay for phone readability. No blur.
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = pGlow;
+    ctx.beginPath();
+    ctx.ellipse(0, S(-4), S(15), S(24), 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
 
     // ── Legs (dynamic, animated) ──
     ctx.fillStyle = pOutline;
     var legSpread = isRunning ? runCycle * S(6) : 0;
+    var kneeLift = isRunning ? Math.max(0, runCycle) * S(2.8) : 0;
     // Left leg
     ctx.beginPath();
     ctx.moveTo(S(-4), S(8));
-    ctx.quadraticCurveTo(S(-5) - legSpread, S(15), S(-3) - legSpread, S(20));
+    ctx.quadraticCurveTo(S(-5) - legSpread, S(15) - kneeLift, S(-3) - legSpread, S(20));
     ctx.lineTo(S(-1) - legSpread, S(20));
     ctx.quadraticCurveTo(S(-2), S(14), S(-1), S(8));
     ctx.fill();
     // Right leg
     ctx.beginPath();
     ctx.moveTo(S(4), S(8));
-    ctx.quadraticCurveTo(S(5) + legSpread, S(15), S(3) + legSpread, S(20));
+    ctx.quadraticCurveTo(S(5) + legSpread, S(15) + kneeLift, S(3) + legSpread, S(20));
     ctx.lineTo(S(1) + legSpread, S(20));
     ctx.quadraticCurveTo(S(2), S(14), S(1), S(8));
     ctx.fill();
@@ -1378,16 +1761,16 @@ void function () {
     ctx.fillStyle = pColor;
     ctx.beginPath();
     ctx.moveTo(S(-8), S(6)); // left hip
-    ctx.quadraticCurveTo(S(-10), S(-2), S(-7), S(-12)); // left side up
-    ctx.quadraticCurveTo(S(-3), S(-16) + breathe, 0, S(-16) + breathe); // left shoulder to center
-    ctx.quadraticCurveTo(S(3), S(-16) + breathe, S(7), S(-12)); // center to right shoulder
+    ctx.quadraticCurveTo(S(-10), S(-2), S(-7), S(-12) - S(readySet)); // left side up
+    ctx.quadraticCurveTo(S(-3), S(-16) + breathe - S(readySet * 1.4), 0, S(-16) + breathe - S(readySet * 1.4)); // left shoulder to center
+    ctx.quadraticCurveTo(S(3), S(-16) + breathe - S(readySet * 1.4), S(7), S(-12) - S(readySet)); // center to right shoulder
     ctx.quadraticCurveTo(S(10), S(-2), S(8), S(6)); // right side down
     ctx.closePath();
     ctx.fill();
 
     // Body outline
     ctx.strokeStyle = pOutline;
-    ctx.lineWidth = S(1.5);
+    ctx.lineWidth = S(playerOutlineWidth);
     ctx.stroke();
 
     // ── Head ──
@@ -1396,20 +1779,19 @@ void function () {
     ctx.arc(0, S(-20), S(7), 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = pOutline;
-    ctx.lineWidth = S(1.5);
+    ctx.lineWidth = S(playerOutlineWidth);
     ctx.stroke();
 
     // Head highlight
-    ctx.fillStyle = "rgba(255,255,255,0.2)";
+    ctx.fillStyle = rgbaFromTuple(colors.whiteRgb, 0.2);
     ctx.beginPath();
     ctx.arc(S(-2), S(-22), S(3), 0, Math.PI * 2);
     ctx.fill();
 
     // ── Paddle arm ──
-    ctx.shadowBlur = 0;
     var armBaseX = S(8);
     var armBaseY = S(-8);
-    var paddleAngle = isSwinging ? (-0.8 + Math.sin(n / 50) * 0.4)
+    var paddleAngle = isSwinging ? (-0.95 + Math.sin(n / 50) * 0.45)
       : isRunning ? (pState === "runLeft" ? 0.3 : -0.3)
       : -0.1 + breathe * 0.02;
 
@@ -1442,7 +1824,7 @@ void function () {
     ctx.fill();
 
     // Paddle edge highlight
-    ctx.strokeStyle = "rgba(255,255,255,0.3)";
+    ctx.strokeStyle = rgbaFromTuple(colors.whiteRgb, 0.3);
     ctx.lineWidth = S(0.8);
     ctx.stroke();
 
@@ -1477,17 +1859,111 @@ void function () {
 
     // ── Swing effect ──
     if (isSwinging) {
-      ctx.strokeStyle = "rgba(255,255,255,0.4)";
+      ctx.strokeStyle = rgbaFromTuple(colors.whiteRgb, 0.4);
       ctx.lineWidth = S(2);
       var swingPhase = (n % 300) / 300;
       ctx.globalAlpha = 0.5 * (1 - swingPhase);
       ctx.beginPath();
-      ctx.arc(S(18), S(-6), S(10) + swingPhase * S(15), -0.5, 0.8);
+      ctx.arc(S(18), S(-6), (S(10) + swingPhase * S(15)) * playerSwingArcScale, -0.62, 0.95);
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
 
     ctx.restore(); // main player transform
+  };
+
+  UI.prototype._renderOpponentV2 = function (ctx, x, y, oState, colors, w, h, n, oppScale, ball) {
+    var depthScale = Math.max(0.38, Math.min(1.2, Number(oppScale || 0.55) + 0.2));
+    var scale = (Math.min(w, h) / 500) * depthScale;
+    var S = function (v) { return v * scale; };
+    var isSwinging = (oState === "swing");
+    var swingBeat = isSwinging ? Math.sin((n / 1000) * 16) : 0;
+    var armReach = isSwinging ? S(8 + swingBeat * 2) : S(4);
+    var racketReach = isSwinging ? S(14 + swingBeat * 3) : S(8);
+    var opponentOutlineWidth = requiredConfigNumber(this.config?.canvas?.opponentOutlineWidth, "canvas.opponentOutlineWidth", { min: 0.5, max: 6 });
+    var actorIdleBreathePx = requiredConfigNumber(this.config?.canvas?.actorIdleBreathePx, "canvas.actorIdleBreathePx", { min: 0, max: 12 });
+    var opponentReadyOffsetPx = requiredConfigNumber(this.config?.canvas?.opponentReadyOffsetPx, "canvas.opponentReadyOffsetPx", { min: 0, max: 12 });
+    var opponentSwingArcScale = requiredConfigNumber(this.config?.canvas?.opponentSwingArcScale, "canvas.opponentSwingArcScale", { min: 0.5, max: 3 });
+    var breathe = Math.sin((n / 1000) * 2) * actorIdleBreathePx;
+
+    ctx.save();
+    ctx.translate(x, y + S(opponentReadyOffsetPx) - S(isSwinging ? 0 : 0.6));
+
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = colors.opponentShadow;
+    ctx.beginPath();
+    ctx.ellipse(0, S(18), S(12), S(3.2), 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = colors.opponentFill;
+    ctx.strokeStyle = colors.opponentOutline;
+    ctx.lineWidth = S(opponentOutlineWidth);
+
+    ctx.beginPath();
+    ctx.arc(0, S(-15) + S(breathe * 0.35), S(5.2), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(S(-6), S(4));
+    ctx.quadraticCurveTo(S(-8), S(-5), S(-5), S(-11));
+    ctx.quadraticCurveTo(S(-2), S(-14) + S(breathe * 0.2), 0, S(-14) + S(breathe * 0.2));
+    ctx.quadraticCurveTo(S(2), S(-14) + S(breathe * 0.2), S(5), S(-11));
+    ctx.quadraticCurveTo(S(8), S(-5), S(6), S(4));
+    ctx.quadraticCurveTo(S(3), S(8), 0, S(8));
+    ctx.quadraticCurveTo(S(-3), S(8), S(-6), S(4));
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(S(-5), S(8));
+    ctx.lineTo(S(-2), S(18));
+    ctx.lineTo(S(0), S(8));
+    ctx.lineTo(S(2), S(18));
+    ctx.lineTo(S(5), S(8));
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(S(-5), S(-5));
+    ctx.lineTo(S(-9), S(1));
+    ctx.moveTo(S(5), S(-5));
+    ctx.lineTo(armReach, S(-6));
+    ctx.stroke();
+
+    ctx.strokeStyle = colors.opponentRacket;
+    ctx.beginPath();
+    ctx.moveTo(armReach, S(-6));
+    ctx.lineTo(racketReach, S(-10));
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.ellipse(racketReach + S(2), S(-12), S(4.5), S(5.5), 0.35, 0, Math.PI * 2);
+    ctx.stroke();
+
+    if (isSwinging) {
+      ctx.strokeStyle = rgbaFromTuple(colors.whiteRgb, 0.18);
+      ctx.lineWidth = S(1.2);
+      ctx.beginPath();
+      ctx.arc(S(10), S(-8), (S(10) + Math.max(0, swingBeat) * S(6)) * opponentSwingArcScale, -0.9, 0.5);
+      ctx.stroke();
+      if (ball && ball.state === "TRAVELING") {
+        ctx.strokeStyle = rgbaFromTuple(colors.whiteRgb, 0.22);
+        ctx.lineWidth = S(1);
+        ctx.beginPath();
+        ctx.moveTo(racketReach + S(2), S(-12));
+        ctx.lineTo(ball.x - x, ball.y - y);
+        ctx.stroke();
+
+        ctx.fillStyle = rgbaFromTuple(colors.whiteRgb, 0.22);
+        ctx.beginPath();
+        ctx.arc(racketReach + S(2), S(-12), S(2.2 + Math.max(0, swingBeat)), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    ctx.restore();
   };
 
 
@@ -2022,6 +2498,7 @@ void function () {
 
     var result = this.game.getResult();
     var mode = (state && state.mode) || this._runtime.runMode;
+    var previousRun = (this._runtime && this._runtime.lastRun) ? this._runtime.lastRun : null;
 
     var newBest = false;
     var bestSmashes = 0;
@@ -2072,6 +2549,40 @@ void function () {
       dailyModifier: result.dailyModifier || null,
       dailyObjectiveMet: !!(result.dailyObjectiveMet)
     };
+    this._runtime.previousRun = previousRun || null;
+
+    if (mode === MODES.RUN && previousRun && previousRun.mode === MODES.RUN && previousRun.totalSpawned > 0 && this._runtime && this._runtime.microFeedback) {
+      var chCfg = this.config?.challenges || {};
+      var mfw = (this.wording && this.wording.microFeedback) ? this.wording.microFeedback : {};
+      var currAccuracy = (result.totalSpawned > 0) ? Math.round((result.smashes / result.totalSpawned) * 100) : 0;
+      var prevAccuracy = (previousRun.totalSpawned > 0) ? Math.round((previousRun.smashes / previousRun.totalSpawned) * 100) : 0;
+      var accuracyGain = currAccuracy - prevAccuracy;
+      var fewerFaults = Number(previousRun.totalFaulted || 0) - Number(result.totalFaulted || 0);
+      var betterStreak = Number(result.bestStreak || 0) - Number(previousRun.bestStreak || 0);
+      var accuracyGainMin = requiredConfigNumber(chCfg.improvedAccuracyMinGainPct, "KR_CONFIG.challenges.improvedAccuracyMinGainPct", { min: 1, max: 100, integer: true });
+      var fewerFaultsMin = requiredConfigNumber(chCfg.fewerFaultsMinDelta, "KR_CONFIG.challenges.fewerFaultsMinDelta", { min: 1, integer: true });
+      var betterStreakMin = requiredConfigNumber(chCfg.betterStreakMinDelta, "KR_CONFIG.challenges.betterStreakMinDelta", { min: 1, integer: true });
+      var mf = this._runtime.microFeedback;
+      var improvementMsg = "";
+      var improvementPriority = -1;
+
+      if (fewerFaults >= fewerFaultsMin) {
+        improvementMsg = String(mfw.cleanerRun || "").trim();
+        improvementPriority = 64;
+      } else if (accuracyGain >= accuracyGainMin) {
+        improvementMsg = String(mfw.betterAccuracy || "").trim();
+        improvementPriority = 63;
+      } else if (betterStreak >= betterStreakMin) {
+        improvementMsg = String(mfw.betterStreak || "").trim();
+        improvementPriority = 62;
+      }
+
+      if (improvementMsg && improvementPriority > Number(mf.endHighlightPriority || -1)) {
+        mf.endHighlight = improvementMsg;
+        mf.endHighlightVariant = "success";
+        mf.endHighlightPriority = improvementPriority;
+      }
+    }
 
     // Game over audio
     if (mode === MODES.SPRINT) {

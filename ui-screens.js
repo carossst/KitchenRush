@@ -23,6 +23,82 @@
     if (typeof requiredConfigNumber !== "function") throw new Error("KR_UI_SCREENS.install(): requiredConfigNumber missing");
     if (!STATES || !MODES) throw new Error("KR_UI_SCREENS.install(): enums missing");
 
+    function normalizeStoredRun(entry) {
+      if (!entry || typeof entry !== "object") return null;
+      var meta = entry.meta || {};
+      return {
+        mode: meta.mode || MODES.RUN,
+        isDaily: !!meta.isDaily,
+        smashes: Number(entry.smashes || 0),
+        totalFaulted: Number(meta.totalFaulted || 0),
+        totalMissed: Number(meta.totalMissed || 0),
+        totalSpawned: Number(meta.totalSpawned || 0),
+        elapsedMs: Number(meta.elapsedMs || 0),
+        bestStreak: Number(meta.bestStreak || 0),
+        newBest: false
+      };
+    }
+
+    function getAccuracyPct(run) {
+      var totalSpawned = Number(run && run.totalSpawned || 0);
+      var smashes = Number(run && run.smashes || 0);
+      if (totalSpawned <= 0) return 0;
+      return Math.round((smashes / totalSpawned) * 100);
+    }
+
+    function getRunImprovement(current, previous, challengeCfg) {
+      if (!current || !previous) return null;
+      if (current.mode !== MODES.RUN || previous.mode !== MODES.RUN) return null;
+      if ((current.totalSpawned || 0) <= 0 || (previous.totalSpawned || 0) <= 0) return null;
+
+      var accuracyGainMin = requiredConfigNumber(challengeCfg.improvedAccuracyMinGainPct, "KR_CONFIG.challenges.improvedAccuracyMinGainPct", { min: 1, max: 100, integer: true });
+      var fewerFaultsMin = requiredConfigNumber(challengeCfg.fewerFaultsMinDelta, "KR_CONFIG.challenges.fewerFaultsMinDelta", { min: 1, integer: true });
+      var betterStreakMin = requiredConfigNumber(challengeCfg.betterStreakMinDelta, "KR_CONFIG.challenges.betterStreakMinDelta", { min: 1, integer: true });
+      var accuracyGain = getAccuracyPct(current) - getAccuracyPct(previous);
+      var fewerFaults = Number(previous.totalFaulted || 0) - Number(current.totalFaulted || 0);
+      var betterStreak = Number(current.bestStreak || 0) - Number(previous.bestStreak || 0);
+
+      return {
+        accuracyGain: accuracyGain,
+        fewerFaults: fewerFaults,
+        betterStreak: betterStreak,
+        accuracyImproved: accuracyGain >= accuracyGainMin,
+        faultsImproved: fewerFaults >= fewerFaultsMin,
+        streakImproved: betterStreak >= betterStreakMin
+      };
+    }
+
+    function getBallPowerLabel(wording, key) {
+      var uiw = (wording && wording.ui) ? wording.ui : {};
+      if (key === "dink") return String(uiw.specialBallDink || "").trim();
+      if (key === "lob") return String(uiw.specialBallLob || "").trim();
+      if (key === "fast") return String(uiw.specialBallFast || "").trim();
+      if (key === "skid") return String(uiw.specialBallSkid || "").trim();
+      if (key === "heavy") return String(uiw.specialBallHeavy || "").trim();
+      return "";
+    }
+
+    function getNextBallPower(config, wording, currentScore) {
+      var ballTypes = config && config.game && config.game.ballTypes;
+      if (!ballTypes || typeof ballTypes !== "object") return null;
+      var score = Math.max(0, Math.floor(Number(currentScore || 0)));
+      var next = null;
+      Object.keys(ballTypes).forEach(function (key) {
+        var bt = ballTypes[key];
+        if (!bt || typeof bt !== "object" || bt.unlockAfterScore == null) return;
+        var unlockScore = requiredConfigNumber(bt.unlockAfterScore, "KR_CONFIG.game.ballTypes." + key + ".unlockAfterScore", { min: 0, integer: true });
+        if (unlockScore <= score) return;
+        if (!next || unlockScore < next.score) {
+          next = {
+            key: key,
+            score: unlockScore,
+            label: getBallPowerLabel(wording, key)
+          };
+        }
+      });
+      return (next && next.label) ? next : null;
+    }
+
     UIModule.prototype.render = function () {
       switch (this.state) {
         case STATES.LANDING: this._renderLanding(); break;
@@ -103,31 +179,27 @@
       } catch (_) { }
 
       var landingChallengeHtml = "";
-      var prevRun = (this._runtime && this._runtime.lastRun && this._runtime.lastRun.totalSpawned > 0)
+      var recentRun = (this._runtime && this._runtime.lastRun && this._runtime.lastRun.mode === MODES.RUN && this._runtime.lastRun.totalSpawned > 0)
         ? this._runtime.lastRun : null;
-      if (!prevRun) {
-        var storedRuns = this._store("getLastRuns", 1) || [];
-        if (storedRuns.length > 0 && storedRuns[0].meta) {
-          var sm = storedRuns[0].meta;
-          if ((sm.totalSpawned || 0) > 0) {
-            prevRun = {
-              smashes: storedRuns[0].smashes || 0,
-              totalFaulted: sm.totalFaulted || 0,
-              bestStreak: sm.bestStreak || 0,
-              totalSpawned: sm.totalSpawned || 0,
-              newBest: false
-            };
-          }
-        }
+      var priorRun = (this._runtime && this._runtime.previousRun && this._runtime.previousRun.mode === MODES.RUN && this._runtime.previousRun.totalSpawned > 0)
+        ? this._runtime.previousRun : null;
+      if (!recentRun) {
+        var storedRuns = this._store("getLastRuns", 2) || [];
+        if (storedRuns.length > 0) recentRun = normalizeStoredRun(storedRuns[0]);
+        if (storedRuns.length > 1) priorRun = normalizeStoredRun(storedRuns[1]);
       }
-      if (prevRun && best > 0 && (premium || balance > 0)) {
+      if (recentRun && best > 0 && (premium || balance > 0)) {
         var lch = (w?.challenges) || {};
         var lcCfg = (cfg?.challenges) || {};
-        var pF = prevRun.totalFaulted || 0;
-        var pS = prevRun.bestStreak || 0;
-        var pG = (!prevRun.newBest && prevRun.smashes > 0) ? (best - prevRun.smashes) : 0;
+        var recentImprove = getRunImprovement(recentRun, priorRun, lcCfg);
+        var pF = recentRun.totalFaulted || 0;
+        var pS = recentRun.bestStreak || 0;
+        var pG = (!recentRun.newBest && recentRun.smashes > 0) ? (best - recentRun.smashes) : 0;
 
         landingChallengeHtml = pickChallenge([
+          { test: !!(recentImprove && recentImprove.faultsImproved), key: "landingFewerFaults", vars: { delta: recentImprove.fewerFaults } },
+          { test: !!(recentImprove && recentImprove.accuracyImproved), key: "landingImprovedAccuracy", vars: { delta: recentImprove.accuracyGain } },
+          { test: !!(recentImprove && recentImprove.streakImproved), key: "landingBetterStreak", vars: { delta: recentImprove.betterStreak } },
           { test: pG > 0 && pG <= (Number(lcCfg.nearBestGap) || 5), key: "landingNearBest", vars: { gap: pG } },
           { test: pF >= (Number(lcCfg.faultThreshold) || 2), key: "landingComeback", vars: { faults: pF } },
           { test: pS >= (Number(lcCfg.streakThreshold) || 8), key: "landingStreakPush", vars: { streak: pS } }
@@ -138,6 +210,17 @@
       if (premium) {
         var ulLabel = String(lw.premiumLabel || "").trim();
         if (ulLabel) premiumLabelHtml = '<p class="kr-muted">' + escapeHtml(ulLabel) + '</p>';
+      }
+
+      var nextPowerHtml = "";
+      var progressionScore = Math.max(best || 0, recentRun ? Number(recentRun.smashes || 0) : 0);
+      var nextPower = getNextBallPower(cfg, w, progressionScore);
+      if (nextPower) {
+        var npLabel = String(lw.nextPowerLabel || "").trim();
+        var npText = fillTemplate(String(lw.nextPowerTemplate || "").trim(), { power: nextPower.label, score: nextPower.score });
+        if (npLabel && npText) {
+          nextPowerHtml = '<p class="kr-muted kr-landing-next-power"><strong>' + escapeHtml(npLabel) + '</strong> ' + escapeHtml(npText) + '</p>';
+        }
       }
 
       var postPaywallHtml = "";
@@ -245,6 +328,7 @@
             dailyHtml +
             classicHtml +
             bestHtml +
+            nextPowerHtml +
             premiumLabelHtml +
             earlyTickerHtml +
             primaryLandingNudgeHtml +
@@ -344,10 +428,13 @@
       var canPlayAgain = premium || balance > 0 || isSprint;
       var ch = (w?.challenges) || {};
       var chCfg = (cfg?.challenges) || {};
+      var previousRun = (this._runtime && this._runtime.previousRun && this._runtime.previousRun.totalSpawned > 0)
+        ? this._runtime.previousRun : null;
       if (last.totalSpawned > 0 && canPlayAgain) {
         var cF = last.totalFaulted || 0;
         var cA = Math.round((last.smashes / last.totalSpawned) * 100);
         var cS = last.bestStreak || 0;
+        var improve = (!isSprint) ? getRunImprovement(last, previousRun, chCfg) : null;
         var sT = requiredConfigNumber(chCfg.streakThreshold, "KR_CONFIG.challenges.streakThreshold", { min: 1, integer: true });
         var sB = requiredConfigNumber(chCfg.streakTargetBonus, "KR_CONFIG.challenges.streakTargetBonus", { min: 1, integer: true });
         var fT = requiredConfigNumber(chCfg.faultThreshold, "KR_CONFIG.challenges.faultThreshold", { min: 0, integer: true });
@@ -361,6 +448,9 @@
             ], ch)
           : pickChallenge([
               { test: newBest && last.smashes > 0, key: "newBestChallenge", vars: { score: last.smashes, target: last.smashes + 1 } },
+              { test: !!(improve && improve.faultsImproved), key: "fewerFaults", vars: { delta: improve.fewerFaults } },
+              { test: !!(improve && improve.accuracyImproved), key: "improvedAccuracy", vars: { delta: improve.accuracyGain } },
+              { test: !!(improve && improve.streakImproved), key: "betterStreak", vars: { delta: improve.betterStreak } },
               { test: cF === 0 && last.smashes >= cM, key: "cleanRun", vars: null },
               { test: cS >= sT, key: "streakChallenge", vars: { streak: cS, target: cS + sB } },
               { test: cF >= fT, key: "faultHeavy", vars: { faults: cF } },
@@ -424,6 +514,47 @@
         ctasHtml = '<button class="kr-btn kr-btn--primary" data-action="play-again">' + escapeHtml(ctaText) + '</button>';
       }
 
+      var nextRunObjectiveHtml = "";
+      if (!isSprint && canPlayAgain && last.totalSpawned > 0) {
+        var objectiveLabel = String(ew.nextRunLabel || "").trim();
+        var objectiveText = "";
+        var objectiveImprove = getRunImprovement(last, previousRun, chCfg);
+        var bestGap = (!newBest && bestSmashes > 0 && last.smashes > 0) ? (bestSmashes - last.smashes) : 0;
+        var objectiveTarget = cS + sB;
+
+        if (bestGap > 0 && bestGap <= playAgainNearBestGapMax) {
+          objectiveText = fillTemplate(String(ew.nextRunBestGap || "").trim(), { gap: bestGap });
+        } else if (objectiveImprove && objectiveImprove.faultsImproved) {
+          objectiveText = String(ew.nextRunHoldCleaner || "").trim();
+        } else if (objectiveImprove && objectiveImprove.accuracyImproved) {
+          objectiveText = String(ew.nextRunHoldAccuracy || "").trim();
+        } else if (objectiveImprove && objectiveImprove.streakImproved) {
+          objectiveText = fillTemplate(String(ew.nextRunHoldStreak || "").trim(), { target: objectiveTarget });
+        } else if (cF >= fT) {
+          objectiveText = String(ew.nextRunFewerFaults || "").trim();
+        } else if (cA < aP && last.smashes >= aM) {
+          objectiveText = String(ew.nextRunAccuracy || "").trim();
+        } else if (cS >= sT) {
+          objectiveText = fillTemplate(String(ew.nextRunStreak || "").trim(), { target: objectiveTarget });
+        }
+
+        if (objectiveLabel && objectiveText) {
+          nextRunObjectiveHtml = '<p class="kr-end-next-run kr-muted"><strong>' + escapeHtml(objectiveLabel) + '</strong> ' + escapeHtml(objectiveText) + '</p>';
+        }
+      }
+
+      var nextPowerEndHtml = "";
+      if (!isSprint) {
+        var nextPowerEnd = getNextBallPower(cfg, w, Number(last.smashes || 0));
+        if (nextPowerEnd) {
+          var endPowerLabel = String(ew.nextPowerLabel || "").trim();
+          var endPowerText = fillTemplate(String(ew.nextPowerTemplate || "").trim(), { power: nextPowerEnd.label, score: nextPowerEnd.score });
+          if (endPowerLabel && endPowerText) {
+            nextPowerEndHtml = '<p class="kr-end-next-run kr-muted"><strong>' + escapeHtml(endPowerLabel) + '</strong> ' + escapeHtml(endPowerText) + '</p>';
+          }
+        }
+      }
+
       var shareHtml = "";
       var isDaily = !!(last && last.isDaily === true);
       if (cfg?.share?.enabled && endNudge.showShare) {
@@ -473,6 +604,8 @@
             streakHtml +
             highlightHtml +
             '<div class="kr-actions kr-actions--stack">' + ctasHtml + shareHtml + '</div>' +
+            nextRunObjectiveHtml +
+            nextPowerEndHtml +
             debriefHtml +
             challengeHtml +
             waitlistHtml +

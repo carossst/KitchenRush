@@ -60,10 +60,10 @@
 
     success: {
       title: "Payment successful",
-      subtitle: "Your activation code is ready. Save it, then activate it in the game.",
+      subtitle: "Your code is ready. Save it, then activate it in game.",
 
       codeLabel: "Your activation code",
-      clearDataWarning: "If you clear site data or switch device/browser, you will need this code again.",
+      clearDataWarning: "Keep this code if you clear data or change device.",
 
       howToActivateTitle: "How to activate",
       howToActivateStep1: "Return to the game.",
@@ -81,14 +81,14 @@
 
       ctaBackToGame: "Back to game",
       ctaDownload: "Download code (.txt)",
-      shortcutHint: "Shortcut: How to play - Activate with a code.",
+      shortcutHint: "How to play -> Activate with a code.",
 
       thankYouLine: "Thank you for supporting an independent game.",
       supportLabel: "Need help?",
 
       copyCta: "Copy code",
       copyAgainCta: "Copy code again",
-      tipNoRecover: "Tip: keep this code somewhere safe. It can't be recovered from a server.",
+      tipNoRecover: "Keep this code safe. It can't be recovered.",
       txtTitle: "Your Kitchen Rush activation code",
       txtSaveLine: "Tip: keep this code somewhere safe.",
       txtNoRecoverLine: "It can't be recovered from a server.",
@@ -102,12 +102,12 @@
     landing: {
       title: "Kitchen Rush",
       tagline: "Fast pickleball arcade.",
-      subtitle: "Move into range, time your hit, and let Kitchen balls bounce. 3 lives.",
+      subtitle: "Move into range. Time your hit. Let Kitchen balls bounce. 3 lives.",
 
       // Daily challenge badge (shown when daily.enabled)
       dailyBadge: "Daily Challenge",
-      dailyExplain: "One shared challenge each day. Same run for everyone. Uses 1 run.",
-      classicUnlockHint: "Daily is featured first. Classic is always available.",
+      dailyExplain: "One shared challenge each day. Uses 1 run.",
+      classicUnlockHint: "Classic is always available.",
       ctaPlayDaily: "Play Daily Challenge",
 
       ctaPlay: "Play Classic",
@@ -117,12 +117,14 @@
       bestAriaTemplate: "Personal best: {best} Smashes",
       bestTargetTemplate: "Can you reach {target}?",
       premiumLabel: "Unlimited runs on this device",
+      nextPowerLabel: "Next power",
+      nextPowerTemplate: "{power} at {score} hits",
 
       // Landing stats (spark bars)
       runsLabel: "Runs",
 
       // Lifetime counter (cumulative investment — Eyal Hook model)
-      lifetimeTemplate: "{total} lifetime hits",
+      lifetimeTemplate: "{total} total hits",
 
       // Post-paywall block (LANDING after free runs exhausted)
       postPaywallTitle: "Free runs are used up.",
@@ -148,7 +150,15 @@
       waitLabel: "WAIT",
       nowLabel: "NOW!",
       goLabel: "GO!",
+      serveLabel: "SERVE",
       doubleBounceLabel: "LET IT BOUNCE",
+      returnBounceLabel: "2ND BOUNCE",
+      specialBallPrefix: "PWR",
+      specialBallDink: "DINK",
+      specialBallLob: "LOB",
+      specialBallFast: "FAST",
+      specialBallSkid: "SKID",
+      specialBallHeavy: "HEAVY",
       hitLabel: "HIT",
       controlLeftLabel: "\u25C4",
       controlRightLabel: "\u25BA",
@@ -161,13 +171,13 @@
       startOverlayMouseKey: "Mouse",
       startOverlayKeyboardKey: "←↑→↓",
       startOverlayClickKey: "Click / Space",
-      startOverlayMoveTouch: "Drag to move into range",
-      startOverlayHitTouch: "Tap to time your hit",
-      startOverlayMoveMouse: "Move around the court",
-      startOverlayMoveKeys: "Arrow-key movement",
+      startOverlayMoveTouch: "Drag to move",
+      startOverlayHitTouch: "Tap to time it",
+      startOverlayMoveMouse: "Move on court",
+      startOverlayMoveKeys: "Move with arrows",
       startOverlayHitDesktop: "Time your hit",
-      startOverlayAutoReturnHint: "Get close and it auto-returns. Time your hit for double points!",
-      startOverlayKitchenHint: "Kitchen ball: let it bounce, then hit",
+      startOverlayAutoReturnHint: "Get close for auto-return. Time it for double points.",
+      startOverlayKitchenHint: "Kitchen ball: bounce first",
       startOverlayTapToStart: "Tap to start",
       dailyObjectiveMet: "Daily objective complete!",
 
@@ -196,17 +206,17 @@
     sprint: {
       // Golden Ball (discovery — unlocks Rush/Sprint mode)
       chestAria: "Golden Ball",
-      chestHint: "Tap the golden ball to unlock Rush mode.",
+      chestHint: "Tap the golden ball to unlock Sprint.",
 
       // Modal one-shot (first tap ever)
       modalTitle: "You found Sprint mode",
-      modalBody: "20 seconds on the clock. No lives. Every Kitchen fault costs 2 seconds. How many clean hits can you land?",
+      modalBody: "20 seconds. No lives. Kitchen faults cost 2 seconds.",
       modalCta: "Let's rally",
 
       // Teaser (free runs limit)
       startOverlayFreeRunsLimitLine: "{remaining}/{limit} free sprints left",
       freeLimitReachedTitle: "That was a rally.",
-      freeLimitReachedBody: "Your {limit} free Sprint runs are used up.\n\nPremium unlocks unlimited Sprint mode.",
+      freeLimitReachedBody: "Your {limit} free Sprint runs are used.\n\nPremium unlocks unlimited Sprint.",
       freeLimitReachedCta: "Unlock Sprint",
       freeLimitReachedClose: "Not now",
 
@@ -242,7 +252,7 @@
 
       scoreLine: "{score} hits",
       personalBestLine: "Personal best: {best}",
-      bestStreakLine: "Best rally: {streak} in a row",
+      bestStreakLine: "Best rally: {streak}",
 
       newBest: "New personal best!",
 
@@ -261,22 +271,32 @@
       playAgain: "Play again",
       playAgainNearBest: "So close — one more",
       playAgainAfterBest: "Defend your record",
+      nextRunLabel: "Next run:",
+      nextRunBestGap: "+{gap} to beat your best",
+      nextRunHoldCleaner: "stay that clean",
+      nextRunHoldAccuracy: "keep that timing",
+      nextRunHoldStreak: "beat rally {target}",
+      nextRunFewerFaults: "1 fewer Kitchen fault",
+      nextRunAccuracy: "wait one beat longer",
+      nextRunStreak: "push rally {target}",
+      nextPowerLabel: "Discover next:",
+      nextPowerTemplate: "{power} at {score} hits",
 
       shareTitle: "Share"
     },
 
 
     firstRun: {
-      trustLine: "No ads. No tricks. Just you and the court.",
-      kitchenHint: "Kitchen ball near the net? Let it bounce, then hit.",
-      rule1: "Move into range around the court",
-      rule2: "Tap, click, or press Space to time your hit",
-      rule3: "Kitchen ball: bounce first, then hit"
+      trustLine: "No ads. No tricks. Just the court.",
+      kitchenHint: "Kitchen ball? Let it bounce, then hit.",
+      rule1: "Move into range",
+      rule2: "Tap, click, or press Space to hit",
+      rule3: "Serve and return must bounce first"
     },
 
 
     paywall: {
-      headline: "Own the court.",
+      headline: "Keep the rally going.",
 
       headlineLastFree: "That was your last free run.",
 
@@ -284,36 +304,36 @@
       trustTitle: "No surprises",
 
       valueBullets: [
-        "Unlimited runs — same rules, no cap",
-        "Sprint mode — 20 seconds of pure banger energy",
-        "Chase your personal best, run after run"
+        "Unlimited runs on this device",
+        "Sprint mode unlocked",
+        "Keep chasing your best"
       ],
 
       bridgeTitle: "Free runs are done.",
-      bridgeBody: "Unlock unlimited court time on this device.",
+      bridgeBody: "Unlock unlimited play on this device.",
 
       // Personal progress anchor (shown only if best > 0)
-      progressLineTemplate: "Your best: {best} hits. Keep climbing.",
+      progressLineTemplate: "Your best: {best} hits.",
 
-      trustLine: "One purchase. Lifetime access. No tricks.",
+      trustLine: "One purchase. No subscription.",
       trustBullets: [
-        "One-time payment, no subscription",
-        "No ads, ever — just you and the court",
-        "No signup or account needed",
+        "One-time payment",
+        "No ads, ever",
+        "No signup needed",
         "Secure checkout via Stripe"
       ],
 
       // EARLY-only conversion bump
-      savingsLineTemplate: "Save {saveAmount} today (early price).",
+      savingsLineTemplate: "Save {saveAmount} today.",
 
-      checkoutNote: "Secure checkout via Stripe.",
+      checkoutNote: "Secure one-time checkout via Stripe.",
 
-      ctaEarly: "Unlock at $4.99",
+      ctaEarly: "Unlock - $4.99",
       ctaStandard: "Unlock - $6.99",
       cta: "Unlock",
 
-      alreadyHaveCode: "Already have a code? Redeem it here.",
-      deviceNote: "Premium stays unlocked on this device. No account needed.",
+      alreadyHaveCode: "Have a code? Redeem it here.",
+      deviceNote: "Premium stays unlocked on this device.",
 
       earlyBadgeLabel: "Early bird",
       earlyLabel: "Early price",
@@ -322,7 +342,7 @@
       timerLabel: "Price increases in:",
 
       postEarlyLine1: "The early price has ended.",
-      postEarlyLine2: "{standardPrice} - One-time purchase. Yours forever.",
+      postEarlyLine2: "{standardPrice} - one-time purchase on this device.",
 
       ctaNotNow: "Not now"
     },
@@ -331,16 +351,16 @@
     howto: {
       title: "How to play",
       line1: "Balls drop onto the court.",
-      line2: "Tap to smash them before they bounce away.",
-      line3: "But if a ball lands in the Kitchen — wait for the bounce first.",
+      line2: "Serve and return must bounce once.",
+      line3: "Kitchen ball? Wait for the bounce.",
 
       ruleTitle: "The Kitchen rule",
-      ruleSentence: "The Kitchen is the non-volley zone near the net. No smashing before the bounce. Tap too early = fault = life lost.",
+      ruleSentence: "The Kitchen is the no-volley zone near the net. Hit too early and you lose a life.",
 
       premiumTitle: "Premium",
-      alreadyPremium: "Premium is already active on this device.",
+      alreadyPremium: "Premium is already active.",
       activateTitle: "Activate with a code",
-      activateLine1: "Already have a premium code? Activate it here.",
+      activateLine1: "Have a premium code? Activate it here.",
       activateLine2: "No account needed. Your code stays on this device.",
       activationCodeLabel: "Activation code",
       activationCodePlaceholder: "KR-XXXX-XXXX",
@@ -353,7 +373,7 @@
       redeemCta: "OK",
 
       autoActivateTitle: "Premium code ready",
-      autoActivateLine1: "Your premium code is already saved on this device.",
+      autoActivateLine1: "Your premium code is already saved.",
       autoActivateLine2: "Activate Premium now?",
       autoActivateCta: "Activate now",
       autoActivateLater: "Not now"
@@ -368,7 +388,7 @@
       templateDefault: "Kitchen Rush \u2014 {score} Smashes {hashtag}\nCan you beat that?\n{url}",
       templateFault: "Kitchen Rush \u2014 {score} Smashes {hashtag}\nThe Kitchen got me. Your turn.\n{url}",
       templateNewBest: "Kitchen Rush \u2014 NEW BEST: {score} Smashes {hashtag}\nCome get me.\n{url}",
-      templateSprint: "Kitchen Rush Rush \u2014 {score} in 20s {hashtag}\nPure speed. Beat that.\n{url}",
+      templateSprint: "Kitchen Rush Sprint \u2014 {score} in 20s {hashtag}\nPure speed. Beat that.\n{url}",
       templateDaily: "Kitchen Rush Daily ({date}) {modifier}\n{score} Smashes | Streak {streak} {hashtag}\nSame challenge for everyone. Can you beat {score}?\n{url}",
 
       // Hashtag (dynamic: #KitchenRush{score})
@@ -389,7 +409,7 @@
 
     installPrompt: {
       title: "Install Kitchen Rush",
-      body: "Play instantly. Read the bounce, protect your lives, and jump back in fast. On iPhone: Share > Add to Home Screen.",
+      body: "Play instantly and jump back in fast. On iPhone: Share > Add to Home Screen.",
       ctaPrimary: "Add to home screen",
       ctaSecondary: "Later"
     },
@@ -399,7 +419,7 @@
       eyebrow: "",
       title: "",
       bodyLine1: "Kitchen Rush is a standalone arcade game.",
-      bodyLine2: "We have other games.",
+      bodyLine2: "We make other games too.",
       ctaPrimary: "Try another game",
       ctaRemindLater: "Remind later",
 
@@ -412,11 +432,11 @@
 
 
     waitlist: {
-      ctaLabel: "Get notified about future products or features.",
-      disclaimer: "No spam. No account. You can leave anytime.",
-      title: "Get notified about future products or features.",
-      bodyLine1: "No spam. No account. Leave anytime.",
-      bodyLine2: "Optional: reply with one idea if you want.",
+      ctaLabel: "Get updates about future games or features.",
+      disclaimer: "No spam. No account.",
+      title: "Get updates about future games or features.",
+      bodyLine1: "No spam. No account.",
+      bodyLine2: "Optional: send one idea too.",
       inputPlaceholder: "Optional: share an idea.",
       cta: "Send email",
 
@@ -426,17 +446,17 @@
 
 
     statsSharing: {
-      sectionTitle: "Anonymous stats (optional)",
+      sectionTitle: "Anonymous stats",
       buttonLabel: "Share anonymous stats",
 
       promptTitle: "Help improve Kitchen Rush",
-      promptBodyTemplate: "You've completed {runCompletes} runs. Share anonymous stats to help improve the game. You can review everything before sending.",
-      promptBodyLastFree: "That was your last free run. Share anonymous stats to help improve the game. You can review everything before sending.",
+      promptBodyTemplate: "You've completed {runCompletes} runs. Share anonymous stats to help improve the game.",
+      promptBodyLastFree: "That was your last free run. Share anonymous stats to help improve the game.",
       promptCtaPrimary: "Preview & share",
       promptCtaSecondary: "Not now",
 
       modalTitle: "Help improve the game",
-      modalDescription: "Share your anonymous gameplay stats with the creator. No personal data is collected - you can see exactly what will be sent below.",
+      modalDescription: "Share anonymous gameplay stats with the creator. You can review everything below.",
       previewLabel: "Data to be shared:",
       ctaSend: "Send via email",
       ctaCancel: "Cancel",
@@ -451,7 +471,7 @@
     support: {
       modalTitle: "Write us",
       modalBodyLine1: "Email is the fastest way to reach us.",
-      modalBodyLine2: "Copy the address below or open your email app.",
+      modalBodyLine2: "Copy the address or open your email app.",
       emailSubjectSuffix: "Feedback",
       ctaCopy: "Copy email",
       ctaOpen: "Open email app",
@@ -476,10 +496,13 @@
       // One-shot moments
       kitchenMaster: "Kitchen master!",
       dailyObjectiveMet: "Daily objective complete!",
-      lastLife: "Last life — match point.",
+      lastLife: "Last life.",
       closeCall: "Close call!",
+      cleanerRun: "Cleaner than last run.",
+      betterAccuracy: "Better timing this run.",
+      betterStreak: "Best rally up.",
       tooEarly: "Too early!",
-      firstFaultExplain: "Yellow ball = wait for BOUNCE first!"
+      firstFaultExplain: "Yellow ball: wait for the bounce."
     },
 
 
@@ -492,15 +515,21 @@
     challenges: {
       // END screen challenges (priority order)
       newBestChallenge: "New record: {score}. Now defend {target}.",
-      cleanRun: "Zero Kitchen faults. Can you do it again?",
-      streakChallenge: "Best rally this run: {streak}. Can you hit {target}?",
+      fewerFaults: "{delta} fewer Kitchen faults. Cleaner run.",
+      improvedAccuracy: "Accuracy up {delta}%. Better timing.",
+      betterStreak: "Rally up by {delta}. You're reading it better.",
+      cleanRun: "Zero Kitchen faults. Do it again.",
+      streakChallenge: "Best rally: {streak}. Can you hit {target}?",
       faultHeavy: "{faults} Kitchen faults. Wait for the bounce.",
       lowAccuracy: "{accuracy}% accuracy. Patience wins rallies.",
       // Sprint
       sprintChallenge: "{score} in 20s. Go for {target}.",
       // LANDING challenges (returning player — based on previous run)
-      landingComeback: "Last run: {faults} Kitchen faults. Stay clean this time.",
-      landingStreakPush: "Your best rally was {streak}. Push it further.",
+      landingFewerFaults: "{delta} fewer faults last run. Keep that feel.",
+      landingImprovedAccuracy: "Accuracy was up {delta}%. Stay sharp.",
+      landingBetterStreak: "Best rally improved by {delta}. Push again.",
+      landingComeback: "Last run: {faults} Kitchen faults. Stay clean.",
+      landingStreakPush: "Your best rally was {streak}. Push it.",
       landingNearBest: "{gap} away last time. This could be the one."
     },
 
