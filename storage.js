@@ -127,7 +127,8 @@
       settings: {
         soundEnabled: true,
         hapticsEnabled: true,
-        houseAdHiddenUntil: 0
+        houseAdHiddenUntil: 0,
+        matchView: "broadcast"
       },
 
       // Counters
@@ -245,8 +246,8 @@
             this.data.counters.totalLifetimeSmashes = clampNonNegativeInt(oldData.counters.totalLifetimeSmashes);
           }
           if (oldData.flags && typeof oldData.flags === "object") {
-            if (oldData.flags.powerBallHintSolved === true || oldData.flags.sprintChestHintSolved === true) this.data.flags.powerBallHintSolved = true;
-            if (oldData.flags.powerBallWelcomeShown === true || oldData.flags.sprintChestWelcomeShown === true) this.data.flags.powerBallWelcomeShown = true;
+            if (oldData.flags.powerBallHintSolved === true) this.data.flags.powerBallHintSolved = true;
+            if (oldData.flags.powerBallWelcomeShown === true) this.data.flags.powerBallWelcomeShown = true;
             if (oldData.flags.firstRunFramingSeen === true) this.data.flags.firstRunFramingSeen = true;
           }
         } catch (_) { /* migration failed — fresh data is still valid */ }
@@ -275,29 +276,25 @@
     if (!this.data.analytics) this.data.analytics = deepCopy(this.defaultData.analytics);
     if (!this.data.codes) this.data.codes = deepCopy(this.defaultData.codes);
 
-    // Harden flags (migrate from legacy separate localStorage keys)
+    // Harden flags
     if (!this.data.flags || typeof this.data.flags !== "object") {
       this.data.flags = deepCopy(this.defaultData.flags);
     }
     var fl = this.data.flags;
-    if (typeof fl.powerBallHintSolved !== "boolean") fl.powerBallHintSolved = !!fl.sprintChestHintSolved;
-    if (typeof fl.powerBallWelcomeShown !== "boolean") fl.powerBallWelcomeShown = !!fl.sprintChestWelcomeShown;
-    delete fl.sprintChestHintSolved;
-    delete fl.sprintChestWelcomeShown;
+    if (typeof fl.powerBallHintSolved !== "boolean") fl.powerBallHintSolved = false;
+    if (typeof fl.powerBallWelcomeShown !== "boolean") fl.powerBallWelcomeShown = false;
     if (typeof fl.firstRunFramingSeen !== "boolean") fl.firstRunFramingSeen = false;
 
-    // One-time migration: read legacy localStorage keys and absorb them
+    // One-time normalization: absorb standalone localStorage flags
     var storageKey = String(cfg?.storage?.storageKey || "").trim();
     if (storageKey) {
       try {
-        if (!fl.powerBallHintSolved && (localStorage.getItem(storageKey + ":powerBallHintSolved") === "true" || localStorage.getItem(storageKey + ":sprintChestHintSolved") === "true")) fl.powerBallHintSolved = true;
-        if (!fl.powerBallWelcomeShown && (localStorage.getItem(storageKey + ":powerBallWelcomeShown") === "true" || localStorage.getItem(storageKey + ":sprintChestWelcomeShown") === "true")) fl.powerBallWelcomeShown = true;
+        if (!fl.powerBallHintSolved && localStorage.getItem(storageKey + ":powerBallHintSolved") === "true") fl.powerBallHintSolved = true;
+        if (!fl.powerBallWelcomeShown && localStorage.getItem(storageKey + ":powerBallWelcomeShown") === "true") fl.powerBallWelcomeShown = true;
         if (!fl.firstRunFramingSeen && localStorage.getItem(storageKey + ":firstRunFramingSeen") === "true") fl.firstRunFramingSeen = true;
-        // Clean up legacy keys
+        // Clean up absorbed keys
         localStorage.removeItem(storageKey + ":powerBallHintSolved");
         localStorage.removeItem(storageKey + ":powerBallWelcomeShown");
-        localStorage.removeItem(storageKey + ":sprintChestHintSolved");
-        localStorage.removeItem(storageKey + ":sprintChestWelcomeShown");
         localStorage.removeItem(storageKey + ":firstRunFramingSeen");
       } catch (_) { /* fail-closed */ }
     }
@@ -348,6 +345,7 @@
     if (typeof st.soundEnabled !== "boolean") st.soundEnabled = true;
     if (typeof st.hapticsEnabled !== "boolean") st.hapticsEnabled = true;
     if (!Number.isFinite(st.houseAdHiddenUntil)) st.houseAdHiddenUntil = 0;
+    if (st.matchView !== "broadcast" && st.matchView !== "player") st.matchView = "broadcast";
 
     // Harden counters
     const c = this.data.counters;
@@ -564,6 +562,20 @@
   StorageManager.prototype.getHapticsEnabled = function () {
     const v = this.data?.settings?.hapticsEnabled;
     return (v === false) ? false : true; // default true
+  };
+
+  StorageManager.prototype.setMatchView = function (view) {
+    if (!this.data) return;
+    if (!this.data.settings) this.data.settings = deepCopy(this.defaultData.settings);
+    var next = String(view || "").trim();
+    if (next !== "broadcast" && next !== "player") return;
+    this.data.settings.matchView = next;
+    this._save();
+  };
+
+  StorageManager.prototype.getMatchView = function () {
+    var v = String(this.data?.settings?.matchView || "").trim();
+    return (v === "player") ? "player" : "broadcast";
   };
 
   // ============================================

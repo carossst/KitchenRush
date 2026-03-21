@@ -47,23 +47,6 @@
       this._save();
     };
 
-    // Backward-compatible aliases during rename rollout.
-    StorageManager.prototype.hasSprintChestHintSolved = function () {
-      return this.hasPowerBallHintSolved();
-    };
-
-    StorageManager.prototype.markSprintChestHintSolved = function () {
-      this.markPowerBallHintSolved();
-    };
-
-    StorageManager.prototype.hasSprintChestWelcomeShown = function () {
-      return this.hasPowerBallWelcomeShown();
-    };
-
-    StorageManager.prototype.markSprintChestWelcomeShown = function () {
-      this.markPowerBallWelcomeShown();
-    };
-
     StorageManager.prototype.hasFirstRunFramingSeen = function () {
       return !!(this.data && this.data.flags && this.data.flags.firstRunFramingSeen);
     };

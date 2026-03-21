@@ -193,6 +193,9 @@
       startOverlayKitchenHint: "Kitchen ball: bounce first",
       startOverlayPowerHint: "Longer runs unlock power balls and boosts.",
       startOverlayTapToStart: "Tap to start",
+      matchViewToggleTemplate: "View: {view}",
+      matchViewBroadcast: "Broadcast",
+      matchViewPlayer: "Player",
       dailyObjectiveMet: "Daily objective complete!",
 
       // Start-of-run overlay (economy)

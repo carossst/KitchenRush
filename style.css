@@ -657,6 +657,11 @@ a:focus-visible {
   align-items: center;
 }
 
+.kr-hud-row--meta {
+  justify-content: flex-end;
+  margin-top: var(--gap-1);
+}
+
 .kr-hud-lives {
   display: flex;
   gap: var(--space-4);
@@ -691,6 +696,25 @@ a:focus-visible {
   font-size: var(--fs-lg);
   font-weight: 700;
   color: rgb(var(--text-strong));
+}
+
+.kr-hud-toggle {
+  appearance: none;
+  pointer-events: auto;
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--surface) / var(--kr-a-85));
+  color: rgb(var(--text-strong));
+  border-radius: var(--r-pill);
+  padding: var(--space-4) var(--gap-2);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: var(--shadow-1);
+}
+
+.kr-hud-toggle:focus-visible {
+  outline: 2px solid rgb(var(--primary));
+  outline-offset: 2px;
 }
 
 

@@ -182,6 +182,7 @@ void function () {
       runMode: MODES.RUN,           // MODES.RUN | MODES.SPRINT
       runType: "",              // "FREE" | "LAST_FREE" | "UNLIMITED" | ""
       finishingRun: false,
+      matchView: "",
 
       // microFeedback (arcade: smash streaks, kitchen master, close call, last life)
       microFeedback: {
@@ -352,6 +353,7 @@ void function () {
       case "play":              this._handlePlay("classic"); break;
       case "play-again":        this._handlePlay("classic"); break;
       case "play-daily":        this._handlePlay("daily"); break;
+      case "toggle-match-view": this._toggleMatchView(); break;
       case "sprint-again":      this._handlePowerRunAgain(); break;
       case "back-to-runs":      this.setState(STATES.LANDING); break;
       case "show-paywall":      this.setState(STATES.PAYWALL); break;
@@ -382,8 +384,37 @@ void function () {
   // Init / Storage hooks
   // ============================================
   UI.prototype.init = function () {
+    this._runtime.matchView = this._getMatchView();
     this._store("markLandingViewed");
     this.render();
+  };
+
+  UI.prototype._getMatchView = function () {
+    var defaultView = String(this.config?.canvas?.views?.defaultView || "").trim();
+    if (defaultView !== "broadcast" && defaultView !== "player") {
+      throw new Error("KR_UI: KR_CONFIG.canvas.views.defaultView invalid");
+    }
+    var stored = "";
+    try { stored = String(this._store("getMatchView") || "").trim(); } catch (_) { }
+    var resolved = (stored === "player" || stored === "broadcast") ? stored : defaultView;
+    if (this._runtime) this._runtime.matchView = resolved;
+    return resolved;
+  };
+
+  UI.prototype._setMatchView = function (view) {
+    var next = String(view || "").trim();
+    if (next !== "broadcast" && next !== "player") return;
+    if (this._runtime) this._runtime.matchView = next;
+    try { this._store("setMatchView", next); } catch (_) { }
+  };
+
+  UI.prototype._toggleMatchView = function () {
+    var current = this._getMatchView();
+    var next = (current === "player") ? "broadcast" : "player";
+    this._setMatchView(next);
+    if (this.state === STATES.PLAYING) {
+      this._renderHUDV2(this.game.getState());
+    }
   };
 
   UI.prototype.onStorageUpdated = function () {
@@ -681,15 +712,6 @@ void function () {
     this._startGameplay(MODES.SPRINT, MODES.SPRINT);
   };
 
-  // Backward-compatible alias during product rename rollout.
-  UI.prototype._handleSprintAgain = function () {
-    this._handlePowerRunAgain();
-  };
-
-  UI.prototype.startSprintRun = function () {
-    this.startPowerRun();
-  };
-
   UI.prototype._startGameplay = function (mode, runType) {
     // Fail-closed: if no DOM → 0 dimensions → game.start must handle gracefully
     var appW = this.appEl ? this.appEl.clientWidth : 0;
@@ -873,12 +895,18 @@ void function () {
     var worldOpponentYpx = court.opponentY * h;
     var playerHalfDepthPx = Math.max(1, worldBaselineYpx - worldNetYpx);
     var kitchenDepthPx = Math.max(1, worldKitchenLineYpx - worldNetYpx);
-    var oppScale = requiredConfigNumber(this.config?.canvas?.opponentCourtScale, "canvas.opponentCourtScale", { min: 0.1, max: 1 });
-    var cameraPerspectivePower = requiredConfigNumber(this.config?.canvas?.cameraPerspectivePower, "canvas.cameraPerspectivePower", { min: 1, max: 3 });
+    var activeView = this._getMatchView();
+    var viewCfg = this.config?.canvas?.views?.[activeView];
+    if (!viewCfg || typeof viewCfg !== "object") throw new Error("canvas.views." + activeView + " missing");
+    var oppScale = requiredConfigNumber(viewCfg.opponentCourtScale, "canvas.views." + activeView + ".opponentCourtScale", { min: 0.1, max: 1 });
+    var cameraPerspectivePower = requiredConfigNumber(viewCfg.cameraPerspectivePower, "canvas.views." + activeView + ".cameraPerspectivePower", { min: 1, max: 3 });
     var sidelineInsetFrac = requiredConfigNumber(this.config?.canvas?.sidelineInsetFrac, "canvas.sidelineInsetFrac", { min: 0.01, max: 0.3 });
-    var nearSidelineInsetFrac = requiredConfigNumber(this.config?.canvas?.nearSidelineInsetFrac, "canvas.nearSidelineInsetFrac", { min: 0.01, max: 0.3 });
-    var netSidelineInsetFrac = requiredConfigNumber(this.config?.canvas?.netSidelineInsetFrac, "canvas.netSidelineInsetFrac", { min: 0.05, max: 0.4 });
-    var farSidelineInsetFrac = requiredConfigNumber(this.config?.canvas?.farSidelineInsetFrac, "canvas.farSidelineInsetFrac", { min: 0.1, max: 0.45 });
+    var nearSidelineInsetFrac = requiredConfigNumber(viewCfg.nearSidelineInsetFrac, "canvas.views." + activeView + ".nearSidelineInsetFrac", { min: 0.01, max: 0.3 });
+    var netSidelineInsetFrac = requiredConfigNumber(viewCfg.netSidelineInsetFrac, "canvas.views." + activeView + ".netSidelineInsetFrac", { min: 0.05, max: 0.4 });
+    var farSidelineInsetFrac = requiredConfigNumber(viewCfg.farSidelineInsetFrac, "canvas.views." + activeView + ".farSidelineInsetFrac", { min: 0.1, max: 0.45 });
+    var farCourtAlpha = requiredConfigNumber(viewCfg.farCourtAlpha, "canvas.views." + activeView + ".farCourtAlpha", { min: 0.1, max: 1 });
+    var opponentKitchenAlpha = requiredConfigNumber(viewCfg.opponentKitchenAlpha, "canvas.views." + activeView + ".opponentKitchenAlpha", { min: 0.1, max: 1 });
+    var serviceBoxFarAlpha = requiredConfigNumber(viewCfg.serviceBoxFarAlpha, "canvas.views." + activeView + ".serviceBoxFarAlpha", { min: 0.1, max: 1 });
     var netCenterSagPx = requiredConfigNumber(this.config?.canvas?.netCenterSagPx, "canvas.netCenterSagPx", { min: 0, integer: true });
     var netPostHeightPx = requiredConfigNumber(this.config?.canvas?.netPostHeightPx, "canvas.netPostHeightPx", { min: 1, integer: true });
     var kitchenLineWidth = requiredConfigNumber(this.config?.canvas?.kitchenLineWidth, "canvas.kitchenLineWidth", { min: 1, max: 12 });
@@ -994,15 +1022,16 @@ void function () {
     if (shakeX || shakeY) ctx.translate(shakeX, shakeY);
 
     // Court background
-    ctx.fillStyle = colors.courtFarBg;
+    ctx.fillStyle = colors.courtBg;
     ctx.fillRect(0, 0, w, h);
+    drawQuad(worldOppBaselineYpx, worldNetYpx, colors.courtFarBg, farCourtAlpha);
     drawQuad(worldNetYpx, worldBaselineYpx, colors.courtNearBg, 1);
 
     // Player kitchen zone
     drawQuad(worldNetYpx, worldKitchenLineYpx, colors.kitchenBg, 1);
 
     // Opponent kitchen zone (compressed but symmetric for a frontal read)
-    drawQuad(worldOppKitchenLineYpx, worldNetYpx, colors.opponentKitchenBg, 1);
+    drawQuad(worldOppKitchenLineYpx, worldNetYpx, colors.opponentKitchenBg, opponentKitchenAlpha);
 
     // Service boxes: very light tint to reinforce the frontal court layout.
     if (colors.serviceBoxTint) {
@@ -1028,7 +1057,7 @@ void function () {
       ctx.closePath();
       ctx.fill();
       ctx.save();
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = serviceBoxFarAlpha;
       ctx.fillStyle = colors.serviceBoxTintFar;
       var oppKitchenEdges = edgesAtWorldY(worldOppKitchenLineYpx);
       var oppBaselineEdges = edgesAtWorldY(worldOppBaselineYpx);
@@ -1157,10 +1186,10 @@ void function () {
       }
       var ballHeightPx = Math.max(0, groundY - (ball.y || groundY));
       var ballDepthRatioNear = depthRatioAtY(groundY);
-      var ballDepthScaleNear = requiredConfigNumber(this.config?.canvas?.ballDepthScaleNear, "canvas.ballDepthScaleNear", { min: 0.2, max: 2 });
-      var ballDepthScaleFar = requiredConfigNumber(this.config?.canvas?.ballDepthScaleFar, "canvas.ballDepthScaleFar", { min: 0.2, max: 2 });
-      var ballHeightScaleNear = requiredConfigNumber(this.config?.canvas?.ballHeightScaleNear, "canvas.ballHeightScaleNear", { min: 0.1, max: 2 });
-      var ballHeightScaleFar = requiredConfigNumber(this.config?.canvas?.ballHeightScaleFar, "canvas.ballHeightScaleFar", { min: 0.1, max: 2 });
+      var ballDepthScaleNear = requiredConfigNumber(viewCfg.ballDepthScaleNear, "canvas.views." + activeView + ".ballDepthScaleNear", { min: 0.2, max: 2 });
+      var ballDepthScaleFar = requiredConfigNumber(viewCfg.ballDepthScaleFar, "canvas.views." + activeView + ".ballDepthScaleFar", { min: 0.2, max: 2 });
+      var ballHeightScaleNear = requiredConfigNumber(viewCfg.ballHeightScaleNear, "canvas.views." + activeView + ".ballHeightScaleNear", { min: 0.1, max: 2 });
+      var ballHeightScaleFar = requiredConfigNumber(viewCfg.ballHeightScaleFar, "canvas.views." + activeView + ".ballHeightScaleFar", { min: 0.1, max: 2 });
       var ballScreenScale = lerpNum(ballDepthScaleFar, ballDepthScaleNear, ballDepthRatioNear);
       var heightScreenScale = lerpNum(ballHeightScaleFar, ballHeightScaleNear, ballDepthRatioNear);
       var screenGroundY = projectCourtY(groundY);
@@ -1250,7 +1279,7 @@ void function () {
     var playerX = projectX(state.playerX, state.playerY);
     var playerYState = state.playerY;
     var pState = state.playerState || "idle";
-    this._renderPlayerV2(ctx, playerX, playerYpx, pState, colors, w, h, n, court, playerYState);
+    this._renderPlayerV2(ctx, playerX, playerYpx, pState, colors, w, h, n, court, playerYState, renderBall);
 
     // V3 Controls zone: left half = MOVE, right half = HIT (timing bonus)
     ctx.fillStyle = colors.controlZoneBg;
@@ -1912,7 +1941,7 @@ void function () {
   // ============================================
   // V2: Player renderer — sport moderne fluid silhouette
   // ============================================
-  UI.prototype._renderPlayerV2 = function (ctx, x, y, pState, colors, w, h, n, court, worldY) {
+  UI.prototype._renderPlayerV2 = function (ctx, x, y, pState, colors, w, h, n, court, worldY, ball) {
     var pColor = colors.playerColor;
     var pOutline = colors.playerOutline;
     var pGlow = colors.playerGlow;
@@ -1920,6 +1949,10 @@ void function () {
     var actorIdleBreathePx = requiredConfigNumber(this.config?.canvas?.actorIdleBreathePx, "canvas.actorIdleBreathePx", { min: 0, max: 12 });
     var playerRunLeanPx = requiredConfigNumber(this.config?.canvas?.playerRunLeanPx, "canvas.playerRunLeanPx", { min: 0, max: 20 });
     var playerSwingArcScale = requiredConfigNumber(this.config?.canvas?.playerSwingArcScale, "canvas.playerSwingArcScale", { min: 0.5, max: 3 });
+    var playerPaddleWidthPx = requiredConfigNumber(this.config?.canvas?.playerPaddleWidthPx, "canvas.playerPaddleWidthPx", { min: 1, max: 32 });
+    var playerPaddleHeightPx = requiredConfigNumber(this.config?.canvas?.playerPaddleHeightPx, "canvas.playerPaddleHeightPx", { min: 1, max: 48 });
+    var playerPaddleCornerPx = requiredConfigNumber(this.config?.canvas?.playerPaddleCornerPx, "canvas.playerPaddleCornerPx", { min: 0, max: 12 });
+    var playerPaddleReachPx = requiredConfigNumber(this.config?.canvas?.playerPaddleReachPx, "canvas.playerPaddleReachPx", { min: 1, max: 40 });
 
     // Scale relative to screen + depth in the frontal court view.
     var depthScaleNear = requiredConfigNumber(this.config?.canvas?.playerDepthScaleNear, "canvas.playerDepthScaleNear", { min: 0.5, max: 2 });
@@ -1940,6 +1973,8 @@ void function () {
     var isRunning = (pState === "runLeft" || pState === "runRight");
     var isSwinging = (pState === "swing");
     var readySet = isRunning ? 0 : 1;
+    var swingSide = 1;
+    if (isSwinging && ball && Number.isFinite(ball.x) && ball.x < x) swingSide = -1;
 
     // Lean when running
     var lean = 0;
@@ -2016,7 +2051,7 @@ void function () {
     ctx.fill();
 
     // ── Paddle arm ──
-    var armBaseX = S(8);
+    var armBaseX = S(8 * swingSide);
     var armBaseY = S(-8);
     var paddleAngle = isSwinging ? (-0.95 + Math.sin(n / 50) * 0.45)
       : isRunning ? (pState === "runLeft" ? 0.3 : -0.3)
@@ -2024,6 +2059,7 @@ void function () {
 
     ctx.save();
     ctx.translate(armBaseX, armBaseY);
+    if (swingSide < 0) ctx.scale(-1, 1);
     ctx.rotate(paddleAngle);
 
     // Upper arm
@@ -2037,7 +2073,11 @@ void function () {
 
     // Paddle (rounded rectangle)
     ctx.fillStyle = pOutline;
-    var px = S(13); var py = S(-6); var pw = S(5); var pph = S(14); var pr = S(2);
+    var px = S(playerPaddleReachPx - (playerPaddleWidthPx * 0.4));
+    var py = S(-(playerPaddleHeightPx * 0.45));
+    var pw = S(playerPaddleWidthPx);
+    var pph = S(playerPaddleHeightPx);
+    var pr = S(playerPaddleCornerPx);
     ctx.beginPath();
     ctx.moveTo(px + pr, py);
     ctx.lineTo(px + pw - pr, py);
@@ -2051,7 +2091,7 @@ void function () {
     ctx.fill();
 
     // Paddle edge highlight
-    ctx.strokeStyle = rgbaFromTuple(colors.whiteRgb, 0.3);
+    ctx.strokeStyle = rgbaFromTuple(colors.whiteRgb, 0.32);
     ctx.lineWidth = S(0.8);
     ctx.stroke();
 
@@ -2090,9 +2130,12 @@ void function () {
       ctx.lineWidth = S(2);
       var swingPhase = (n % 300) / 300;
       ctx.globalAlpha = 0.5 * (1 - swingPhase);
+      ctx.save();
+      if (swingSide < 0) ctx.scale(-1, 1);
       ctx.beginPath();
       ctx.arc(S(18), S(-6), (S(10) + swingPhase * S(15)) * playerSwingArcScale, -0.62, 0.95);
       ctx.stroke();
+      ctx.restore();
       ctx.globalAlpha = 1;
     }
 
@@ -2111,7 +2154,13 @@ void function () {
     var actorIdleBreathePx = requiredConfigNumber(this.config?.canvas?.actorIdleBreathePx, "canvas.actorIdleBreathePx", { min: 0, max: 12 });
     var opponentReadyOffsetPx = requiredConfigNumber(this.config?.canvas?.opponentReadyOffsetPx, "canvas.opponentReadyOffsetPx", { min: 0, max: 12 });
     var opponentSwingArcScale = requiredConfigNumber(this.config?.canvas?.opponentSwingArcScale, "canvas.opponentSwingArcScale", { min: 0.5, max: 3 });
+    var opponentPaddleWidthPx = requiredConfigNumber(this.config?.canvas?.opponentPaddleWidthPx, "canvas.opponentPaddleWidthPx", { min: 1, max: 32 });
+    var opponentPaddleHeightPx = requiredConfigNumber(this.config?.canvas?.opponentPaddleHeightPx, "canvas.opponentPaddleHeightPx", { min: 1, max: 48 });
+    var opponentPaddleCornerPx = requiredConfigNumber(this.config?.canvas?.opponentPaddleCornerPx, "canvas.opponentPaddleCornerPx", { min: 0, max: 12 });
+    var opponentPaddleReachPx = requiredConfigNumber(this.config?.canvas?.opponentPaddleReachPx, "canvas.opponentPaddleReachPx", { min: 1, max: 40 });
     var breathe = Math.sin((n / 1000) * 2) * actorIdleBreathePx;
+    var racketSide = 1;
+    if (ball && Number.isFinite(ball.x) && ball.x < x) racketSide = -1;
 
     ctx.save();
     ctx.translate(x, y + S(opponentReadyOffsetPx) - S(isSwinging ? 0 : 0.6));
@@ -2153,12 +2202,15 @@ void function () {
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(S(-5), S(-5));
-    ctx.lineTo(S(-9), S(1));
-    ctx.moveTo(S(5), S(-5));
-    ctx.lineTo(armReach, S(-6));
+    ctx.moveTo(S(5 * -racketSide), S(-5));
+    ctx.lineTo(S(9 * -racketSide), S(1));
+    ctx.moveTo(S(5 * racketSide), S(-5));
+    ctx.lineTo(armReach * racketSide, S(-6));
     ctx.stroke();
 
+    ctx.save();
+    ctx.translate(0, 0);
+    if (racketSide < 0) ctx.scale(-1, 1);
     ctx.strokeStyle = colors.opponentRacket;
     ctx.beginPath();
     ctx.moveTo(armReach, S(-6));
@@ -2166,26 +2218,43 @@ void function () {
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.ellipse(racketReach + S(2), S(-12), S(4.5), S(5.5), 0.35, 0, Math.PI * 2);
+    var oppPadX = racketReach + S(1.2);
+    var oppPadY = S(-(opponentPaddleHeightPx * 0.52));
+    var oppPadW = S(opponentPaddleWidthPx);
+    var oppPadH = S(opponentPaddleHeightPx);
+    var oppPadR = S(opponentPaddleCornerPx);
+    ctx.moveTo(oppPadX + oppPadR, oppPadY);
+    ctx.lineTo(oppPadX + oppPadW - oppPadR, oppPadY);
+    ctx.quadraticCurveTo(oppPadX + oppPadW, oppPadY, oppPadX + oppPadW, oppPadY + oppPadR);
+    ctx.lineTo(oppPadX + oppPadW, oppPadY + oppPadH - oppPadR);
+    ctx.quadraticCurveTo(oppPadX + oppPadW, oppPadY + oppPadH, oppPadX + oppPadW - oppPadR, oppPadY + oppPadH);
+    ctx.lineTo(oppPadX + oppPadR, oppPadY + oppPadH);
+    ctx.quadraticCurveTo(oppPadX, oppPadY + oppPadH, oppPadX, oppPadY + oppPadH - oppPadR);
+    ctx.lineTo(oppPadX, oppPadY + oppPadR);
+    ctx.quadraticCurveTo(oppPadX, oppPadY, oppPadX + oppPadR, oppPadY);
     ctx.stroke();
+    ctx.restore();
 
     if (isSwinging) {
       ctx.strokeStyle = rgbaFromTuple(colors.whiteRgb, 0.18);
       ctx.lineWidth = S(1.2);
+      ctx.save();
+      if (racketSide < 0) ctx.scale(-1, 1);
       ctx.beginPath();
       ctx.arc(S(10), S(-8), (S(10) + Math.max(0, swingBeat) * S(6)) * opponentSwingArcScale, -0.9, 0.5);
       ctx.stroke();
+      ctx.restore();
       if (ball && ball.state === "TRAVELING") {
         ctx.strokeStyle = rgbaFromTuple(colors.whiteRgb, 0.22);
         ctx.lineWidth = S(1);
         ctx.beginPath();
-        ctx.moveTo(racketReach + S(2), S(-12));
+        ctx.moveTo((racketReach + S(2)) * racketSide, S(-12));
         ctx.lineTo(ball.x - x, ball.y - y);
         ctx.stroke();
 
         ctx.fillStyle = rgbaFromTuple(colors.whiteRgb, 0.22);
         ctx.beginPath();
-        ctx.arc(racketReach + S(2), S(-12), S(2.2 + Math.max(0, swingBeat)), 0, Math.PI * 2);
+        ctx.arc((racketReach + S(2)) * racketSide, S(-12), S(2.2 + Math.max(0, swingBeat)), 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -2200,6 +2269,19 @@ void function () {
   UI.prototype._renderHUDV2 = function (state) {
     var hudEl = el("kr-hud");
     if (!hudEl) return;
+    var uiWording = (this.wording && this.wording.ui) ? this.wording.ui : {};
+    var currentView = this._getMatchView();
+    var currentViewLabel = currentView === "player"
+      ? String(uiWording.matchViewPlayer || "").trim()
+      : String(uiWording.matchViewBroadcast || "").trim();
+    var viewToggleText = txt(uiWording.matchViewToggleTemplate, { view: currentViewLabel });
+    var viewToggleHtml = "";
+    if (viewToggleText) {
+      viewToggleHtml =
+        '<div class="kr-hud-row kr-hud-row--meta">' +
+          '<button type="button" class="kr-hud-toggle" data-action="toggle-match-view">' + escapeHtml(viewToggleText) + '</button>' +
+        '</div>';
+    }
 
     if (state.mode === MODES.RUN) {
       var livesHtml = "";
@@ -2212,7 +2294,7 @@ void function () {
         '<div class="kr-hud-row">' +
           '<div class="kr-hud-lives">' + livesHtml + '</div>' +
           '<div class="kr-hud-score">' + state.smashes + '</div>' +
-        '</div>';
+        '</div>' + viewToggleHtml;
     } else if (state.mode === MODES.SPRINT) {
       var remaining = Math.max(0, Math.ceil((state.sprintRemainingMs || 0) / 1000));
       var timerLabel = fillTemplate(this.wording?.sprint?.timerLabel || "", { remaining: remaining });
@@ -2220,7 +2302,7 @@ void function () {
         '<div class="kr-hud-row">' +
           '<div class="kr-hud-timer">' + escapeHtml(timerLabel) + '</div>' +
           '<div class="kr-hud-score">' + state.smashes + '</div>' +
-        '</div>';
+        '</div>' + viewToggleHtml;
     }
   };
 
@@ -3014,10 +3096,6 @@ void function () {
     return false;
   };
 
-  // Backward-compatible alias for older callers.
-  UI.prototype._canShowChest = function (screen) {
-    return this._canShowPowerBall(screen);
-  };
 
 
   // ============================================

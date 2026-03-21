@@ -359,6 +359,8 @@ it is not yet product-complete.
 - Mobile first.
 - Vanilla JavaScript architecture stays.
 - Fail closed.
+- Before launch, prefer clean renames over legacy aliases.
+- Do not keep compatibility layers for unreleased naming changes.
 - No silent hardcoded copy fallback.
 - All user-facing copy lives in `wording.js`.
 - All tunable values live in `config.js`.
@@ -375,7 +377,7 @@ it is not yet product-complete.
   - rendering tunables
   - thresholds
   - ball personalities
-  - future power-up tunables and progression rules
+  - live power-up tunables and progression rules
   - growth and nudge rules
 - `wording.js`
   - all visible copy

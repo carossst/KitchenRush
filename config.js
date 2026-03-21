@@ -70,7 +70,7 @@
   window.KR_CONFIG = {
 
     // Product version (UI display, logs, SW cache key)
-    version: "2",
+    version: "3",
 
     // Storage schema version (localStorage).
     // Change ONLY if you accept a migration/wipe.
@@ -422,7 +422,7 @@
       minLandingYFrac: 0.30,
 
       // Ball
-      ballRadius: 18,
+      ballRadius: 15,
 
       // Frontal court rendering
       opponentCourtScale: 0.62,
@@ -466,6 +466,37 @@
       ballHeightScaleFar: 0.6,
       playerDepthScaleNear: 0.88,
       playerDepthScaleFar: 1.06,
+      views: {
+        defaultView: "broadcast",
+        broadcast: {
+          opponentCourtScale: 0.62,
+          cameraPerspectivePower: 1.75,
+          nearSidelineInsetFrac: 0.05,
+          netSidelineInsetFrac: 0.15,
+          farSidelineInsetFrac: 0.24,
+          farCourtAlpha: 0.96,
+          opponentKitchenAlpha: 0.95,
+          serviceBoxFarAlpha: 0.95,
+          ballDepthScaleNear: 1.02,
+          ballDepthScaleFar: 0.64,
+          ballHeightScaleNear: 0.82,
+          ballHeightScaleFar: 0.56
+        },
+        player: {
+          opponentCourtScale: 0.52,
+          cameraPerspectivePower: 2.2,
+          nearSidelineInsetFrac: 0.035,
+          netSidelineInsetFrac: 0.18,
+          farSidelineInsetFrac: 0.32,
+          farCourtAlpha: 0.76,
+          opponentKitchenAlpha: 0.66,
+          serviceBoxFarAlpha: 0.62,
+          ballDepthScaleNear: 0.98,
+          ballDepthScaleFar: 0.54,
+          ballHeightScaleNear: 0.88,
+          ballHeightScaleFar: 0.46
+        }
+      },
       playerOutlineWidth: 1.5,
       opponentOutlineWidth: 1.8,
       actorIdleBreathePx: 0.8,
@@ -473,6 +504,14 @@
       playerSwingArcScale: 1.15,
       opponentReadyOffsetPx: 1.8,
       opponentSwingArcScale: 1.1,
+      playerPaddleWidthPx: 6,
+      playerPaddleHeightPx: 18,
+      playerPaddleCornerPx: 2,
+      playerPaddleReachPx: 15,
+      opponentPaddleWidthPx: 5,
+      opponentPaddleHeightPx: 15,
+      opponentPaddleCornerPx: 2,
+      opponentPaddleReachPx: 12,
       impactDustCount: 4,
       trajectoryTrailSegments: 3,
       trajectoryTrailAlpha: 0.16,

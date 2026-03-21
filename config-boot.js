@@ -284,6 +284,26 @@
       reqNum(canvas.ballHeightScaleFar, "KR_CONFIG.canvas.ballHeightScaleFar", { min: 0.1, max: 2 });
       reqNum(canvas.playerDepthScaleNear, "KR_CONFIG.canvas.playerDepthScaleNear", { min: 0.5, max: 2 });
       reqNum(canvas.playerDepthScaleFar, "KR_CONFIG.canvas.playerDepthScaleFar", { min: 0.5, max: 2 });
+      if (canvas.views != null) {
+        const views = reqObj(canvas.views, "KR_CONFIG.canvas.views");
+        const defaultView = reqStr(views.defaultView, "KR_CONFIG.canvas.views.defaultView");
+        ["broadcast", "player"].forEach((key) => {
+          const view = reqObj(views[key], "KR_CONFIG.canvas.views." + key);
+          reqNum(view.opponentCourtScale, "KR_CONFIG.canvas.views." + key + ".opponentCourtScale", { min: 0.1, max: 1 });
+          reqNum(view.cameraPerspectivePower, "KR_CONFIG.canvas.views." + key + ".cameraPerspectivePower", { min: 1, max: 3 });
+          reqNum(view.nearSidelineInsetFrac, "KR_CONFIG.canvas.views." + key + ".nearSidelineInsetFrac", { min: 0.01, max: 0.3 });
+          reqNum(view.netSidelineInsetFrac, "KR_CONFIG.canvas.views." + key + ".netSidelineInsetFrac", { min: 0.05, max: 0.4 });
+          reqNum(view.farSidelineInsetFrac, "KR_CONFIG.canvas.views." + key + ".farSidelineInsetFrac", { min: 0.1, max: 0.45 });
+          reqNum(view.farCourtAlpha, "KR_CONFIG.canvas.views." + key + ".farCourtAlpha", { min: 0.1, max: 1 });
+          reqNum(view.opponentKitchenAlpha, "KR_CONFIG.canvas.views." + key + ".opponentKitchenAlpha", { min: 0.1, max: 1 });
+          reqNum(view.serviceBoxFarAlpha, "KR_CONFIG.canvas.views." + key + ".serviceBoxFarAlpha", { min: 0.1, max: 1 });
+          reqNum(view.ballDepthScaleNear, "KR_CONFIG.canvas.views." + key + ".ballDepthScaleNear", { min: 0.2, max: 2 });
+          reqNum(view.ballDepthScaleFar, "KR_CONFIG.canvas.views." + key + ".ballDepthScaleFar", { min: 0.2, max: 2 });
+          reqNum(view.ballHeightScaleNear, "KR_CONFIG.canvas.views." + key + ".ballHeightScaleNear", { min: 0.1, max: 2 });
+          reqNum(view.ballHeightScaleFar, "KR_CONFIG.canvas.views." + key + ".ballHeightScaleFar", { min: 0.1, max: 2 });
+        });
+        if (defaultView !== "broadcast" && defaultView !== "player") fail("KR_CONFIG.canvas.views.defaultView invalid");
+      }
       reqNum(canvas.playerOutlineWidth, "KR_CONFIG.canvas.playerOutlineWidth", { min: 0.5, max: 8 });
       reqNum(canvas.opponentOutlineWidth, "KR_CONFIG.canvas.opponentOutlineWidth", { min: 0.5, max: 8 });
       reqNum(canvas.actorIdleBreathePx, "KR_CONFIG.canvas.actorIdleBreathePx", { min: 0, max: 12 });
@@ -291,6 +311,14 @@
       reqNum(canvas.playerSwingArcScale, "KR_CONFIG.canvas.playerSwingArcScale", { min: 0.5, max: 3 });
       reqNum(canvas.opponentReadyOffsetPx, "KR_CONFIG.canvas.opponentReadyOffsetPx", { min: 0, max: 12 });
       reqNum(canvas.opponentSwingArcScale, "KR_CONFIG.canvas.opponentSwingArcScale", { min: 0.5, max: 3 });
+      reqNum(canvas.playerPaddleWidthPx, "KR_CONFIG.canvas.playerPaddleWidthPx", { min: 1, max: 32 });
+      reqNum(canvas.playerPaddleHeightPx, "KR_CONFIG.canvas.playerPaddleHeightPx", { min: 1, max: 48 });
+      reqNum(canvas.playerPaddleCornerPx, "KR_CONFIG.canvas.playerPaddleCornerPx", { min: 0, max: 12 });
+      reqNum(canvas.playerPaddleReachPx, "KR_CONFIG.canvas.playerPaddleReachPx", { min: 1, max: 40 });
+      reqNum(canvas.opponentPaddleWidthPx, "KR_CONFIG.canvas.opponentPaddleWidthPx", { min: 1, max: 32 });
+      reqNum(canvas.opponentPaddleHeightPx, "KR_CONFIG.canvas.opponentPaddleHeightPx", { min: 1, max: 48 });
+      reqNum(canvas.opponentPaddleCornerPx, "KR_CONFIG.canvas.opponentPaddleCornerPx", { min: 0, max: 12 });
+      reqNum(canvas.opponentPaddleReachPx, "KR_CONFIG.canvas.opponentPaddleReachPx", { min: 1, max: 40 });
       reqNum(canvas.impactDustCount, "KR_CONFIG.canvas.impactDustCount", { min: 0, max: 12, integer: true });
       reqNum(canvas.trajectoryTrailSegments, "KR_CONFIG.canvas.trajectoryTrailSegments", { min: 0, max: 12, integer: true });
       reqNum(canvas.trajectoryTrailAlpha, "KR_CONFIG.canvas.trajectoryTrailAlpha", { min: 0, max: 1 });

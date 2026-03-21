@@ -339,8 +339,6 @@
         try {
           if (ui && typeof ui.startPowerRun === "function") {
             ui.startPowerRun();
-          } else if (ui && typeof ui.startSprintRun === "function") {
-            ui.startSprintRun();
           }
         } catch (error) {
           Logger.warn("Power Run launch failed:", error?.message || error);
