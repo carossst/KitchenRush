@@ -333,15 +333,17 @@
         }
       }
 
-      // Sprint (chest) orchestration
-      // ui.js dispatches "kr-sprint-requested", main.js triggers the entry point
-      window.addEventListener("kr-sprint-requested", () => {
+      // Power Run orchestration
+      // ui.js dispatches "kr-power-run-requested", main.js triggers the entry point
+      window.addEventListener("kr-power-run-requested", () => {
         try {
-          if (ui && typeof ui.startSprintRun === "function") {
+          if (ui && typeof ui.startPowerRun === "function") {
+            ui.startPowerRun();
+          } else if (ui && typeof ui.startSprintRun === "function") {
             ui.startSprintRun();
           }
         } catch (error) {
-          Logger.warn("Sprint launch failed:", error?.message || error);
+          Logger.warn("Power Run launch failed:", error?.message || error);
         }
       });
 

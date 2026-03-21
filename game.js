@@ -191,6 +191,69 @@
     };
   }
 
+  function getPowerUpConfig(config) {
+    var pu = (config && config.game && config.game.powerUps) ? config.game.powerUps : null;
+    if (!pu || typeof pu !== "object") return null;
+    return pu;
+  }
+
+  function getPowerUpKeys(config) {
+    var pu = getPowerUpConfig(config);
+    if (!pu) return [];
+    return ["extraLife", "shield", "speedBoost", "perfectWindow", "smashBoost"].filter(function (key) {
+      return pu[key] && pu[key].enabled === true;
+    });
+  }
+
+  function normalizeProgressionMeta(raw) {
+    var p = (raw && typeof raw === "object") ? raw : {};
+    return {
+      runCompletes: Math.max(0, Math.floor(Number(p.runCompletes || 0))),
+      bestScore: Math.max(0, Math.floor(Number(p.bestScore || 0))),
+      lifetimeSmashes: Math.max(0, Math.floor(Number(p.lifetimeSmashes || 0))),
+      featuredPowerKey: String(p.featuredPowerKey || "").trim()
+    };
+  }
+
+  function getPowerUpSlotsUnlocked(powerCfg, runScore) {
+    var progression = powerCfg && powerCfg.progression;
+    if (!progression) return 0;
+    var score = Math.max(0, Math.floor(Number(runScore || 0)));
+    var firstUnlock = reqNum(progression.firstUnlockScore, "game.powerUps.progression.firstUnlockScore", { min: 0, integer: true });
+    var every = reqNum(progression.unlockEveryScore, "game.powerUps.progression.unlockEveryScore", { min: 1, integer: true });
+    if (score < firstUnlock) return 0;
+    return 1 + Math.floor((score - firstUnlock) / every);
+  }
+
+  function isPowerUpMetaUnlocked(item, meta) {
+    if (!item || item.enabled !== true) return false;
+    if ((item.requireRunCompletes != null) && meta.runCompletes < reqNum(item.requireRunCompletes, "powerUp.requireRunCompletes", { min: 0, integer: true })) return false;
+    if ((item.requireBestScore != null) && meta.bestScore < reqNum(item.requireBestScore, "powerUp.requireBestScore", { min: 0, integer: true })) return false;
+    if ((item.requireLifetimeSmashes != null) && meta.lifetimeSmashes < reqNum(item.requireLifetimeSmashes, "powerUp.requireLifetimeSmashes", { min: 0, integer: true })) return false;
+    return true;
+  }
+
+  function getEligiblePowerUpKeys(config, meta, runScore) {
+    var pu = getPowerUpConfig(config);
+    if (!pu || pu.enabled !== true) return [];
+    var score = Math.max(0, Math.floor(Number(runScore || 0)));
+    var keys = getPowerUpKeys(config).filter(function (key) {
+      var item = pu[key];
+      return isPowerUpMetaUnlocked(item, meta) &&
+        score >= reqNum(item.unlockAfterScore, "game.powerUps." + key + ".unlockAfterScore", { min: 0, integer: true });
+    });
+    keys.sort(function (a, b) {
+      return reqNum(pu[a].unlockAfterScore, "game.powerUps." + a + ".unlockAfterScore", { min: 0, integer: true }) -
+        reqNum(pu[b].unlockAfterScore, "game.powerUps." + b + ".unlockAfterScore", { min: 0, integer: true });
+    });
+    return keys.slice(0, getPowerUpSlotsUnlocked(pu, score));
+  }
+
+  function getTimedPowerRemainingMs(activeItem, nowMs) {
+    if (!activeItem || !Number.isFinite(activeItem.until) || activeItem.until <= 0) return 0;
+    return Math.max(0, activeItem.until - nowMs);
+  }
+
   function retargetBallAsDiagonalServe(ball, config, canvasW, canvasH, court, rng) {
     var rand = (typeof rng === "function") ? rng : Math.random;
     var serviceCfg = getServiceConfig(config);
@@ -495,6 +558,7 @@
 
       var onboardingShield = Math.floor(reqNum(config.game.onboardingShield, "shield", { min: 0 }));
       var court = getCourtLayout(config);
+      var progressionMeta = normalizeProgressionMeta(p.progression);
 
       _gt = 0;
 
@@ -506,6 +570,7 @@
         canvasH: canvasH,
         isDaily: isDaily,
         modifier: modifier,
+        progressionMeta: progressionMeta,
 
         rng: isDaily ? mulberry32(dateSeed()) : null,
 
@@ -548,6 +613,10 @@
         totalMissed: 0,
         totalFaulted: 0,
         onboardingShield: onboardingShield,
+        powerUpsActivated: {},
+        activePowerUps: {},
+        lastPowerUpEvent: null,
+        lastPowerUpEventUntil: 0,
 
         currentStreak: 0,
         bestStreak: 0,
@@ -618,6 +687,7 @@
       r.elapsedMs += dtMs;
       _gt = r.elapsedMs;
       var elapsedSec = r.elapsedMs / 1000;
+      this._tickPowerUps(r);
 
       // Sprint timer
       if (r.mode === MODES.SPRINT && r.sprintRemainingMs != null) {
@@ -638,7 +708,7 @@
       }
 
       // ── V3: Player 2D movement ──
-      var playerSpeed = reqNum(cfg.court.playerSpeed, "court.playerSpeed", { min: 0.1 });
+      var playerSpeed = this._getEffectiveMoveSpeed(r);
       var moveAmount = playerSpeed * (dtMs / 16.67);
 
       var moving = false;
@@ -739,7 +809,8 @@
       }
 
       if (ball.state === BALL_STATES.BOUNCED) {
-        if (gameTime() - ball.bouncedAt > ball.tapWindowMs) {
+        var effectiveTapWindowMs = this._getEffectiveTapWindowMs(r, ball);
+        if (gameTime() - ball.bouncedAt > effectiveTapWindowMs) {
           // ── V3: Auto-hit — if player is close enough, auto-return ──
           if (!ball.autoHitFired) {
             var autoRange = this._getAutoHitRange(r);
@@ -771,7 +842,8 @@
         if (d2 <= autoRange) {
           // Player is close enough — auto-hit fires
           var sinceBounce = gameTime() - ball.bouncedAt;
-          var timingRatio = sinceBounce / ball.tapWindowMs; // 0=instant, 1=last moment
+          var effectiveTapWindowMs2 = this._getEffectiveTapWindowMs(r, ball);
+          var timingRatio = sinceBounce / effectiveTapWindowMs2; // 0=instant, 1=last moment
 
           // ── Explicit HIT input: timing bonus ──
           if (r.input.hit && !r.input.hitConsumed) {
@@ -787,7 +859,7 @@
           // Auto-hit after short grace period (give player chance to time it)
           var timingCfg = getTimingConfig(r.config);
           var gracePeriodMs = Math.max(
-            ball.tapWindowMs * timingCfg.autoHitGraceFrac,
+            effectiveTapWindowMs2 * timingCfg.autoHitGraceFrac,
             reqNum(timingCfg.minBounceVisibleMs, "game.timing.minBounceVisibleMs", { min: 0 })
           );
           if (sinceBounce >= gracePeriodMs) {
@@ -846,6 +918,132 @@
       return hitRange * 1.5;
     }
 
+    _getEffectiveMoveSpeed(r) {
+      var playerSpeed = reqNum(r.config.court.playerSpeed, "court.playerSpeed", { min: 0.1 });
+      var speedBoost = r.activePowerUps && r.activePowerUps.speedBoost;
+      if (speedBoost && getTimedPowerRemainingMs(speedBoost, r.elapsedMs) > 0) {
+        return playerSpeed * reqNum(speedBoost.moveSpeedMultiplier, "activePowerUps.speedBoost.moveSpeedMultiplier", { min: 0.01 });
+      }
+      return playerSpeed;
+    }
+
+    _getEffectiveTapWindowMs(r, ball) {
+      var base = reqNum(ball.tapWindowMs, "ball.tapWindowMs", { min: 1 });
+      var perfectWindow = r.activePowerUps && r.activePowerUps.perfectWindow;
+      if (perfectWindow && getTimedPowerRemainingMs(perfectWindow, r.elapsedMs) > 0) {
+        return Math.max(1, Math.round(base * reqNum(perfectWindow.tapWindowMultiplier, "activePowerUps.perfectWindow.tapWindowMultiplier", { min: 0.01 })));
+      }
+      return base;
+    }
+
+    _countActivePowerUps(r) {
+      var active = r.activePowerUps || {};
+      var count = 0;
+      Object.keys(active).forEach(function (key) {
+        var item = active[key];
+        if (!item) return;
+        if (key === "shield") {
+          if (reqNum(item.blocksRemaining || 0, "activePowerUps.shield.blocksRemaining", { min: 0, integer: true }) > 0) count += 1;
+          return;
+        }
+        if (getTimedPowerRemainingMs(item, r.elapsedMs) > 0) count += 1;
+      });
+      return count;
+    }
+
+    _setPowerUpEvent(r, key) {
+      r.lastPowerUpEvent = { key: key, at: r.elapsedMs };
+      r.lastPowerUpEventUntil = r.elapsedMs + 1500;
+    }
+
+    _activatePowerUp(r, key) {
+      var pu = getPowerUpConfig(r.config);
+      if (!pu || !pu[key]) return false;
+      var item = pu[key];
+      r.powerUpsActivated[key] = (r.powerUpsActivated[key] || 0) + 1;
+      if (key === "extraLife") {
+        if (r.mode === MODES.RUN && r.lives != null) {
+          r.lives += 1;
+          r.maxLives += 1;
+        }
+      } else if (key === "shield") {
+        r.activePowerUps.shield = {
+          key: "shield",
+          blocksRemaining: reqNum(item.blockCount, "game.powerUps.shield.blockCount", { min: 0, integer: true })
+        };
+      } else if (key === "speedBoost") {
+        r.activePowerUps.speedBoost = {
+          key: "speedBoost",
+          until: r.elapsedMs + reqNum(item.durationMs, "game.powerUps.speedBoost.durationMs", { min: 0, integer: true }),
+          moveSpeedMultiplier: reqNum(item.moveSpeedMultiplier, "game.powerUps.speedBoost.moveSpeedMultiplier", { min: 0.01 })
+        };
+      } else if (key === "perfectWindow") {
+        r.activePowerUps.perfectWindow = {
+          key: "perfectWindow",
+          until: r.elapsedMs + reqNum(item.durationMs, "game.powerUps.perfectWindow.durationMs", { min: 0, integer: true }),
+          tapWindowMultiplier: reqNum(item.tapWindowMultiplier, "game.powerUps.perfectWindow.tapWindowMultiplier", { min: 0.01 })
+        };
+      } else if (key === "smashBoost") {
+        r.activePowerUps.smashBoost = {
+          key: "smashBoost",
+          until: r.elapsedMs + reqNum(item.durationMs, "game.powerUps.smashBoost.durationMs", { min: 0, integer: true }),
+          scoreMultiplier: reqNum(item.scoreMultiplier, "game.powerUps.smashBoost.scoreMultiplier", { min: 1 })
+        };
+      }
+      this._setPowerUpEvent(r, key);
+      return true;
+    }
+
+    _maybeTriggerPowerUp(r, ball) {
+      var pu = getPowerUpConfig(r.config);
+      if (!pu || pu.enabled !== true || !ball) return;
+      var eligibleKeys = getEligiblePowerUpKeys(r.config, r.progressionMeta, r.smashes);
+      if (!eligibleKeys.length) return;
+
+      var matching = [];
+      for (var i = 0; i < eligibleKeys.length; i++) {
+        var key = eligibleKeys[i];
+        var item = pu[key];
+        if (key !== "extraLife" &&
+          this._countActivePowerUps(r) >= reqNum(pu.progression.maxActiveAtOnce, "game.powerUps.progression.maxActiveAtOnce", { min: 1, integer: true })) {
+          continue;
+        }
+        if (item.triggerBallType && item.triggerBallType !== ball.ballType) continue;
+        if (item.maxPerRun != null && (r.powerUpsActivated[key] || 0) >= reqNum(item.maxPerRun, "game.powerUps." + key + ".maxPerRun", { min: 0, integer: true })) continue;
+        matching.push(key);
+      }
+      if (!matching.length) return;
+
+      var featuredKey = String(r.progressionMeta && r.progressionMeta.featuredPowerKey || "").trim();
+      var weeklyCfg = pu.weekly || {};
+      var rand = (typeof r.rng === "function") ? r.rng : Math.random;
+      for (var mi = 0; mi < matching.length; mi++) {
+        var pickKey = matching[mi];
+        var chance = reqNum(pu[pickKey].weight, "game.powerUps." + pickKey + ".weight", { min: 0 });
+        if (weeklyCfg.enabled && featuredKey && featuredKey === pickKey) {
+          chance *= reqNum(weeklyCfg.weightMultiplier, "game.powerUps.weekly.weightMultiplier", { min: 0 });
+        }
+        if (rand() < chance) {
+          this._activatePowerUp(r, pickKey);
+          return;
+        }
+      }
+    }
+
+    _tickPowerUps(r) {
+      if (!r.activePowerUps) return;
+      ["speedBoost", "perfectWindow", "smashBoost"].forEach(function (key) {
+        if (!r.activePowerUps[key]) return;
+        if (getTimedPowerRemainingMs(r.activePowerUps[key], r.elapsedMs) <= 0) delete r.activePowerUps[key];
+      });
+      if (r.lastPowerUpEventUntil > 0 && r.elapsedMs >= r.lastPowerUpEventUntil) {
+        r.lastPowerUpEventUntil = 0;
+      }
+      if (r.activePowerUps.shield && reqNum(r.activePowerUps.shield.blocksRemaining || 0, "activePowerUps.shield.blocksRemaining", { min: 0, integer: true }) <= 0) {
+        delete r.activePowerUps.shield;
+      }
+    }
+
     // V3: Execute a valid hit (shared between auto-hit and explicit hit)
     _executeHit(r, ball, timingBonus) {
       var court = r.court;
@@ -865,6 +1063,10 @@
       var timingCfg = getTimingConfig(r.config);
       var points = timingCfg.basePoints;
       if (timingBonus > timingCfg.perfectThreshold) points = timingCfg.perfectPoints;
+      var smashBoost = r.activePowerUps && r.activePowerUps.smashBoost;
+      if (smashBoost && getTimedPowerRemainingMs(smashBoost, r.elapsedMs) > 0) {
+        points = Math.round(points * reqNum(smashBoost.scoreMultiplier, "activePowerUps.smashBoost.scoreMultiplier", { min: 1 }));
+      }
       r.smashes += points;
       r.totalSmashed++;
       r.currentStreak++;
@@ -898,6 +1100,7 @@
           r.lastMilestoneAt = gameTime();
         }
       }
+      this._maybeTriggerPowerUp(r, ball);
     }
 
 
@@ -927,6 +1130,17 @@
 
     // Fault a ball
     _faultBall(r, ball) {
+      if (r.mode === MODES.RUN && r.activePowerUps && r.activePowerUps.shield &&
+        reqNum(r.activePowerUps.shield.blocksRemaining || 0, "activePowerUps.shield.blocksRemaining", { min: 0, integer: true }) > 0) {
+        r.activePowerUps.shield.blocksRemaining -= 1;
+        ball.state = BALL_STATES.FAULTED;
+        ball.faultedAt = gameTime();
+        ball.savedByShield = true;
+        r.waitUntil = r.elapsedMs + 320;
+        this._setPowerUpEvent(r, "shield");
+        if (r.activePowerUps.shield.blocksRemaining <= 0) delete r.activePowerUps.shield;
+        return;
+      }
       ball.state = BALL_STATES.FAULTED;
       ball.faultedAt = gameTime();
       r.totalFaulted++;
@@ -1043,9 +1257,23 @@
           mustBounce: !!b.mustBounce,
           mustBounceReason: b.mustBounceReason || "",
           autoHitFired: !!b.autoHitFired,
-          squash: b.squash || 0
+          squash: b.squash || 0,
+          savedByShield: !!b.savedByShield
         };
       }
+
+      var activePowerUps = [];
+      Object.keys(r.activePowerUps || {}).forEach(function (key) {
+        var item = r.activePowerUps[key];
+        if (!item) return;
+        if (key === "shield") {
+          var blocksRemaining = reqNum(item.blocksRemaining || 0, "activePowerUps.shield.blocksRemaining", { min: 0, integer: true });
+          if (blocksRemaining > 0) activePowerUps.push({ key: key, blocksRemaining: blocksRemaining, remainingMs: 0 });
+          return;
+        }
+        var remainingMs = getTimedPowerRemainingMs(item, r.elapsedMs);
+        if (remainingMs > 0) activePowerUps.push({ key: key, blocksRemaining: 0, remainingMs: remainingMs });
+      });
 
       return {
         mode: r.mode,
@@ -1088,7 +1316,10 @@
         // V3 extras
         lastTimingBonus: r.lastTimingBonus || 0,
         dailyModifier: r.modifier ? { id: r.modifier.id, label: r.modifier.label, desc: r.modifier.desc } : null,
-        dailyObjectiveMet: !!r.dailyObjectiveMet
+        dailyObjectiveMet: !!r.dailyObjectiveMet,
+        featuredPowerKey: r.progressionMeta ? r.progressionMeta.featuredPowerKey : "",
+        activePowerUps: activePowerUps,
+        lastPowerUpEvent: (r.lastPowerUpEventUntil > r.elapsedMs) ? r.lastPowerUpEvent : null
       };
     }
 
@@ -1109,7 +1340,8 @@
         currentStreak: s.currentStreak,
         bestStreak: s.bestStreak,
         dailyModifier: s.dailyModifier,
-        dailyObjectiveMet: s.dailyObjectiveMet
+        dailyObjectiveMet: s.dailyObjectiveMet,
+        featuredPowerKey: s.featuredPowerKey
       };
     }
   }

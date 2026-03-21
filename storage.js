@@ -204,8 +204,8 @@
 
       // UI flags (previously stored as separate localStorage keys)
       flags: {
-        sprintChestHintSolved: false,
-        sprintChestWelcomeShown: false,
+        powerBallHintSolved: false,
+        powerBallWelcomeShown: false,
         firstRunFramingSeen: false
       }
     };
@@ -245,8 +245,8 @@
             this.data.counters.totalLifetimeSmashes = clampNonNegativeInt(oldData.counters.totalLifetimeSmashes);
           }
           if (oldData.flags && typeof oldData.flags === "object") {
-            if (oldData.flags.sprintChestHintSolved === true) this.data.flags.sprintChestHintSolved = true;
-            if (oldData.flags.sprintChestWelcomeShown === true) this.data.flags.sprintChestWelcomeShown = true;
+            if (oldData.flags.powerBallHintSolved === true || oldData.flags.sprintChestHintSolved === true) this.data.flags.powerBallHintSolved = true;
+            if (oldData.flags.powerBallWelcomeShown === true || oldData.flags.sprintChestWelcomeShown === true) this.data.flags.powerBallWelcomeShown = true;
             if (oldData.flags.firstRunFramingSeen === true) this.data.flags.firstRunFramingSeen = true;
           }
         } catch (_) { /* migration failed — fresh data is still valid */ }
@@ -280,18 +280,22 @@
       this.data.flags = deepCopy(this.defaultData.flags);
     }
     var fl = this.data.flags;
-    if (typeof fl.sprintChestHintSolved !== "boolean") fl.sprintChestHintSolved = false;
-    if (typeof fl.sprintChestWelcomeShown !== "boolean") fl.sprintChestWelcomeShown = false;
+    if (typeof fl.powerBallHintSolved !== "boolean") fl.powerBallHintSolved = !!fl.sprintChestHintSolved;
+    if (typeof fl.powerBallWelcomeShown !== "boolean") fl.powerBallWelcomeShown = !!fl.sprintChestWelcomeShown;
+    delete fl.sprintChestHintSolved;
+    delete fl.sprintChestWelcomeShown;
     if (typeof fl.firstRunFramingSeen !== "boolean") fl.firstRunFramingSeen = false;
 
     // One-time migration: read legacy localStorage keys and absorb them
     var storageKey = String(cfg?.storage?.storageKey || "").trim();
     if (storageKey) {
       try {
-        if (!fl.sprintChestHintSolved && localStorage.getItem(storageKey + ":sprintChestHintSolved") === "true") fl.sprintChestHintSolved = true;
-        if (!fl.sprintChestWelcomeShown && localStorage.getItem(storageKey + ":sprintChestWelcomeShown") === "true") fl.sprintChestWelcomeShown = true;
+        if (!fl.powerBallHintSolved && (localStorage.getItem(storageKey + ":powerBallHintSolved") === "true" || localStorage.getItem(storageKey + ":sprintChestHintSolved") === "true")) fl.powerBallHintSolved = true;
+        if (!fl.powerBallWelcomeShown && (localStorage.getItem(storageKey + ":powerBallWelcomeShown") === "true" || localStorage.getItem(storageKey + ":sprintChestWelcomeShown") === "true")) fl.powerBallWelcomeShown = true;
         if (!fl.firstRunFramingSeen && localStorage.getItem(storageKey + ":firstRunFramingSeen") === "true") fl.firstRunFramingSeen = true;
         // Clean up legacy keys
+        localStorage.removeItem(storageKey + ":powerBallHintSolved");
+        localStorage.removeItem(storageKey + ":powerBallWelcomeShown");
         localStorage.removeItem(storageKey + ":sprintChestHintSolved");
         localStorage.removeItem(storageKey + ":sprintChestWelcomeShown");
         localStorage.removeItem(storageKey + ":firstRunFramingSeen");

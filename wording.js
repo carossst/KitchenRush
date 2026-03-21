@@ -76,7 +76,7 @@
       whatYouGetTitle: "What you get",
       benefitsTitle: "What you get",
       benefitUnlimitedRuns: "Unlimited runs.",
-      benefitSprint: "Sprint mode unlocked.",
+      benefitSprint: "Power Run unlocked.",
       benefitPersonalBest: "Personal best tracking.",
 
       ctaBackToGame: "Back to game",
@@ -117,8 +117,11 @@
       bestAriaTemplate: "Personal best: {best} Smashes",
       bestTargetTemplate: "Can you reach {target}?",
       premiumLabel: "Unlimited runs on this device",
+      powerTease: "Longer runs unlock power balls and bonus boosts.",
       nextPowerLabel: "Next power",
       nextPowerTemplate: "{power} at {score} hits",
+      weeklyPowerLabel: "This week",
+      weeklyPowerTemplate: "{power} featured",
 
       // Landing stats (spark bars)
       runsLabel: "Runs",
@@ -128,7 +131,7 @@
 
       // Post-paywall block (LANDING after free runs exhausted)
       postPaywallTitle: "Free runs are used up.",
-      postPaywallBody: "Unlock unlimited runs on this device.",
+      postPaywallBody: "Unlock unlimited runs and keep discovering new powers.",
       postPaywallCta: "See options",
 
       // Post-paywall + secret bonus hint
@@ -159,6 +162,16 @@
       specialBallFast: "FAST",
       specialBallSkid: "SKID",
       specialBallHeavy: "HEAVY",
+      powerUpExtraLife: "EXTRA LIFE",
+      powerUpShield: "SHIELD",
+      powerUpSpeedBoost: "SPEED",
+      powerUpPerfectWindow: "FOCUS",
+      powerUpSmashBoost: "SMASH x2",
+      powerUpWeeklyPrefix: "WEEKLY",
+      powerUpReadyPrefix: "POWER",
+      powerUpActivePrefix: "ACTIVE",
+      powerUpSavedByShield: "SHIELD SAVE",
+      powerUpRevealHint: "Deeper runs unlock stronger powers.",
       hitLabel: "HIT",
       controlLeftLabel: "\u25C4",
       controlRightLabel: "\u25BA",
@@ -178,6 +191,7 @@
       startOverlayHitDesktop: "Time your hit",
       startOverlayAutoReturnHint: "Get close for auto-return. Time it for double points.",
       startOverlayKitchenHint: "Kitchen ball: bounce first",
+      startOverlayPowerHint: "Longer runs unlock power balls and boosts.",
       startOverlayTapToStart: "Tap to start",
       dailyObjectiveMet: "Daily objective complete!",
 
@@ -185,6 +199,7 @@
       startRunTypeFree: "FREE RUN",
       startRunTypeLastFree: "Last free run.",
       startRunTypeUnlimited: "",
+      startRunRemainingTemplate: "{remaining}/{limit} free runs left",
 
       // Chance/life state overlays
       lastLifeOverlay: "Last life.",
@@ -204,24 +219,24 @@
 
 
     sprint: {
-      // Golden Ball (discovery — unlocks Rush/Sprint mode)
-      chestAria: "Golden Ball",
-      chestHint: "Tap the golden ball to unlock Sprint.",
+      // Power Ball (discovery — unlocks the bonus mode)
+      chestAria: "Power Ball",
+      chestHint: "Tap the power ball to unlock Power Run.",
 
       // Modal one-shot (first tap ever)
-      modalTitle: "You found Sprint mode",
+      modalTitle: "You found Power Run",
       modalBody: "20 seconds. No lives. Kitchen faults cost 2 seconds.",
       modalCta: "Let's rally",
 
       // Teaser (free runs limit)
-      startOverlayFreeRunsLimitLine: "{remaining}/{limit} free sprints left",
+      startOverlayFreeRunsLimitLine: "{remaining}/{limit} free Power Runs left",
       freeLimitReachedTitle: "That was a rally.",
-      freeLimitReachedBody: "Your {limit} free Sprint runs are used.\n\nPremium unlocks unlimited Sprint.",
-      freeLimitReachedCta: "Unlock Sprint",
+      freeLimitReachedBody: "Your {limit} free Power Runs are used.\n\nPremium unlocks unlimited Power Run.",
+      freeLimitReachedCta: "Unlock Power Run",
       freeLimitReachedClose: "Not now",
 
       // In-game HUD
-      title: "Sprint",
+      title: "Power Run",
       timerLabel: "{remaining}s",
       penaltyFlash: "-2s",
 
@@ -233,17 +248,17 @@
       // End screen
       endTitle: "Time!",
       scoreLine: "{score} hits in 20s",
-      bestLine: "Sprint best: {best}",
-      freeRunsLeftLine: "{remaining}/{limit} free Sprint runs left.",
-      newBest: "New sprint record!",
-      playAgain: "Sprint again",
+      bestLine: "Power Run best: {best}",
+      freeRunsLeftLine: "{remaining}/{limit} free Power Runs left.",
+      newBest: "New Power Run record!",
+      playAgain: "Power Run again",
       backToRuns: "Back to court",
 
       // End toast
       endGameOverToast: "Time's up",
 
       // CTA
-      ctaPlayAgain: "Sprint again"
+      ctaPlayAgain: "Power Run again"
     },
 
 
@@ -281,6 +296,8 @@
       nextRunStreak: "push rally {target}",
       nextPowerLabel: "Discover next:",
       nextPowerTemplate: "{power} at {score} hits",
+      weeklyPowerLabel: "This week:",
+      weeklyPowerTemplate: "{power} featured",
 
       shareTitle: "Share"
     },
@@ -289,6 +306,7 @@
     firstRun: {
       trustLine: "No ads. No tricks. Just the court.",
       kitchenHint: "Kitchen ball? Let it bounce, then hit.",
+      powerHint: "Stay alive long enough and new powers start to appear.",
       rule1: "Move into range",
       rule2: "Tap, click, or press Space to hit",
       rule3: "Serve and return must bounce first"
@@ -305,8 +323,9 @@
 
       valueBullets: [
         "Unlimited runs on this device",
-        "Sprint mode unlocked",
-        "Keep chasing your best"
+        "Power Run unlocked",
+        "Keep chasing your best",
+        "Reach deeper power unlocks"
       ],
 
       bridgeTitle: "Free runs are done.",
@@ -314,6 +333,7 @@
 
       // Personal progress anchor (shown only if best > 0)
       progressLineTemplate: "Your best: {best} hits.",
+      progressionLine: "Deeper runs unlock more power balls and short boosts.",
 
       trustLine: "One purchase. No subscription.",
       trustBullets: [
@@ -388,7 +408,7 @@
       templateDefault: "Kitchen Rush \u2014 {score} Smashes {hashtag}\nCan you beat that?\n{url}",
       templateFault: "Kitchen Rush \u2014 {score} Smashes {hashtag}\nThe Kitchen got me. Your turn.\n{url}",
       templateNewBest: "Kitchen Rush \u2014 NEW BEST: {score} Smashes {hashtag}\nCome get me.\n{url}",
-      templateSprint: "Kitchen Rush Sprint \u2014 {score} in 20s {hashtag}\nPure speed. Beat that.\n{url}",
+      templateSprint: "Kitchen Rush Power Run \u2014 {score} in 20s {hashtag}\nPure speed. Beat that.\n{url}",
       templateDaily: "Kitchen Rush Daily ({date}) {modifier}\n{score} Smashes | Streak {streak} {hashtag}\nSame challenge for everyone. Can you beat {score}?\n{url}",
 
       // Hashtag (dynamic: #KitchenRush{score})
@@ -398,7 +418,7 @@
       cardModalTitle: "New personal best!",
 
       // V2: Share card labels (canvas image)
-      cardSprintLabel: "Sprint Mode",
+      cardSprintLabel: "Power Run",
       cardDailyLabel: "Daily Challenge",
       cardSmashesLabel: "Hits",
       cardBestLabel: "Best: {best}",

@@ -1,6 +1,6 @@
 // ui.js v2.0 - Kitchen Rush
 // State machine + Canvas/DOM rendering.
-// All features: modals, toasts, chest, paywall, houseAd, waitlist,
+// All features: modals, toasts, power ball, paywall, houseAd, waitlist,
 // statsSharing, share, install, support, howto, redeem, microFeedback,
 // first run framing, game over delay, run start overlay, record moment.
 
@@ -167,6 +167,12 @@ void function () {
         scorePopups: []         // [{ x, y, at }]
       },
 
+      renderPerf: {
+        tier: 0,
+        samples: [],
+        lastChangeAt: 0
+      },
+
       // Support modal cache
       supportEmail: "",
       landingHouseAdImpressionMarked: false,
@@ -208,8 +214,8 @@ void function () {
         bestStreak: 0
       },
 
-      // Sprint chest gesture
-      sprintChest: { tapCount: 0, lastTapAt: 0 },
+      // Power Ball gesture
+      powerBall: { tapCount: 0, lastTapAt: 0 },
 
       // End record moment
       endRecordMomentUntil: 0,
@@ -247,6 +253,35 @@ void function () {
     }
   };
 
+  UI.prototype._getFeaturedPowerKey = function () {
+    var weekly = this.config && this.config.game && this.config.game.powerUps && this.config.game.powerUps.weekly;
+    if (!weekly || weekly.enabled !== true || !Array.isArray(weekly.cycle) || !weekly.cycle.length) return "";
+    var now = new Date();
+    var weekSerial = Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) / 604800000);
+    return String(weekly.cycle[((weekSerial % weekly.cycle.length) + weekly.cycle.length) % weekly.cycle.length] || "").trim();
+  };
+
+  UI.prototype._getPowerUpLabel = function (key) {
+    var uiw = (this.wording && this.wording.ui) ? this.wording.ui : {};
+    if (key === "extraLife") return String(uiw.powerUpExtraLife || "").trim();
+    if (key === "shield") return String(uiw.powerUpShield || "").trim();
+    if (key === "speedBoost") return String(uiw.powerUpSpeedBoost || "").trim();
+    if (key === "perfectWindow") return String(uiw.powerUpPerfectWindow || "").trim();
+    if (key === "smashBoost") return String(uiw.powerUpSmashBoost || "").trim();
+    return "";
+  };
+
+  UI.prototype._getRunProgressionMeta = function () {
+    var counters = this._store("getCounters") || {};
+    var pb = this._store("getPersonalBest") || {};
+    return {
+      runCompletes: Number(counters.runCompletes || 0),
+      lifetimeSmashes: Number(counters.totalLifetimeSmashes || 0),
+      bestScore: Number(pb.bestSmashes || 0),
+      featuredPowerKey: this._getFeaturedPowerKey()
+    };
+  };
+
   UI.prototype._clearEndTransitionTimers = function () {
     if (!this._runtime || !Array.isArray(this._runtime.endTransitionTimerIds)) return;
     while (this._runtime.endTransitionTimerIds.length) {
@@ -280,8 +315,8 @@ void function () {
         return;
       }
 
-      var chestEl = t.closest('[data-kr-secret="chest"]');
-      if (chestEl) { e.preventDefault(); self._handleChestTap(); return; }
+      var powerBallEl = t.closest('[data-kr-secret="power-ball"]');
+      if (powerBallEl) { e.preventDefault(); self._handlePowerBallTap(); return; }
     });
 
     // Toast dismiss
@@ -317,7 +352,7 @@ void function () {
       case "play":              this._handlePlay("classic"); break;
       case "play-again":        this._handlePlay("classic"); break;
       case "play-daily":        this._handlePlay("daily"); break;
-      case "sprint-again":      this._handleSprintAgain(); break;
+      case "sprint-again":      this._handlePowerRunAgain(); break;
       case "back-to-runs":      this.setState(STATES.LANDING); break;
       case "show-paywall":      this.setState(STATES.PAYWALL); break;
       case "paywall-not-now":   this._handlePaywallNotNow(); break;
@@ -371,11 +406,11 @@ void function () {
     // Guard: no-op if same state
     if (next === prev) return;
 
-    // Chest gesture reset on END transitions
-    if (this._runtime && this._runtime.sprintChest) {
+    // Power Ball gesture reset on END transitions
+    if (this._runtime && this._runtime.powerBall) {
       if ((prev === STATES.END && next !== STATES.END) || (next === STATES.END && prev !== STATES.END)) {
-        this._runtime.sprintChest.tapCount = 0;
-        this._runtime.sprintChest.lastTapAt = 0;
+        this._runtime.powerBall.tapCount = 0;
+        this._runtime.powerBall.lastTapAt = 0;
       }
     }
 
@@ -561,7 +596,7 @@ void function () {
 
 
   // ============================================
-  // Play / Sprint handlers
+  // Play / Power Run handlers
   // ============================================
   UI.prototype._handlePlay = function (entryKind) {
     var kind = String(entryKind == null ? "classic" : entryKind).trim().toLowerCase();
@@ -620,17 +655,17 @@ void function () {
     return false;
   };
 
-  UI.prototype._handleSprintAgain = function () {
-    // Route through startSprintRun() to enforce sprint free limit gate
-    this.startSprintRun();
+  UI.prototype._handlePowerRunAgain = function () {
+    // Route through startPowerRun() to enforce the free Power Run gate
+    this.startPowerRun();
   };
 
-  UI.prototype.startSprintRun = function () {
+  UI.prototype.startPowerRun = function () {
     var premium = !!(this._store("isPremium"));
 
     if (!premium) {
       if (!this.storage || typeof this.storage.getSprintAccessState !== "function") {
-        throw new Error("KR_UI.startSprintRun(): storage sprint gating API missing");
+        throw new Error("KR_UI.startPowerRun(): storage power run gating API missing");
       }
       var sprintAccess = this.storage.getSprintAccessState();
       if (!sprintAccess || sprintAccess.ok !== true) {
@@ -644,6 +679,15 @@ void function () {
     this._runtime.currentRunIsDaily = false;
     this._runtime.runMode = MODES.SPRINT;
     this._startGameplay(MODES.SPRINT, MODES.SPRINT);
+  };
+
+  // Backward-compatible alias during product rename rollout.
+  UI.prototype._handleSprintAgain = function () {
+    this._handlePowerRunAgain();
+  };
+
+  UI.prototype.startSprintRun = function () {
+    this.startPowerRun();
   };
 
   UI.prototype._startGameplay = function (mode, runType) {
@@ -687,10 +731,20 @@ void function () {
     this._runtime.runMode = mode;
     this._runtime._lastBallState = {};
     this._runtime._lastDailyObjectiveMet = false;
+    this._runtime.renderPerf.tier = 0;
+    this._runtime.renderPerf.samples = [];
+    this._runtime.renderPerf.lastChangeAt = 0;
 
     // Start engine
     var isDaily = (mode === MODES.RUN) && !!(this._runtime.currentRunIsDaily);
-    this.game.start({ config: this.config, mode: mode, canvasW: appW, canvasH: appH, isDaily: isDaily });
+    this.game.start({
+      config: this.config,
+      mode: mode,
+      canvasW: appW,
+      canvasH: appH,
+      isDaily: isDaily,
+      progression: this._getRunProgressionMeta()
+    });
 
     // beforeunload guard (warn on accidental tab close during gameplay)
     if (!this._beforeUnloadHandler) {
@@ -725,6 +779,7 @@ void function () {
       if (self.state !== STATES.PLAYING) return;
       var dtMs = ts - self._lastFrameTs;
       self._lastFrameTs = ts;
+      self._updateRenderPerf(dtMs);
       self._syncDesktopPointerInput();
 
       // Feed input to game engine
@@ -747,6 +802,45 @@ void function () {
     if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
   };
 
+  UI.prototype._getRenderPerfConfig = function () {
+    var cfg = this.config && this.config.renderPerformance;
+    if (!cfg || typeof cfg !== "object") throw new Error("KR_UI: KR_CONFIG.renderPerformance missing");
+    return cfg;
+  };
+
+  UI.prototype._updateRenderPerf = function (dtMs) {
+    var perfCfg = this._getRenderPerfConfig();
+    if (!perfCfg.enabled) return;
+    var perf = this._runtime && this._runtime.renderPerf;
+    if (!perf) return;
+    var samples = perf.samples;
+    samples.push(Number(dtMs) || 0);
+    while (samples.length > perfCfg.sampleFrames) samples.shift();
+    if (samples.length < perfCfg.sampleFrames) return;
+
+    var sum = 0;
+    for (var i = 0; i < samples.length; i++) sum += samples[i];
+    var avg = sum / samples.length;
+    var now = performance.now();
+    if ((now - perf.lastChangeAt) < perfCfg.cooldownMs) return;
+
+    if (avg > perfCfg.downgradeAvgFrameMs && perf.tier < 2) {
+      perf.tier += 1;
+      perf.lastChangeAt = now;
+      return;
+    }
+    if (avg < perfCfg.upgradeAvgFrameMs && perf.tier > 0) {
+      perf.tier -= 1;
+      perf.lastChangeAt = now;
+    }
+  };
+
+  UI.prototype._getRenderPerfTier = function () {
+    return (this._runtime && this._runtime.renderPerf && Number.isFinite(this._runtime.renderPerf.tier))
+      ? this._runtime.renderPerf.tier
+      : 0;
+  };
+
 
   // ============================================
   // V2 Canvas rendering
@@ -761,6 +855,8 @@ void function () {
     var h = canvas.height;
     var colors = this.config.canvas && this.config.canvas.colors;
     if (!colors || typeof colors !== "object") return;
+    var perfCfg = this._getRenderPerfConfig();
+    var perfTier = this._getRenderPerfTier();
 
     var court = state.court;
     if (!court) return;
@@ -769,15 +865,16 @@ void function () {
     var n = performance.now();
     var gt = state.elapsedMs;
 
-    var netYpx = court.netY * h;
-    var kitchenLineYpx = court.kitchenLineY * h;
-    var baselineYpx = court.baselineY * h;
-    var playerYpx = court.playerY * h;
+    var worldNetYpx = court.netY * h;
+    var worldKitchenLineYpx = court.kitchenLineY * h;
+    var worldBaselineYpx = court.baselineY * h;
+    var worldPlayerYpx = court.playerY * h;
     var controlsYpx = court.controlsY * h;
-    var opponentYpx = court.opponentY * h;
-    var playerHalfDepthPx = Math.max(1, baselineYpx - netYpx);
-    var kitchenDepthPx = Math.max(1, kitchenLineYpx - netYpx);
+    var worldOpponentYpx = court.opponentY * h;
+    var playerHalfDepthPx = Math.max(1, worldBaselineYpx - worldNetYpx);
+    var kitchenDepthPx = Math.max(1, worldKitchenLineYpx - worldNetYpx);
     var oppScale = requiredConfigNumber(this.config?.canvas?.opponentCourtScale, "canvas.opponentCourtScale", { min: 0.1, max: 1 });
+    var cameraPerspectivePower = requiredConfigNumber(this.config?.canvas?.cameraPerspectivePower, "canvas.cameraPerspectivePower", { min: 1, max: 3 });
     var sidelineInsetFrac = requiredConfigNumber(this.config?.canvas?.sidelineInsetFrac, "canvas.sidelineInsetFrac", { min: 0.01, max: 0.3 });
     var nearSidelineInsetFrac = requiredConfigNumber(this.config?.canvas?.nearSidelineInsetFrac, "canvas.nearSidelineInsetFrac", { min: 0.01, max: 0.3 });
     var netSidelineInsetFrac = requiredConfigNumber(this.config?.canvas?.netSidelineInsetFrac, "canvas.netSidelineInsetFrac", { min: 0.05, max: 0.4 });
@@ -798,8 +895,17 @@ void function () {
     var controlZoneFontFrac = requiredConfigNumber(this.config?.canvas?.controlZoneFontFrac, "canvas.controlZoneFontFrac", { min: 0.01, max: 0.06 });
     var controlZoneLabelYFrac = requiredConfigNumber(this.config?.canvas?.controlZoneLabelYFrac, "canvas.controlZoneLabelYFrac", { min: 0.2, max: 0.9 });
     var oppHalfDepthPx = playerHalfDepthPx * oppScale;
-    var oppBaselineYpx = Math.max(0, netYpx - oppHalfDepthPx);
-    var oppKitchenLineYpx = Math.max(0, netYpx - kitchenDepthPx * oppScale);
+    var effectiveNetMeshRows = netMeshRows;
+    var effectiveNetNearHighlightWidth = netNearHighlightWidth;
+    if (perfTier === 1) {
+      effectiveNetMeshRows = Math.min(netMeshRows, perfCfg.lowQualityNetMeshRows);
+      effectiveNetNearHighlightWidth = Math.min(netNearHighlightWidth, perfCfg.lowQualityNetHighlightWidth);
+    } else if (perfTier >= 2) {
+      effectiveNetMeshRows = Math.min(netMeshRows, perfCfg.minQualityNetMeshRows);
+      effectiveNetNearHighlightWidth = Math.min(netNearHighlightWidth, perfCfg.minQualityNetHighlightWidth);
+    }
+    var worldOppBaselineYpx = Math.max(0, worldNetYpx - oppHalfDepthPx);
+    var worldOppKitchenLineYpx = Math.max(0, worldNetYpx - kitchenDepthPx * oppScale);
     var sidelineInsetPx = w * sidelineInsetFrac;
     var nearSidelineInsetPx = w * nearSidelineInsetFrac;
     var netSidelineInsetPx = w * netSidelineInsetFrac;
@@ -812,9 +918,19 @@ void function () {
       return a + (b - a) * t;
     }
 
-    function edgesAtY(y) {
-      if (y >= netYpx) {
-        var t = Math.max(0, Math.min(1, (y - netYpx) / Math.max(1, baselineYpx - netYpx)));
+    function depthFromWorldY(worldY) {
+      return Math.max(0, Math.min(1, (worldY - worldOppBaselineYpx) / Math.max(1, worldBaselineYpx - worldOppBaselineYpx)));
+    }
+
+    function projectCourtY(worldY) {
+      var depth = depthFromWorldY(worldY);
+      var projectedDepth = Math.pow(depth, cameraPerspectivePower);
+      return lerpNum(worldOppBaselineYpx, worldBaselineYpx, projectedDepth);
+    }
+
+    function edgesAtWorldY(worldY) {
+      if (worldY >= worldNetYpx) {
+        var t = Math.max(0, Math.min(1, (worldY - worldNetYpx) / Math.max(1, worldBaselineYpx - worldNetYpx)));
         var leftNear = w * nearSidelineInsetFrac;
         var rightNear = w - leftNear;
         var leftNet = w * netSidelineInsetFrac;
@@ -824,7 +940,7 @@ void function () {
           right: lerpNum(rightNet, rightNear, t)
         };
       }
-      var tOpp = Math.max(0, Math.min(1, (netYpx - y) / Math.max(1, netYpx - oppBaselineYpx)));
+      var tOpp = Math.max(0, Math.min(1, (worldNetYpx - worldY) / Math.max(1, worldNetYpx - worldOppBaselineYpx)));
       var leftNetOpp = w * netSidelineInsetFrac;
       var rightNetOpp = w - leftNetOpp;
       var leftFar = w * farSidelineInsetFrac;
@@ -835,9 +951,11 @@ void function () {
       };
     }
 
-    function drawQuad(topY, bottomY, fillStyle, alpha) {
-      var topEdges = edgesAtY(topY);
-      var bottomEdges = edgesAtY(bottomY);
+    function drawQuad(topWorldY, bottomWorldY, fillStyle, alpha) {
+      var topY = projectCourtY(topWorldY);
+      var bottomY = projectCourtY(bottomWorldY);
+      var topEdges = edgesAtWorldY(topWorldY);
+      var bottomEdges = edgesAtWorldY(bottomWorldY);
       ctx.save();
       if (Number.isFinite(alpha)) ctx.globalAlpha = alpha;
       ctx.fillStyle = fillStyle;
@@ -856,15 +974,12 @@ void function () {
       var nearRight = w - nearLeft;
       var frac = (worldX - nearLeft) / Math.max(1, nearRight - nearLeft);
       frac = Math.max(0, Math.min(1, frac));
-      var edges = edgesAtY(worldY);
+      var edges = edgesAtWorldY(worldY);
       return lerpNum(edges.left, edges.right, frac);
     }
 
-    function depthRatioAtY(y) {
-      var depthBase = (y >= netYpx)
-        ? Math.max(1, baselineYpx - netYpx)
-        : Math.max(1, netYpx - oppBaselineYpx);
-      return Math.max(0, Math.min(1, Math.abs(y - netYpx) / depthBase));
+    function depthRatioAtY(worldY) {
+      return depthFromWorldY(worldY);
     }
 
     // Screen shake
@@ -881,19 +996,23 @@ void function () {
     // Court background
     ctx.fillStyle = colors.courtFarBg;
     ctx.fillRect(0, 0, w, h);
-    drawQuad(netYpx, baselineYpx, colors.courtNearBg, 1);
+    drawQuad(worldNetYpx, worldBaselineYpx, colors.courtNearBg, 1);
 
     // Player kitchen zone
-    drawQuad(netYpx, kitchenLineYpx, colors.kitchenBg, 1);
+    drawQuad(worldNetYpx, worldKitchenLineYpx, colors.kitchenBg, 1);
 
     // Opponent kitchen zone (compressed but symmetric for a frontal read)
-    drawQuad(oppKitchenLineYpx, netYpx, colors.opponentKitchenBg, 1);
+    drawQuad(worldOppKitchenLineYpx, worldNetYpx, colors.opponentKitchenBg, 1);
 
     // Service boxes: very light tint to reinforce the frontal court layout.
     if (colors.serviceBoxTint) {
       ctx.fillStyle = colors.serviceBoxTint;
-      var playerKitchenEdges = edgesAtY(kitchenLineYpx);
-      var playerBaselineEdges = edgesAtY(baselineYpx);
+      var kitchenLineYpx = projectCourtY(worldKitchenLineYpx);
+      var baselineYpx = projectCourtY(worldBaselineYpx);
+      var oppKitchenLineYpx = projectCourtY(worldOppKitchenLineYpx);
+      var oppBaselineYpx = projectCourtY(worldOppBaselineYpx);
+      var playerKitchenEdges = edgesAtWorldY(worldKitchenLineYpx);
+      var playerBaselineEdges = edgesAtWorldY(worldBaselineYpx);
       ctx.beginPath();
       ctx.moveTo(playerKitchenEdges.left, kitchenLineYpx);
       ctx.lineTo(centerLineX, kitchenLineYpx);
@@ -911,8 +1030,8 @@ void function () {
       ctx.save();
       ctx.globalAlpha = 1;
       ctx.fillStyle = colors.serviceBoxTintFar;
-      var oppKitchenEdges = edgesAtY(oppKitchenLineYpx);
-      var oppBaselineEdges = edgesAtY(oppBaselineYpx);
+      var oppKitchenEdges = edgesAtWorldY(worldOppKitchenLineYpx);
+      var oppBaselineEdges = edgesAtWorldY(worldOppBaselineYpx);
       ctx.beginPath();
       ctx.moveTo(oppKitchenEdges.left, oppKitchenLineYpx);
       ctx.lineTo(centerLineX, oppKitchenLineYpx);
@@ -937,16 +1056,23 @@ void function () {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       var _kitchenLabel = String((this.wording && this.wording.ui && this.wording.ui.kitchenLabel) || "").trim();
-      if (_kitchenLabel) ctx.fillText(_kitchenLabel, w / 2, netYpx + (kitchenLineYpx - netYpx) / 2);
+      if (_kitchenLabel) ctx.fillText(_kitchenLabel, w / 2, projectCourtY((worldNetYpx + worldKitchenLineYpx) * 0.5));
     }
 
     // Kitchen lines
+    var netYpx = projectCourtY(worldNetYpx);
+    var kitchenLineYpx = projectCourtY(worldKitchenLineYpx);
+    var baselineYpx = projectCourtY(worldBaselineYpx);
+    var playerYpx = projectCourtY(worldPlayerYpx);
+    var opponentYpx = projectCourtY(worldOpponentYpx);
+    var oppKitchenLineYpx = projectCourtY(worldOppKitchenLineYpx);
+    var oppBaselineYpx = projectCourtY(worldOppBaselineYpx);
     ctx.strokeStyle = colors.kitchenLine;
     ctx.lineWidth = kitchenLineWidth;
     ctx.setLineDash([]);
     ctx.beginPath();
-    var playerKitchenEdges2 = edgesAtY(kitchenLineYpx);
-    var oppKitchenEdges2 = edgesAtY(oppKitchenLineYpx);
+    var playerKitchenEdges2 = edgesAtWorldY(worldKitchenLineYpx);
+    var oppKitchenEdges2 = edgesAtWorldY(worldOppKitchenLineYpx);
     ctx.moveTo(playerKitchenEdges2.left, kitchenLineYpx);
     ctx.lineTo(playerKitchenEdges2.right, kitchenLineYpx);
     ctx.moveTo(oppKitchenEdges2.left, oppKitchenLineYpx);
@@ -957,9 +1083,9 @@ void function () {
     if (colors.courtLinesStrong && colors.courtLinesSoft && colors.centerLine) {
       ctx.strokeStyle = colors.courtLinesSoft;
       ctx.lineWidth = sidelineLineWidth;
-      var playerBaselineEdges2 = edgesAtY(baselineYpx);
-      var oppBaselineEdges2 = edgesAtY(oppBaselineYpx);
-      var netEdges = edgesAtY(netYpx);
+      var playerBaselineEdges2 = edgesAtWorldY(worldBaselineYpx);
+      var oppBaselineEdges2 = edgesAtWorldY(worldOppBaselineYpx);
+      var netEdges = edgesAtWorldY(worldNetYpx);
       ctx.beginPath();
       ctx.moveTo(oppBaselineEdges2.left, oppBaselineYpx);
       ctx.lineTo(netEdges.left, netYpx);
@@ -991,7 +1117,7 @@ void function () {
     if (state.opponentBounceUntil > gt && state.opponentBounceAt > 0) {
       var oppBounceProgress = 1 - ((state.opponentBounceUntil - gt) / Math.max(1, state.opponentBounceUntil - state.opponentBounceAt));
       oppBounceProgress = Math.max(0, Math.min(1, oppBounceProgress));
-      var oppBounceX = projectX((state.opponentBounceX != null ? state.opponentBounceX : state.opponentX), opponentYpx);
+      var oppBounceX = projectX((state.opponentBounceX != null ? state.opponentBounceX : state.opponentX), worldOpponentYpx);
       var oppBounceRadius = (10 + oppBounceProgress * 18) * oppScale;
       ctx.save();
       ctx.globalAlpha = Math.max(0.18, 0.55 * (1 - oppBounceProgress));
@@ -1037,27 +1163,31 @@ void function () {
       var ballHeightScaleFar = requiredConfigNumber(this.config?.canvas?.ballHeightScaleFar, "canvas.ballHeightScaleFar", { min: 0.1, max: 2 });
       var ballScreenScale = lerpNum(ballDepthScaleFar, ballDepthScaleNear, ballDepthRatioNear);
       var heightScreenScale = lerpNum(ballHeightScaleFar, ballHeightScaleNear, ballDepthRatioNear);
+      var screenGroundY = projectCourtY(groundY);
       renderBall.x = projectX(ball.x, groundY);
-      renderBall.y = groundY - ballHeightPx * heightScreenScale;
+      renderBall.y = screenGroundY - ballHeightPx * heightScreenScale;
       renderBall.targetX = projectX(ball.targetX, ball.targetY);
-      renderBall.targetY = ball.targetY;
+      renderBall.targetY = projectCourtY(ball.targetY);
       renderBall.startX = projectX(ball.startX, ball.startY);
-      renderBall.startY = ball.startY;
-      renderBall.shadowY = groundY;
+      renderBall.startY = projectCourtY(ball.startY);
+      renderBall.shadowY = screenGroundY;
+      renderBall.worldY = ball.y;
+      renderBall.worldTargetY = ball.targetY;
+      renderBall.worldShadowY = groundY;
       renderBall.radius = Math.max(4, ball.radius * ballScreenScale);
-      if (ball.y <= netYpx) {
+      if (ball.y <= worldNetYpx) {
         this._renderBallV2(ctx, renderBall, colors, w, h, gt, n, juice);
       }
     }
 
     // Opponent silhouette
-    var oppX = projectX(state.opponentX, opponentYpx);
-    this._renderOpponentV2(ctx, oppX, opponentYpx, state.opponentState || "idle", colors, w, h, n, oppScale, renderBall);
+    var oppX = projectX(state.opponentX, worldOpponentYpx);
+    this._renderOpponentV2(ctx, oppX, opponentYpx, state.opponentState || "idle", colors, w, h, n, oppScale, renderBall, worldOpponentYpx);
 
     // Net seen from the front, with a slight center sag (36in sides, 34in center)
     ctx.strokeStyle = colors.netColor;
     ctx.lineWidth = netLineWidth;
-    var netEdges2 = edgesAtY(netYpx);
+    var netEdges2 = edgesAtWorldY(worldNetYpx);
     ctx.save();
     ctx.globalAlpha = 0.12;
     ctx.fillStyle = colors.netColor;
@@ -1080,7 +1210,7 @@ void function () {
         ctx.save();
         ctx.globalAlpha = 0.16;
         ctx.strokeStyle = colors.highlightWhite;
-        ctx.lineWidth = netNearHighlightWidth;
+        ctx.lineWidth = effectiveNetNearHighlightWidth;
         ctx.beginPath();
         ctx.moveTo(netEdges2.left + 6, netYpx + 2);
         ctx.quadraticCurveTo(centerLineX, netYpx + netCenterSagPx + 2, netEdges2.right - 6, netYpx + 2);
@@ -1097,8 +1227,8 @@ void function () {
     // Net mesh
     ctx.strokeStyle = colors.netMesh;
     ctx.lineWidth = 1;
-    for (var ni = 1; ni <= netMeshRows; ni++) {
-      var meshY = netYpx + ni * (netBandDepthPx / (netMeshRows + 1));
+    for (var ni = 1; ni <= effectiveNetMeshRows; ni++) {
+      var meshY = netYpx + ni * (netBandDepthPx / (effectiveNetMeshRows + 1));
       ctx.beginPath();
       ctx.moveTo(netEdges2.left + 2, meshY);
       ctx.lineTo(netEdges2.right - 2, meshY);
@@ -1112,7 +1242,7 @@ void function () {
       ctx.stroke();
     }
 
-    if (renderBall && ball.y > netYpx) {
+    if (renderBall && ball.y > worldNetYpx) {
       this._renderBallV2(ctx, renderBall, colors, w, h, gt, n, juice);
     }
 
@@ -1120,7 +1250,7 @@ void function () {
     var playerX = projectX(state.playerX, state.playerY);
     var playerYState = state.playerY;
     var pState = state.playerState || "idle";
-    this._renderPlayerV2(ctx, playerX, playerYState, pState, colors, w, h, n, court);
+    this._renderPlayerV2(ctx, playerX, playerYpx, pState, colors, w, h, n, court, playerYState);
 
     // V3 Controls zone: left half = MOVE, right half = HIT (timing bonus)
     ctx.fillStyle = colors.controlZoneBg;
@@ -1171,6 +1301,74 @@ void function () {
       }
     }
 
+    // Active power-up chips + short activation toast.
+    var activePowerUps = Array.isArray(state.activePowerUps) ? state.activePowerUps : [];
+    var featuredPowerKey = String(state.featuredPowerKey || "").trim();
+    var uiwPower = (this.wording && this.wording.ui) ? this.wording.ui : {};
+    function powerColor(key) {
+      if (key === "extraLife") return colors.powerUpLife || colors.powerUpReady || colors.highlightWhite;
+      if (key === "shield") return colors.powerUpShield || colors.powerUpReady || colors.highlightWhite;
+      if (key === "speedBoost") return colors.powerUpSpeed || colors.powerUpReady || colors.highlightWhite;
+      if (key === "perfectWindow") return colors.powerUpPerfect || colors.powerUpReady || colors.highlightWhite;
+      if (key === "smashBoost") return colors.powerUpSmash || colors.powerUpReady || colors.highlightWhite;
+      return colors.powerUpReady || colors.highlightWhite;
+    }
+    if (activePowerUps.length) {
+      var chipX = 12;
+      var chipY = Math.round(h * 0.065);
+      for (var ap = 0; ap < activePowerUps.length; ap++) {
+        var chip = activePowerUps[ap];
+        var chipLabel = String(this._getPowerUpLabel(chip.key) || "").trim();
+        if (!chipLabel) continue;
+        var chipMeta = "";
+        if (chip.blocksRemaining > 0) chipMeta = " " + chip.blocksRemaining;
+        else if (chip.remainingMs > 0) chipMeta = " " + Math.max(1, Math.ceil(chip.remainingMs / 1000));
+        ctx.save();
+        ctx.font = "bold " + Math.round(Math.max(10, w * 0.022)) + "px system-ui, sans-serif";
+        var chipText = chipLabel + chipMeta;
+        var chipW = ctx.measureText(chipText).width + 16;
+        var chipH = Math.round(Math.max(18, h * 0.028));
+        ctx.globalAlpha = 0.86;
+        ctx.fillStyle = rgbaFromTuple(colors.shadowRgb, 0.68);
+        ctx.fillRect(chipX, chipY, chipW, chipH);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = powerColor(chip.key);
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(chipX, chipY, chipW, chipH);
+        ctx.fillStyle = colors.highlightWhite;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(chipText, chipX + 8, chipY + chipH / 2);
+        ctx.restore();
+        chipY += chipH + 6;
+      }
+    }
+    if (state.lastPowerUpEvent && state.lastPowerUpEvent.key) {
+      var powerEventLabel = String(this._getPowerUpLabel(state.lastPowerUpEvent.key) || "").trim();
+      var readyPrefix = String(uiwPower.powerUpActivePrefix || uiwPower.powerUpReadyPrefix || "").trim();
+      var weeklyPrefix = (state.lastPowerUpEvent.key === featuredPowerKey) ? String(uiwPower.powerUpWeeklyPrefix || "").trim() : "";
+      var powerToast = (weeklyPrefix ? (weeklyPrefix + " ") : (readyPrefix ? (readyPrefix + " ") : "")) + powerEventLabel;
+      if (powerToast.trim()) {
+        ctx.save();
+        ctx.font = "bold " + Math.round(Math.max(14, w * 0.032)) + "px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        var toastW = ctx.measureText(powerToast).width + 22;
+        var toastH = Math.round(Math.max(24, h * 0.04));
+        var toastY = Math.round(h * 0.12);
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = rgbaFromTuple(colors.shadowRgb, 0.74);
+        ctx.fillRect((w - toastW) / 2, toastY - toastH / 2, toastW, toastH);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = powerColor(state.lastPowerUpEvent.key);
+        ctx.lineWidth = 2;
+        ctx.strokeRect((w - toastW) / 2, toastY - toastH / 2, toastW, toastH);
+        ctx.fillStyle = powerColor(state.lastPowerUpEvent.key);
+        ctx.fillText(powerToast, w / 2, toastY);
+        ctx.restore();
+      }
+    }
+
     // Juice: smash flash
     if (juice.flashType === "smash" && juice.flashUntil > n && colors.smashFlashColor) {
       var smashFlashDur = requiredConfigNumber(this.config?.juice?.smashFlashMs, "juice.smashFlashMs", { min: 1, integer: true });
@@ -1184,7 +1382,7 @@ void function () {
 
     // Sprint-only success pulse: balance the strong penalty stack with a brief reward signal.
     var sprintSuccessMs = Number(this.config?.juice?.sprintSuccessPulseMs);
-    if (state.mode === MODES.SPRINT && juice.sprintSuccessUntil > n && Number.isFinite(sprintSuccessMs) && sprintSuccessMs > 0 && colors.smashFlashColor) {
+    if (state.mode === MODES.SPRINT && perfTier < perfCfg.hideSprintSuccessPulseAtTier && juice.sprintSuccessUntil > n && Number.isFinite(sprintSuccessMs) && sprintSuccessMs > 0 && colors.smashFlashColor) {
       var ssElapsed = sprintSuccessMs - (juice.sprintSuccessUntil - n);
       var ssT = Math.min(1, Math.max(0, ssElapsed / sprintSuccessMs));
       var ssA = Math.max(0, 0.18 * (1 - ssT));
@@ -1217,7 +1415,7 @@ void function () {
         if (popElapsed > scorePopupMs) { juice.scorePopups.splice(sp, 1); continue; }
         var popT = popElapsed / scorePopupMs;
         var popupText = String(popup.text || "").trim();
-        var popupTimingLabel = String(popup.timingLabel || "").trim();
+        var popupTimingLabel = (perfTier >= perfCfg.hideScoreTimingLabelAtTier) ? "" : String(popup.timingLabel || "").trim();
         if (!popupText && !popupTimingLabel) { juice.scorePopups.splice(sp, 1); continue; }
         ctx.globalAlpha = Math.max(0, 1 - popT);
         ctx.font = "bold " + Math.round(22 + (1 - popT) * 6) + "px system-ui, sans-serif";
@@ -1255,6 +1453,8 @@ void function () {
     var BALL_STATES = this.gameApi && this.gameApi.BALL_STATES;
     if (!BALL_STATES) return;
     var _uw2 = (this.wording && this.wording.ui) || {};
+    var perfCfg = this._getRenderPerfConfig();
+    var perfTier = this._getRenderPerfTier();
     var shadowMinScale = requiredConfigNumber(this.config?.canvas?.shadowMinScale, "canvas.shadowMinScale", { min: 0.05, max: 3 });
     var shadowMaxScale = requiredConfigNumber(this.config?.canvas?.shadowMaxScale, "canvas.shadowMaxScale", { min: 0.05, max: 4 });
     var landingMarkerRadiusPx = requiredConfigNumber(this.config?.canvas?.landingMarkerRadiusPx, "canvas.landingMarkerRadiusPx", { min: 1, integer: true });
@@ -1267,10 +1467,22 @@ void function () {
     var impactDustCount = requiredConfigNumber(this.config?.canvas?.impactDustCount, "canvas.impactDustCount", { min: 0, max: 24, integer: true });
     var trailSegments = requiredConfigNumber(this.config?.canvas?.trajectoryTrailSegments, "canvas.trajectoryTrailSegments", { min: 0, max: 12, integer: true });
     var trailAlpha = requiredConfigNumber(this.config?.canvas?.trajectoryTrailAlpha, "canvas.trajectoryTrailAlpha", { min: 0, max: 1 });
+    var effectiveDustCount = impactDustCount;
+    var effectiveTrailSegments = trailSegments;
+    var showReturnTrail = true;
+    if (perfTier === 1) {
+      effectiveDustCount = Math.min(impactDustCount, perfCfg.lowQualityDustCount);
+      effectiveTrailSegments = Math.min(trailSegments, perfCfg.lowQualityTrailSegments);
+    } else if (perfTier >= 2) {
+      effectiveDustCount = Math.min(impactDustCount, perfCfg.minQualityDustCount);
+      effectiveTrailSegments = Math.min(trailSegments, perfCfg.minQualityTrailSegments);
+    }
+    if (perfTier >= perfCfg.hideReturnTrailAtTier) showReturnTrail = false;
     var courtCfg = this.config?.court || {};
     var netY = requiredConfigNumber(courtCfg.netY, "KR_CONFIG.court.netY", { min: 0.05, max: 0.3 }) * h;
     var baseY = requiredConfigNumber(courtCfg.baselineY, "KR_CONFIG.court.baselineY", { min: 0.5, max: 0.99 }) * h;
-    var depthRatio = Math.max(0, Math.min(1, (b.targetY - netY) / Math.max(1, baseY - netY)));
+    var targetDepthY = (b.worldTargetY != null) ? b.worldTargetY : b.targetY;
+    var depthRatio = Math.max(0, Math.min(1, (targetDepthY - netY) / Math.max(1, baseY - netY)));
     var markerScale = 0.8 + depthRatio * 0.4;
     var specialBallLabel = "";
     if (b.ballType === "dink") specialBallLabel = String((_uw2 && _uw2.specialBallDink) || "").trim();
@@ -1286,6 +1498,7 @@ void function () {
       (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.LANDED || b.state === BALL_STATES.BOUNCED) &&
       (gt - b.spawnedAt) <= specialBallBadgeMs &&
       !showServeLabel &&
+      perfTier < perfCfg.hideSpecialBallBadgesAtTier &&
       !(mustBounceReason === "kitchen" && b.state === BALL_STATES.TRAVELING)
     );
 
@@ -1348,10 +1561,10 @@ void function () {
     else ctx.fillStyle = colors.ballDefault;
 
     if (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.LANDED || b.state === BALL_STATES.BOUNCED) {
-      if (b.state === BALL_STATES.TRAVELING && trailSegments > 0) {
+      if (b.state === BALL_STATES.TRAVELING && effectiveTrailSegments > 0) {
         ctx.save();
-        for (var ti = trailSegments; ti >= 1; ti--) {
-          var trailT = ti / (trailSegments + 1);
+        for (var ti = effectiveTrailSegments; ti >= 1; ti--) {
+          var trailT = ti / (effectiveTrailSegments + 1);
           var trailX = b.x + ((b.shadowY != null ? b.targetX : b.x) - b.x) * trailT * 0.18;
           var trailY = b.y + ((b.shadowY != null ? b.shadowY : b.y) - b.y) * trailT * 0.35;
           var trailScale = 1 - trailT * 0.22;
@@ -1532,8 +1745,8 @@ void function () {
         // 3) Dust particles
         if (sinceBounce < 350) {
           var dustT = sinceBounce / 350;
-          for (var di = 0; di < impactDustCount; di++) {
-            var dustCenter = (impactDustCount - 1) / 2;
+          for (var di = 0; di < effectiveDustCount; di++) {
+            var dustCenter = (effectiveDustCount - 1) / 2;
             var dAngle = (Math.PI / 2) + (di - dustCenter) * 0.34;
             var dDist = dustT * 25;
             var dSize = 2 * (1 - dustT);
@@ -1629,10 +1842,10 @@ void function () {
     if (b.state === "HIT" || b.state === BALL_STATES.HIT) {
       var sinceHit = gt - b.hitAt;
       var retT = Math.min(1, sinceHit / (b.returnTravelMs || 500));
-      if (trailSegments > 0) {
+      if (showReturnTrail && effectiveTrailSegments > 0) {
         ctx.save();
-        for (var rti = trailSegments; rti >= 1; rti--) {
-          var returnTrailT = rti / (trailSegments + 1);
+        for (var rti = effectiveTrailSegments; rti >= 1; rti--) {
+          var returnTrailT = rti / (effectiveTrailSegments + 1);
           ctx.globalAlpha = trailAlpha * 1.15 * (1 - returnTrailT * 0.45) * (1 - retT * 0.35);
           ctx.fillStyle = colors.returnTrail;
           ctx.beginPath();
@@ -1666,6 +1879,19 @@ void function () {
         ctx.fill();
         ctx.globalAlpha = 1;
       }
+      if (b.savedByShield && sinceFault < 700) {
+        var shieldSaveLabel = String((_uw2 && _uw2.powerUpSavedByShield) || "").trim();
+        if (shieldSaveLabel) {
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, 0.95 * (1 - sinceFault / 700));
+          ctx.font = "bold " + Math.round(Math.max(12, b.radius * 1.1)) + "px system-ui, sans-serif";
+          ctx.fillStyle = colors.powerUpShield || colors.highlightWhite;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          ctx.fillText(shieldSaveLabel, b.x, b.y - b.radius - 12);
+          ctx.restore();
+        }
+      }
     }
 
     // MISSED
@@ -1686,7 +1912,7 @@ void function () {
   // ============================================
   // V2: Player renderer — sport moderne fluid silhouette
   // ============================================
-  UI.prototype._renderPlayerV2 = function (ctx, x, y, pState, colors, w, h, n, court) {
+  UI.prototype._renderPlayerV2 = function (ctx, x, y, pState, colors, w, h, n, court, worldY) {
     var pColor = colors.playerColor;
     var pOutline = colors.playerOutline;
     var pGlow = colors.playerGlow;
@@ -1700,7 +1926,8 @@ void function () {
     var depthScaleFar = requiredConfigNumber(this.config?.canvas?.playerDepthScaleFar, "canvas.playerDepthScaleFar", { min: 0.5, max: 2 });
     var netY = court ? court.netY * h : (h * 0.26);
     var baseY = court ? court.baselineY * h : (h * 0.88);
-    var depthRatio = (y - netY) / Math.max(1, baseY - netY);
+    var depthSourceY = (worldY != null) ? worldY : y;
+    var depthRatio = (depthSourceY - netY) / Math.max(1, baseY - netY);
     depthRatio = Math.max(0, Math.min(1, depthRatio));
     var depthScale = depthScaleNear + (depthScaleFar - depthScaleNear) * depthRatio;
     var scale = (Math.min(w, h) / 500) * depthScale;
@@ -1872,7 +2099,7 @@ void function () {
     ctx.restore(); // main player transform
   };
 
-  UI.prototype._renderOpponentV2 = function (ctx, x, y, oState, colors, w, h, n, oppScale, ball) {
+  UI.prototype._renderOpponentV2 = function (ctx, x, y, oState, colors, w, h, n, oppScale, ball, worldY) {
     var depthScale = Math.max(0.38, Math.min(1.2, Number(oppScale || 0.55) + 0.2));
     var scale = (Math.min(w, h) / 500) * depthScale;
     var S = function (v) { return v * scale; };
@@ -2741,41 +2968,41 @@ void function () {
 
 
   // ============================================
-  // Sprint chest (secret mode discovery)
+  // Power Ball (secret discovery)
   // ============================================
-  UI.prototype._handleChestTap = function () {
+  UI.prototype._handlePowerBallTap = function () {
     if (this.state !== STATES.END && this.state !== STATES.LANDING) return;
     var cfg = this.config;
     if (!cfg?.sprint?.enabled) return;
 
     var tapWindowMs = requiredConfigNumber(cfg.sprint.tapWindowMs, "KR_CONFIG.sprint.tapWindowMs", { min: 1, integer: true });
     var tapsRequired = requiredConfigNumber(cfg.sprint.tapsRequired, "KR_CONFIG.sprint.tapsRequired", { min: 1, integer: true });
-    var chest = this._runtime.sprintChest;
+    var powerBall = this._runtime.powerBall;
     var now = Date.now();
 
-    if (now - chest.lastTapAt > tapWindowMs) chest.tapCount = 0;
-    chest.tapCount++;
-    chest.lastTapAt = now;
+    if (now - powerBall.lastTapAt > tapWindowMs) powerBall.tapCount = 0;
+    powerBall.tapCount++;
+    powerBall.lastTapAt = now;
 
-    if (chest.tapCount >= tapsRequired) {
-      chest.tapCount = 0;
+    if (powerBall.tapCount >= tapsRequired) {
+      powerBall.tapCount = 0;
 
-      if (this._store("hasSprintChestHintSolved")) {
-        window.dispatchEvent(new CustomEvent("kr-sprint-requested"));
+      if (this._store("hasPowerBallHintSolved")) {
+        window.dispatchEvent(new CustomEvent("kr-power-run-requested"));
         return;
       }
-      if (!this._store("hasSprintChestWelcomeShown")) {
-        this._store("markSprintChestHintSolved");
-        this._store("markSprintChestWelcomeShown");
+      if (!this._store("hasPowerBallWelcomeShown")) {
+        this._store("markPowerBallHintSolved");
+        this._store("markPowerBallWelcomeShown");
         this._showSprintWelcomeModal();
         return;
       }
-      this._store("markSprintChestHintSolved");
-      window.dispatchEvent(new CustomEvent("kr-sprint-requested"));
+      this._store("markPowerBallHintSolved");
+      window.dispatchEvent(new CustomEvent("kr-power-run-requested"));
     }
   };
 
-  UI.prototype._canShowChest = function (screen) {
+  UI.prototype._canShowPowerBall = function (screen) {
     var cfg = this.config;
     if (!cfg?.sprint?.enabled) return false;
     var gates = cfg.sprint.gates || {};
@@ -2785,6 +3012,11 @@ void function () {
     if (screen === STATES.END) return rc >= endAfterRuns;
     if (screen === STATES.LANDING) return rc >= landingAfterRuns;
     return false;
+  };
+
+  // Backward-compatible alias for older callers.
+  UI.prototype._canShowChest = function (screen) {
+    return this._canShowPowerBall(screen);
   };
 
 

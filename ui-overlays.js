@@ -181,6 +181,14 @@
         if (runType === "FREE") line1 = uw.startRunTypeFree || "";
         else if (runType === "LAST_FREE") line1 = uw.startRunTypeLastFree || "";
         else if (runType === "UNLIMITED") line1 = uw.startRunTypeUnlimited || "";
+        if (mode === MODES.RUN && !premium) {
+          var freeLimit = Number(cfg?.limits?.freeRuns);
+          var remainingRuns = Number(this._store("getRunsBalance") || 0);
+          var remainingTpl = String(uw.startRunRemainingTemplate || "").trim();
+          if (Number.isFinite(freeLimit) && freeLimit > 0 && remainingTpl) {
+            line2 = fillTemplate(remainingTpl, { remaining: Math.max(0, remainingRuns), limit: freeLimit });
+          }
+        }
       }
 
       var node = el("kr-run-start-overlay");
@@ -209,6 +217,10 @@
 
       var kitchenHintMsg = String(uiw.startOverlayKitchenHint || "").trim();
       var kitchenHint = kitchenHintMsg ? '<p class="kr-run-start-hint kr-muted">' + escapeHtml(kitchenHintMsg) + '</p>' : "";
+      var powerHintMsg = String(uiw.startOverlayPowerHint || "").trim();
+      var runCompletes = Number((this._store("getCounters") || {}).runCompletes || 0);
+      var showPowerHint = !!(powerHintMsg && mode === MODES.RUN && runCompletes < 4);
+      var powerHint = showPowerHint ? '<p class="kr-run-start-hint kr-muted">' + escapeHtml(powerHintMsg) + '</p>' : "";
 
       var dailyHtml = "";
       if (this._runtime.currentRunIsDaily && this.gameApi && typeof this.gameApi.getDailyModifier === "function") {
@@ -233,6 +245,7 @@
           (line2 ? '<p class="kr-run-start-line2">' + escapeHtml(line2) + '</p>' : '') +
           controlsHtml +
           kitchenHint +
+          powerHint +
           (String(uiw.startOverlayTapToStart || "").trim() ? '<p class="kr-run-start-hint kr-muted">' + escapeHtml(uiw.startOverlayTapToStart || "") + '</p>' : '') +
         '</div>';
       node.classList.add("kr-run-start-overlay--visible");
@@ -267,6 +280,8 @@
 
       var kitchenHint = String(fw.kitchenHint || "").trim();
       var kitchenHtml = kitchenHint ? '<p class="kr-first-run-hint kr-muted">' + escapeHtml(kitchenHint) + '</p>' : "";
+      var powerHint = String(fw.powerHint || "").trim();
+      var powerHtml = powerHint ? '<p class="kr-first-run-hint kr-muted">' + escapeHtml(powerHint) + '</p>' : "";
 
       var tutorialHtml = "";
       var rule1 = String(fw.rule1 || "").trim();
@@ -285,6 +300,7 @@
           '<p class="kr-first-run-trust">' + escapeHtml(trustLine) + '</p>' +
           tutorialHtml +
           kitchenHtml +
+          powerHtml +
           '<button id="kr-first-run-go" class="kr-btn kr-btn--primary">' + escapeHtml(this.wording?.landing?.ctaPlay || "") + '</button>' +
         '</div>';
 

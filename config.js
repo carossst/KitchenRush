@@ -255,6 +255,77 @@
           bounceHeightMultiplier: 0.78,
           reboundDelayMultiplier: 0.98
         }
+      },
+
+      // True power-ups: live gameplay layer.
+      // Triggered by readable power balls / rally events.
+      // Progression stays fully config-driven here.
+      powerUps: {
+        enabled: true,
+        progression: {
+          firstUnlockScore: 12,
+          unlockEveryScore: 8,
+          maxActiveAtOnce: 1
+        },
+        weekly: {
+          enabled: true,
+          weightMultiplier: 1.9,
+          cycle: ["shield", "speedBoost", "perfectWindow", "smashBoost", "extraLife"]
+        },
+        extraLife: {
+          enabled: true,
+          unlockAfterScore: 18,
+          requireRunCompletes: 4,
+          requireBestScore: 10,
+          requireLifetimeSmashes: 40,
+          weight: 0.06,
+          triggerBallType: "heavy",
+          maxPerRun: 1
+        },
+        shield: {
+          enabled: true,
+          unlockAfterScore: 14,
+          requireRunCompletes: 2,
+          requireBestScore: 6,
+          requireLifetimeSmashes: 12,
+          weight: 0.12,
+          triggerBallType: "dink",
+          blockCount: 1,
+          durationMs: 0
+        },
+        speedBoost: {
+          enabled: true,
+          unlockAfterScore: 22,
+          requireRunCompletes: 5,
+          requireBestScore: 12,
+          requireLifetimeSmashes: 60,
+          weight: 0.1,
+          triggerBallType: "fast",
+          durationMs: 5000,
+          moveSpeedMultiplier: 1.22
+        },
+        perfectWindow: {
+          enabled: true,
+          unlockAfterScore: 26,
+          requireRunCompletes: 7,
+          requireBestScore: 16,
+          requireLifetimeSmashes: 100,
+          weight: 0.08,
+          triggerBallType: "lob",
+          durationMs: 4500,
+          tapWindowMultiplier: 1.18
+        },
+        smashBoost: {
+          enabled: true,
+          unlockAfterScore: 30,
+          requireRunCompletes: 9,
+          requireBestScore: 20,
+          requireLifetimeSmashes: 160,
+          weight: 0.08,
+          triggerBallType: "skid",
+          durationMs: 4500,
+          scoreMultiplier: 2
+        }
       }
     },
 
@@ -355,6 +426,7 @@
 
       // Frontal court rendering
       opponentCourtScale: 0.62,
+      cameraPerspectivePower: 1.75,
       sidelineInsetFrac: 0.08,
       nearSidelineInsetFrac: 0.05,
       netSidelineInsetFrac: 0.15,
@@ -466,6 +538,13 @@
 
         // "WAIT" indicator on kitchen balls
         waitIndicator: "#ff6b4a",
+        powerUpReady: "#9bffb0",
+        powerUpShield: "#80ed99",
+        powerUpSpeed: "#5ec8ff",
+        powerUpPerfect: "#c9a6ff",
+        powerUpSmash: "#ffd166",
+        powerUpLife: "#ff8fa3",
+        weeklyFeatured: "#f4a261",
 
         // V2: Ball type colors
         ballDink: "#98c1d9",
@@ -572,7 +651,7 @@
 
 
     // ============================================
-    // SPRINT — secret mode (chest discovery)
+    // POWER RUN — secret bonus mode (Power Ball discovery)
     // ============================================
     sprint: {
       enabled: true,
@@ -580,12 +659,12 @@
       durationMs: 20000,
       faultPenaltyMs: 2000,
 
-      // Teaser: free users can try N sprint runs (lifetime, device-local)
+      // Teaser: free users can try N Power Runs (lifetime, device-local)
       freeRunsLimit: 5,
 
       // Entry points (canonical gates)
-      // END: show chest after N completed runs (0 = show from first END)
-      // LANDING: show chest after N completed runs
+      // END: show the Power Ball after N completed runs (0 = show from first END)
+      // LANDING: show the Power Ball after N completed runs
       gates: {
         endAfterRuns: 0,
         landingAfterRuns: 1

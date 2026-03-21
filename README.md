@@ -21,7 +21,7 @@ The intended feel is:
 
 - Classic is the main game.
 - Daily Challenge is one shared Classic run per UTC day.
-- Sprint is the short high-pressure side mode.
+- Power Run is the short high-pressure side mode.
 - Waitlist, house ads, stats sharing, and similar systems are always secondary to play.
 
 ## Design inspiration
@@ -142,7 +142,11 @@ Player-facing motivation:
 
 ## Power design guardrails
 
-Current live powers are ball personalities, not inventory bonuses.
+There are 2 different systems and they must stay conceptually separate.
+
+### 1. Ball personalities
+
+Current live powers are first and foremost ball personalities.
 
 That means:
 
@@ -150,21 +154,205 @@ That means:
 - they change placement, timing, and rebound
 - they stay readable in a frontal pickleball court
 
-Future bonus ideas like:
+### 2. True power-ups
 
-- extra life
-- brief invincibility
-- multi-hit shield
-- magnet catch
+Kitchen Rush now supports true temporary arcade power-ups as a second layer.
 
-should be treated as a later design layer, not mixed into the core rally by default.
+These are not passive stat boosts hidden in the code.
+They must be:
 
-If added later, they must:
+- visibly introduced by a specific ball or event
+- short
+- easy to understand instantly on a phone
+- subordinate to ball readability
+
+Current live direction:
+
+- `extraLife`
+  - grants `+1` life
+  - rare, high-value reward
+- `shield`
+  - blocks the next fault only
+  - preferred over long invincibility
+- `speedBoost`
+  - increases player movement speed briefly
+- `perfectWindow`
+  - slightly widens timing forgiveness briefly
+- `smashBoost`
+  - boosts the next few clean returns or their score value
+
+### Explicit non-goals for now
+
+Do not jump directly to:
+
+- 30-second invincibility
+- multi-ball chaos
+- random screen-filling gimmicks
+- effects that hide Kitchen / net / ball state
+
+The game should feel:
+
+- more fun
+- more surprising
+- more arcade
+
+But never:
+
+- visually noisy
+- unfair
+- unreadable on mobile
+
+### Progressive discovery model
+
+The intended player journey is:
+
+- early run: readable rally, almost no overload
+- mid run: more ball personalities
+- deeper run: rarer power balls appear
+- later run: a small number of short-lived power-ups can trigger
+
+The player should feel:
+
+- "I lasted long enough to discover something new"
+- "this run got richer"
+- "I want one more run to see the next power"
+
+This is closer to arcade progression in Arkanoid / Pac-Man than to a sports sim, but the match must still read as pickleball.
+
+## Secret discovery object
+
+The secret unlock object is now a `Power Ball`, not a gift chest.
+
+Why:
+
+- it fits the pickleball/arcade fantasy better
+- it feels less like a generic mobile gimmick
+- it connects directly to the power-up system
+
+UI rule:
+
+- the player should see it as a special ball/event
+- not as a loot box or present
+
+### Power-up guardrails
+
+They must:
 
 - remain short and readable
 - not hide the Kitchen rule
 - not erase the double bounce rule
+- not make the ball harder to track
 - feel like an arcade twist on pickleball, not random noise
+- preserve the core norm:
+  - at phone size, in motion, the player must still instantly distinguish ball, player, opponent, net, kitchen, and lines
+
+## Live power-up progression
+
+Power-ups are now driven by 3 layers at once:
+
+- score inside the current run
+- long-term player progression on this device
+- one featured weekly power-up
+
+### 1. In-run progression
+
+Power-ups do not appear immediately.
+
+They unlock deeper into a run through:
+
+- `game.powerUps.progression.firstUnlockScore`
+- `game.powerUps.progression.unlockEveryScore`
+- per-power `unlockAfterScore`
+
+This means:
+
+- early run stays readable
+- mid run starts introducing stronger rewards
+- later run gets richer without instant chaos
+
+### 2. Meta progression on device
+
+Each power-up can also require:
+
+- `requireRunCompletes`
+- `requireBestScore`
+- `requireLifetimeSmashes`
+
+This is intentional.
+
+It gives the player a reason to:
+
+- improve best score
+- play more runs
+- come back later to unlock new powers
+
+### 3. Weekly featured power-up
+
+A local UTC weekly rotation highlights one power-up at a time.
+
+Current rule:
+
+- config-driven cycle in `game.powerUps.weekly.cycle`
+- no backend required
+- the featured power-up gets extra weight when eligible
+
+This creates a lightweight return hook:
+
+- "what is this week's featured power?"
+- "I unlocked that one, I want to see it more often"
+
+## Live power-up behavior
+
+Current live powers:
+
+- `extraLife`
+  - instant reward
+  - grants +1 life in Classic
+  - rare
+- `shield`
+  - blocks the next fault
+  - preserves the run instead of taking a life
+- `speedBoost`
+  - increases player movement speed briefly
+- `perfectWindow`
+  - widens hit timing briefly
+- `smashBoost`
+  - multiplies hit score briefly
+
+Trigger model:
+
+- powers are tied to readable ball types
+- a qualifying hit can activate a matching power-up
+- not every qualifying hit activates one
+- config controls rarity and run caps
+
+Readability rule:
+
+- at most a very small number of powers can be active at once
+- activation feedback must stay lighter than ball tracking
+- the rally remains primary
+
+## Player motivation and conversion intent
+
+Power-ups are not only a gameplay layer.
+They are also part of the product value story.
+
+That means:
+
+- the player should learn very early that deeper runs unlock more
+- first runs should tease future discovery without overwhelming the rules
+- landing and end should keep pointing at the next thing to unlock
+- the paywall should connect unlimited runs with deeper discovery
+
+The intended perceived value is:
+
+- more runs = more depth
+- more score = more surprises
+- better play = more systems unlocked
+- premium = unlimited access to that progression loop
+
+If a feature exists in gameplay but the player cannot understand it in the first sessions,
+it is not yet product-complete.
 
 ## Non-negotiable development constraints
 
@@ -187,6 +375,7 @@ If added later, they must:
   - rendering tunables
   - thresholds
   - ball personalities
+  - future power-up tunables and progression rules
   - growth and nudge rules
 - `wording.js`
   - all visible copy
@@ -196,10 +385,12 @@ If added later, they must:
   - spawning
   - collisions
   - rebound timing
+  - power-up unlock/activation logic
 - `ui.js`
   - canvas render
   - gameplay presentation
   - input orchestration
+  - live power-up chips and activation feedback
 - `ui-screens.js`
   - non-playing screens only
 - `storage.js` and storage submodules
@@ -221,6 +412,14 @@ Gameplay:
   - player / opponent / net / ball rendering
   - in-game HUD and feedback
   - gameplay input orchestration
+
+Future gameplay extension:
+
+- power-up logic lives in `game.js`
+- power-up tunables live in `config.js`
+- power-up labels and player-facing copy live in `wording.js`
+- power-up rendering and temporary visual feedback live in `ui.js`
+- no separate ad-hoc source of truth is allowed
 
 Non-playing UI:
 
@@ -268,6 +467,7 @@ Primary goal:
 - get the player into a run quickly
 - keep the player in the rally loop
 - make improvement visible
+- make depth and future unlocks visible early
 
 Secondary systems must never dominate:
 
@@ -305,6 +505,22 @@ The player should feel:
 - satisfying impacts
 - distinct ball personalities
 - visible improvement from run to run
+- visible progression toward new powers
+
+## Economy and discovery
+
+Current player-facing economy:
+
+- Classic starts with `5` free runs
+- Power Run has its own free-tries gate
+- landing, start overlay, and end should all make remaining opportunity clear
+
+Current discovery loop:
+
+- early runs teach the base rally
+- deeper runs unlock stronger ball personalities
+- power-ups unlock through score + meta progression
+- one weekly featured power-up keeps the loop fresh without backend live ops
 
 ## Testing priorities
 
@@ -314,7 +530,7 @@ Must-test flows:
 
 - Classic
 - Daily
-- Sprint
+- Power Run
 - Kitchen fault logic
 - double bounce sequence
 - end screen replay loop
@@ -337,7 +553,7 @@ Must-test feel:
 ## Launch checklist
 
 - Stripe URLs replaced with live URLs.
-- Real-device test on mobile for Classic, Daily, and Sprint.
+- Real-device test on mobile for Classic, Daily, and Power Run.
 - Real visual check of frontal court, bounce, and ball departure.
 - Wording audit on landing, paywall, end, success, privacy, terms, and press.
 - Confirm no inline CSS on modified files.

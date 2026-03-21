@@ -25,26 +25,43 @@
       throw new Error("KR_STORAGE_UX.install(): StorageManager missing");
     }
 
+    StorageManager.prototype.hasPowerBallHintSolved = function () {
+      return !!(this.data && this.data.flags && this.data.flags.powerBallHintSolved);
+    };
+
+    StorageManager.prototype.markPowerBallHintSolved = function () {
+      if (!this.data) return;
+      if (!this.data.flags) this.data.flags = deepCopy(this.defaultData.flags);
+      this.data.flags.powerBallHintSolved = true;
+      this._save();
+    };
+
+    StorageManager.prototype.hasPowerBallWelcomeShown = function () {
+      return !!(this.data && this.data.flags && this.data.flags.powerBallWelcomeShown);
+    };
+
+    StorageManager.prototype.markPowerBallWelcomeShown = function () {
+      if (!this.data) return;
+      if (!this.data.flags) this.data.flags = deepCopy(this.defaultData.flags);
+      this.data.flags.powerBallWelcomeShown = true;
+      this._save();
+    };
+
+    // Backward-compatible aliases during rename rollout.
     StorageManager.prototype.hasSprintChestHintSolved = function () {
-      return !!(this.data && this.data.flags && this.data.flags.sprintChestHintSolved);
+      return this.hasPowerBallHintSolved();
     };
 
     StorageManager.prototype.markSprintChestHintSolved = function () {
-      if (!this.data) return;
-      if (!this.data.flags) this.data.flags = deepCopy(this.defaultData.flags);
-      this.data.flags.sprintChestHintSolved = true;
-      this._save();
+      this.markPowerBallHintSolved();
     };
 
     StorageManager.prototype.hasSprintChestWelcomeShown = function () {
-      return !!(this.data && this.data.flags && this.data.flags.sprintChestWelcomeShown);
+      return this.hasPowerBallWelcomeShown();
     };
 
     StorageManager.prototype.markSprintChestWelcomeShown = function () {
-      if (!this.data) return;
-      if (!this.data.flags) this.data.flags = deepCopy(this.defaultData.flags);
-      this.data.flags.sprintChestWelcomeShown = true;
-      this._save();
+      this.markPowerBallWelcomeShown();
     };
 
     StorageManager.prototype.hasFirstRunFramingSeen = function () {

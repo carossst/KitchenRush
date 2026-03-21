@@ -99,6 +99,27 @@
       return (next && next.label) ? next : null;
     }
 
+    function getNextPowerUpUnlock(config, labelFn, currentScore, meta) {
+      var powerUps = config && config.game && config.game.powerUps;
+      if (!powerUps || powerUps.enabled !== true) return null;
+      var score = Math.max(0, Math.floor(Number(currentScore || 0)));
+      var state = meta || {};
+      var next = null;
+      ["extraLife", "shield", "speedBoost", "perfectWindow", "smashBoost"].forEach(function (key) {
+        var item = powerUps[key];
+        if (!item || item.enabled !== true) return;
+        if (item.requireRunCompletes != null && Number(state.runCompletes || 0) < Number(item.requireRunCompletes || 0)) return;
+        if (item.requireBestScore != null && Number(state.bestScore || 0) < Number(item.requireBestScore || 0)) return;
+        if (item.requireLifetimeSmashes != null && Number(state.lifetimeSmashes || 0) < Number(item.requireLifetimeSmashes || 0)) return;
+        var unlockScore = requiredConfigNumber(item.unlockAfterScore, "KR_CONFIG.game.powerUps." + key + ".unlockAfterScore", { min: 0, integer: true });
+        if (unlockScore <= score) return;
+        var label = String(labelFn(key) || "").trim();
+        if (!label) return;
+        if (!next || unlockScore < next.score) next = { key: key, score: unlockScore, label: label };
+      });
+      return next;
+    }
+
     UIModule.prototype.render = function () {
       switch (this.state) {
         case STATES.LANDING: this._renderLanding(); break;
@@ -123,12 +144,12 @@
         ? escapeHtml(lw.ctaPlayAfterFirstRun || lw.ctaPlay || "")
         : escapeHtml(lw.ctaPlay || "");
 
-      var showChest = this._canShowChest(STATES.LANDING);
-      var solved = !!(this._store("hasSprintChestHintSolved"));
-      var chestHtml = showChest
-        ? '<button class="kr-btn-icon' + (solved ? "" : " kr-btn-icon--tease") + '" data-kr-secret="chest" aria-label="' + escapeHtml((w?.sprint || {}).chestAria || "") + '">\uD83C\uDF81</button>' : "";
+      var showPowerBall = this._canShowPowerBall(STATES.LANDING);
+      var solved = !!(this._store("hasPowerBallHintSolved"));
+      var powerBallHtml = showPowerBall
+        ? '<button class="kr-btn-icon' + (solved ? "" : " kr-btn-icon--tease") + '" data-kr-secret="power-ball" aria-label="' + escapeHtml((w?.sprint || {}).chestAria || "") + '">\uD83D\uDFE1</button>' : "";
 
-      var chestHintHtml = (showChest && !solved)
+      var powerBallHintHtml = (showPowerBall && !solved)
         ? '<p class="kr-chest-hint-inline kr-muted">' + escapeHtml((w?.sprint || {}).chestHint || "") + '</p>' : "";
 
       var bestHtml = "";
@@ -197,9 +218,9 @@
         var pG = (!recentRun.newBest && recentRun.smashes > 0) ? (best - recentRun.smashes) : 0;
 
         landingChallengeHtml = pickChallenge([
-          { test: !!(recentImprove && recentImprove.faultsImproved), key: "landingFewerFaults", vars: { delta: recentImprove.fewerFaults } },
-          { test: !!(recentImprove && recentImprove.accuracyImproved), key: "landingImprovedAccuracy", vars: { delta: recentImprove.accuracyGain } },
-          { test: !!(recentImprove && recentImprove.streakImproved), key: "landingBetterStreak", vars: { delta: recentImprove.betterStreak } },
+          { test: !!(recentImprove && recentImprove.faultsImproved), key: "landingFewerFaults", vars: { delta: recentImprove ? recentImprove.fewerFaults : 0 } },
+          { test: !!(recentImprove && recentImprove.accuracyImproved), key: "landingImprovedAccuracy", vars: { delta: recentImprove ? recentImprove.accuracyGain : 0 } },
+          { test: !!(recentImprove && recentImprove.streakImproved), key: "landingBetterStreak", vars: { delta: recentImprove ? recentImprove.betterStreak : 0 } },
           { test: pG > 0 && pG <= (Number(lcCfg.nearBestGap) || 5), key: "landingNearBest", vars: { gap: pG } },
           { test: pF >= (Number(lcCfg.faultThreshold) || 2), key: "landingComeback", vars: { faults: pF } },
           { test: pS >= (Number(lcCfg.streakThreshold) || 8), key: "landingStreakPush", vars: { streak: pS } }
@@ -211,15 +232,38 @@
         var ulLabel = String(lw.premiumLabel || "").trim();
         if (ulLabel) premiumLabelHtml = '<p class="kr-muted">' + escapeHtml(ulLabel) + '</p>';
       }
+      var powerTeaseHtml = "";
+      if (runCompletes < 4) {
+        var powerTease = String(lw.powerTease || "").trim();
+        if (powerTease) powerTeaseHtml = '<p class="kr-muted kr-landing-next-power">' + escapeHtml(powerTease) + '</p>';
+      }
 
       var nextPowerHtml = "";
       var progressionScore = Math.max(best || 0, recentRun ? Number(recentRun.smashes || 0) : 0);
-      var nextPower = getNextBallPower(cfg, w, progressionScore);
+      var progressionMeta = {
+        runCompletes: Number(counters.runCompletes || 0),
+        lifetimeSmashes: Number(counters.totalLifetimeSmashes || 0),
+        bestScore: Number(best || 0)
+      };
+      var nextBallPower = getNextBallPower(cfg, w, progressionScore);
+      var nextPowerUp = getNextPowerUpUnlock(cfg, this._getPowerUpLabel.bind(this), progressionScore, progressionMeta);
+      var nextPower = nextBallPower;
+      if (nextPowerUp && (!nextPower || nextPowerUp.score < nextPower.score)) nextPower = nextPowerUp;
       if (nextPower) {
         var npLabel = String(lw.nextPowerLabel || "").trim();
         var npText = fillTemplate(String(lw.nextPowerTemplate || "").trim(), { power: nextPower.label, score: nextPower.score });
         if (npLabel && npText) {
           nextPowerHtml = '<p class="kr-muted kr-landing-next-power"><strong>' + escapeHtml(npLabel) + '</strong> ' + escapeHtml(npText) + '</p>';
+        }
+      }
+      var weeklyPowerHtml = "";
+      var featuredPowerKey = String(this._getFeaturedPowerKey() || "").trim();
+      var featuredPowerLabel = String(this._getPowerUpLabel(featuredPowerKey) || "").trim();
+      if (featuredPowerLabel) {
+        var weeklyLabel = String(lw.weeklyPowerLabel || "").trim();
+        var weeklyText = fillTemplate(String(lw.weeklyPowerTemplate || "").trim(), { power: featuredPowerLabel });
+        if (weeklyLabel && weeklyText) {
+          weeklyPowerHtml = '<p class="kr-muted kr-landing-next-power"><strong>' + escapeHtml(weeklyLabel) + '</strong> ' + escapeHtml(weeklyText) + '</p>';
         }
       }
 
@@ -229,7 +273,7 @@
         postPaywallActive = true;
         postPaywallHtml = '<div class="kr-box kr-box--tinted">';
         var sprintUsed = this._store("getSprintFreeRunsUsed") || 0;
-        if (showChest && sprintUsed === 0 && String(lw.postPaywallSbTitle || "").trim()) {
+        if (showPowerBall && sprintUsed === 0 && String(lw.postPaywallSbTitle || "").trim()) {
           postPaywallHtml += '<p><strong>' + escapeHtml(lw.postPaywallSbTitle || "") + '</strong></p>';
           postPaywallHtml += '<p class="kr-muted">' + escapeHtml(lw.postPaywallSbBody || "") + '</p>';
         } else {
@@ -283,7 +327,7 @@
         }
       }
 
-      var primaryLandingNudgeHtml = postPaywallHtml || waitlistHtml || houseAdHtml || landingChallengeHtml || chestHintHtml;
+      var primaryLandingNudgeHtml = postPaywallHtml || waitlistHtml || houseAdHtml || landingChallengeHtml || powerBallHintHtml;
       var showLandingMeta = !primaryLandingNudgeHtml;
       var landingMetaHtml = "";
       if (showLandingMeta) {
@@ -320,7 +364,7 @@
         '<div class="kr-screen kr-screen--landing">' +
           '<div class="kr-landing-header"><div class="kr-landing-header-row">' +
             '<button class="kr-btn-icon" data-action="howto" aria-label="' + escapeHtml((w?.system || {}).more || "") + '">?</button>' +
-            chestHtml +
+            powerBallHtml +
           '</div></div>' +
           '<div class="kr-landing-body">' +
             '<h1 class="kr-h1">' + escapeHtml(lw.tagline || "") + '</h1>' +
@@ -328,7 +372,9 @@
             dailyHtml +
             classicHtml +
             bestHtml +
+            powerTeaseHtml +
             nextPowerHtml +
+            weeklyPowerHtml +
             premiumLabelHtml +
             earlyTickerHtml +
             primaryLandingNudgeHtml +
@@ -448,9 +494,9 @@
             ], ch)
           : pickChallenge([
               { test: newBest && last.smashes > 0, key: "newBestChallenge", vars: { score: last.smashes, target: last.smashes + 1 } },
-              { test: !!(improve && improve.faultsImproved), key: "fewerFaults", vars: { delta: improve.fewerFaults } },
-              { test: !!(improve && improve.accuracyImproved), key: "improvedAccuracy", vars: { delta: improve.accuracyGain } },
-              { test: !!(improve && improve.streakImproved), key: "betterStreak", vars: { delta: improve.betterStreak } },
+              { test: !!(improve && improve.faultsImproved), key: "fewerFaults", vars: { delta: improve ? improve.fewerFaults : 0 } },
+              { test: !!(improve && improve.accuracyImproved), key: "improvedAccuracy", vars: { delta: improve ? improve.accuracyGain : 0 } },
+              { test: !!(improve && improve.streakImproved), key: "betterStreak", vars: { delta: improve ? improve.betterStreak : 0 } },
               { test: cF === 0 && last.smashes >= cM, key: "cleanRun", vars: null },
               { test: cS >= sT, key: "streakChallenge", vars: { streak: cS, target: cS + sB } },
               { test: cF >= fT, key: "faultHeavy", vars: { faults: cF } },
@@ -467,10 +513,10 @@
         }
       }
 
-      var showChest = this._canShowChest(STATES.END);
-      var solvedChest = !!(this._store("hasSprintChestHintSolved"));
-      var chestHtml = showChest
-        ? '<button class="kr-btn-icon' + (solvedChest ? "" : " kr-btn-icon--tease") + '" data-kr-secret="chest" aria-label="' + escapeHtml(sw.chestAria || "") + '">\uD83C\uDF81</button>' : "";
+      var showPowerBallEnd = this._canShowPowerBall(STATES.END);
+      var solvedPowerBall = !!(this._store("hasPowerBallHintSolved"));
+      var powerBallHtmlEnd = showPowerBallEnd
+        ? '<button class="kr-btn-icon' + (solvedPowerBall ? "" : " kr-btn-icon--tease") + '" data-kr-secret="power-ball" aria-label="' + escapeHtml(sw.chestAria || "") + '">\uD83D\uDFE1</button>' : "";
 
       var endNudge = this._getEndNudgePriority();
       var waitlistHtml = "";
@@ -545,12 +591,32 @@
 
       var nextPowerEndHtml = "";
       if (!isSprint) {
-        var nextPowerEnd = getNextBallPower(cfg, w, Number(last.smashes || 0));
+        var endProgressMeta = {
+          runCompletes: Number((this._store("getCounters") || {}).runCompletes || 0),
+          lifetimeSmashes: Number((this._store("getCounters") || {}).totalLifetimeSmashes || 0),
+          bestScore: Number((this._store("getPersonalBest") || {}).bestSmashes || 0)
+        };
+        var nextBallPowerEnd = getNextBallPower(cfg, w, Number(last.smashes || 0));
+        var nextPowerUpEnd = getNextPowerUpUnlock(cfg, this._getPowerUpLabel.bind(this), Number(last.smashes || 0), endProgressMeta);
+        var nextPowerEnd = nextBallPowerEnd;
+        if (nextPowerUpEnd && (!nextPowerEnd || nextPowerUpEnd.score < nextPowerEnd.score)) nextPowerEnd = nextPowerUpEnd;
         if (nextPowerEnd) {
           var endPowerLabel = String(ew.nextPowerLabel || "").trim();
           var endPowerText = fillTemplate(String(ew.nextPowerTemplate || "").trim(), { power: nextPowerEnd.label, score: nextPowerEnd.score });
           if (endPowerLabel && endPowerText) {
             nextPowerEndHtml = '<p class="kr-end-next-run kr-muted"><strong>' + escapeHtml(endPowerLabel) + '</strong> ' + escapeHtml(endPowerText) + '</p>';
+          }
+        }
+      }
+      var weeklyPowerEndHtml = "";
+      if (!isSprint) {
+        var featuredPowerKeyEnd = String(this._getFeaturedPowerKey() || "").trim();
+        var featuredPowerLabelEnd = String(this._getPowerUpLabel(featuredPowerKeyEnd) || "").trim();
+        if (featuredPowerLabelEnd) {
+          var weeklyPowerLabelEnd = String(ew.weeklyPowerLabel || "").trim();
+          var weeklyPowerTextEnd = fillTemplate(String(ew.weeklyPowerTemplate || "").trim(), { power: featuredPowerLabelEnd });
+          if (weeklyPowerLabelEnd && weeklyPowerTextEnd) {
+            weeklyPowerEndHtml = '<p class="kr-end-next-run kr-muted"><strong>' + escapeHtml(weeklyPowerLabelEnd) + '</strong> ' + escapeHtml(weeklyPowerTextEnd) + '</p>';
           }
         }
       }
@@ -594,7 +660,7 @@
         '<div class="kr-screen kr-screen--end">' +
           '<div class="kr-end-header"><div class="kr-end-header-row">' +
             '<button class="kr-btn-icon" data-action="home" aria-label="' + escapeHtml((w?.system || {}).home || "") + '">\u2190</button>' +
-            chestHtml +
+            powerBallHtmlEnd +
           '</div></div>' +
           '<div class="kr-end-body">' +
             '<h2 class="kr-h2">' + title + '</h2>' +
@@ -606,6 +672,7 @@
             '<div class="kr-actions kr-actions--stack">' + ctasHtml + shareHtml + '</div>' +
             nextRunObjectiveHtml +
             nextPowerEndHtml +
+            weeklyPowerEndHtml +
             debriefHtml +
             challengeHtml +
             waitlistHtml +
@@ -671,6 +738,9 @@
         var progTpl = String(pw.progressLineTemplate || "").trim();
         if (progTpl) progressHtml = '<p class="kr-paywall-progress">' + escapeHtml(fillTemplate(progTpl, { best: bestScore })) + '</p>';
       }
+      var progressionLineHtml = "";
+      var progressionLine = String(pw.progressionLine || "").trim();
+      if (progressionLine) progressionLineHtml = '<p class="kr-muted">' + escapeHtml(progressionLine) + '</p>';
 
       var redeemHtml = '<p class="kr-muted"><a href="#" data-action="redeem">' + escapeHtml(pw.alreadyHaveCode || "") + '</a></p>';
 
@@ -682,6 +752,7 @@
           '<div class="kr-paywall-body">' +
             '<h2 class="kr-h2">' + headline + '</h2>' +
             progressHtml +
+            progressionLineHtml +
             '<div class="kr-box"><h3 class="kr-h3">' + escapeHtml(pw.valueTitle || "") + '</h3><ul class="kr-paywall-list">' + bulletHtml + '</ul></div>' +
             '<div class="kr-box"><h3 class="kr-h3">' + escapeHtml(pw.trustTitle || "") + '</h3><ul class="kr-paywall-list">' + trustBulletHtml + '</ul></div>' +
             '<p class="kr-muted">' + escapeHtml(pw.deviceNote || "") + '</p>' +

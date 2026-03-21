@@ -210,6 +210,36 @@
           reqBool(bt.forceKitchen, "KR_CONFIG.game.ballTypes." + key + ".forceKitchen");
         });
       }
+      if (game.powerUps != null) {
+        const pu = reqObj(game.powerUps, "KR_CONFIG.game.powerUps");
+        reqBool(pu.enabled, "KR_CONFIG.game.powerUps.enabled");
+        const progression = reqObj(pu.progression, "KR_CONFIG.game.powerUps.progression");
+        reqNum(progression.firstUnlockScore, "KR_CONFIG.game.powerUps.progression.firstUnlockScore", { min: 0, integer: true });
+        reqNum(progression.unlockEveryScore, "KR_CONFIG.game.powerUps.progression.unlockEveryScore", { min: 1, integer: true });
+        reqNum(progression.maxActiveAtOnce, "KR_CONFIG.game.powerUps.progression.maxActiveAtOnce", { min: 1, integer: true });
+        const weekly = reqObj(pu.weekly, "KR_CONFIG.game.powerUps.weekly");
+        reqBool(weekly.enabled, "KR_CONFIG.game.powerUps.weekly.enabled");
+        reqNum(weekly.weightMultiplier, "KR_CONFIG.game.powerUps.weekly.weightMultiplier", { min: 0 });
+        reqArr(weekly.cycle, "KR_CONFIG.game.powerUps.weekly.cycle");
+        weekly.cycle.forEach((key, idx) => reqStr(key, "KR_CONFIG.game.powerUps.weekly.cycle[" + idx + "]"));
+
+        ["extraLife", "shield", "speedBoost", "perfectWindow", "smashBoost"].forEach((key) => {
+          const item = reqObj(pu[key], "KR_CONFIG.game.powerUps." + key);
+          reqBool(item.enabled, "KR_CONFIG.game.powerUps." + key + ".enabled");
+          reqNum(item.unlockAfterScore, "KR_CONFIG.game.powerUps." + key + ".unlockAfterScore", { min: 0, integer: true });
+          if (item.requireRunCompletes != null) reqNum(item.requireRunCompletes, "KR_CONFIG.game.powerUps." + key + ".requireRunCompletes", { min: 0, integer: true });
+          if (item.requireBestScore != null) reqNum(item.requireBestScore, "KR_CONFIG.game.powerUps." + key + ".requireBestScore", { min: 0, integer: true });
+          if (item.requireLifetimeSmashes != null) reqNum(item.requireLifetimeSmashes, "KR_CONFIG.game.powerUps." + key + ".requireLifetimeSmashes", { min: 0, integer: true });
+          reqNum(item.weight, "KR_CONFIG.game.powerUps." + key + ".weight", { min: 0 });
+          if (item.triggerBallType != null) reqStr(item.triggerBallType, "KR_CONFIG.game.powerUps." + key + ".triggerBallType");
+          if (item.maxPerRun != null) reqNum(item.maxPerRun, "KR_CONFIG.game.powerUps." + key + ".maxPerRun", { min: 0, integer: true });
+          if (item.blockCount != null) reqNum(item.blockCount, "KR_CONFIG.game.powerUps." + key + ".blockCount", { min: 0, integer: true });
+          if (item.durationMs != null) reqNum(item.durationMs, "KR_CONFIG.game.powerUps." + key + ".durationMs", { min: 0, integer: true });
+          if (item.moveSpeedMultiplier != null) reqNum(item.moveSpeedMultiplier, "KR_CONFIG.game.powerUps." + key + ".moveSpeedMultiplier", { min: 0.01 });
+          if (item.tapWindowMultiplier != null) reqNum(item.tapWindowMultiplier, "KR_CONFIG.game.powerUps." + key + ".tapWindowMultiplier", { min: 0.01 });
+          if (item.scoreMultiplier != null) reqNum(item.scoreMultiplier, "KR_CONFIG.game.powerUps." + key + ".scoreMultiplier", { min: 1 });
+        });
+      }
 
       const daily = reqObj(cfg.daily, "KR_CONFIG.daily");
       reqBool(daily.enabled, "KR_CONFIG.daily.enabled");
@@ -221,6 +251,7 @@
       reqNum(canvas.minLandingYFrac, "KR_CONFIG.canvas.minLandingYFrac", { min: 0, max: 0.99 });
       reqNum(canvas.ballRadius, "KR_CONFIG.canvas.ballRadius", { min: 1, integer: true });
       reqNum(canvas.opponentCourtScale, "KR_CONFIG.canvas.opponentCourtScale", { min: 0.1, max: 1 });
+      reqNum(canvas.cameraPerspectivePower, "KR_CONFIG.canvas.cameraPerspectivePower", { min: 1, max: 3 });
       reqNum(canvas.sidelineInsetFrac, "KR_CONFIG.canvas.sidelineInsetFrac", { min: 0.01, max: 0.3 });
       if (canvas.nearSidelineInsetFrac != null) reqNum(canvas.nearSidelineInsetFrac, "KR_CONFIG.canvas.nearSidelineInsetFrac", { min: 0.01, max: 0.3 });
       if (canvas.netSidelineInsetFrac != null) reqNum(canvas.netSidelineInsetFrac, "KR_CONFIG.canvas.netSidelineInsetFrac", { min: 0.05, max: 0.4 });
@@ -321,6 +352,25 @@
       reqNum(juice.milestoneGlowMs, "KR_CONFIG.juice.milestoneGlowMs", { min: 1, integer: true });
       reqNum(juice.firstFaultOverlayMs, "KR_CONFIG.juice.firstFaultOverlayMs", { min: 1, integer: true });
       reqNum(juice.repeatFaultOverlayMs, "KR_CONFIG.juice.repeatFaultOverlayMs", { min: 1, integer: true });
+
+      const renderPerformance = reqObj(cfg.renderPerformance, "KR_CONFIG.renderPerformance");
+      reqBool(renderPerformance.enabled, "KR_CONFIG.renderPerformance.enabled");
+      reqNum(renderPerformance.sampleFrames, "KR_CONFIG.renderPerformance.sampleFrames", { min: 4, max: 120, integer: true });
+      reqNum(renderPerformance.downgradeAvgFrameMs, "KR_CONFIG.renderPerformance.downgradeAvgFrameMs", { min: 1, max: 100 });
+      reqNum(renderPerformance.upgradeAvgFrameMs, "KR_CONFIG.renderPerformance.upgradeAvgFrameMs", { min: 1, max: 100 });
+      reqNum(renderPerformance.cooldownMs, "KR_CONFIG.renderPerformance.cooldownMs", { min: 0, max: 10000, integer: true });
+      reqNum(renderPerformance.lowQualityTrailSegments, "KR_CONFIG.renderPerformance.lowQualityTrailSegments", { min: 0, max: 12, integer: true });
+      reqNum(renderPerformance.minQualityTrailSegments, "KR_CONFIG.renderPerformance.minQualityTrailSegments", { min: 0, max: 12, integer: true });
+      reqNum(renderPerformance.lowQualityDustCount, "KR_CONFIG.renderPerformance.lowQualityDustCount", { min: 0, max: 24, integer: true });
+      reqNum(renderPerformance.minQualityDustCount, "KR_CONFIG.renderPerformance.minQualityDustCount", { min: 0, max: 24, integer: true });
+      reqNum(renderPerformance.lowQualityNetMeshRows, "KR_CONFIG.renderPerformance.lowQualityNetMeshRows", { min: 0, max: 12, integer: true });
+      reqNum(renderPerformance.minQualityNetMeshRows, "KR_CONFIG.renderPerformance.minQualityNetMeshRows", { min: 0, max: 12, integer: true });
+      reqNum(renderPerformance.lowQualityNetHighlightWidth, "KR_CONFIG.renderPerformance.lowQualityNetHighlightWidth", { min: 0, max: 20 });
+      reqNum(renderPerformance.minQualityNetHighlightWidth, "KR_CONFIG.renderPerformance.minQualityNetHighlightWidth", { min: 0, max: 20 });
+      reqNum(renderPerformance.hideSpecialBallBadgesAtTier, "KR_CONFIG.renderPerformance.hideSpecialBallBadgesAtTier", { min: 0, max: 2, integer: true });
+      reqNum(renderPerformance.hideReturnTrailAtTier, "KR_CONFIG.renderPerformance.hideReturnTrailAtTier", { min: 0, max: 2, integer: true });
+      reqNum(renderPerformance.hideSprintSuccessPulseAtTier, "KR_CONFIG.renderPerformance.hideSprintSuccessPulseAtTier", { min: 0, max: 2, integer: true });
+      reqNum(renderPerformance.hideScoreTimingLabelAtTier, "KR_CONFIG.renderPerformance.hideScoreTimingLabelAtTier", { min: 0, max: 2, integer: true });
 
       const ui = reqObj(cfg.ui, "KR_CONFIG.ui");
       reqBool(ui.toastDismissOnTap, "KR_CONFIG.ui.toastDismissOnTap");
