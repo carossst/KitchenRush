@@ -194,7 +194,7 @@
       if (cta) {
         cta.addEventListener("click", function () {
           self.closeModal();
-          window.dispatchEvent(new CustomEvent("kr-sprint-requested"));
+          window.dispatchEvent(new CustomEvent("kr-power-run-requested"));
         });
       }
     };
@@ -249,7 +249,13 @@
         mailto = emailApi.buildMailto(this.config, idea);
       }
       if (!mailto) return;
-      try { window.open(mailto, "_self"); } catch (error) { warn("waitlist mailto open failed", error); return; }
+      var opened = null;
+      try { opened = window.open(mailto, "_self"); } catch (error) { warn("waitlist mailto open failed", error); opened = null; }
+      if (opened === null) {
+        var openMsg = String(this.wording?.system?.emailOpenFailed || "").trim();
+        if (openMsg) toastNow(this.config, openMsg);
+        return;
+      }
       this._store("setWaitlistStatus", "joined");
       this.closeModal();
     };
@@ -290,7 +296,13 @@
       var q = [];
       if (subject) q.push("subject=" + encodeURIComponent(subject));
       if (body) q.push("body=" + encodeURIComponent(body));
-      try { window.open("mailto:" + email + (q.length ? "?" + q.join("&") : ""), "_self"); } catch (error) { warn("stats mailto open failed", error); return; }
+      var opened = null;
+      try { opened = window.open("mailto:" + email + (q.length ? "?" + q.join("&") : ""), "_self"); } catch (error) { warn("stats mailto open failed", error); opened = null; }
+      if (opened === null) {
+        var openMsg = String(this.wording?.system?.emailOpenFailed || "").trim();
+        if (openMsg) toastNow(this.config, openMsg);
+        return;
+      }
 
       var msg = String(this.wording?.statsSharing?.successToast || "").trim();
       if (msg) toastNow(this.config, msg, { timingKey: "positive" });
@@ -300,7 +312,12 @@
     UIModule.prototype.copyStatsToClipboard = async function () {
       var payload = this._store("getAnonymousStatsPayload") || null;
       if (!payload) return;
-      try { await navigator.clipboard.writeText(JSON.stringify(payload, null, 2)); } catch (error) { warn("stats clipboard copy failed", error); return; }
+      try { await navigator.clipboard.writeText(JSON.stringify(payload, null, 2)); } catch (error) {
+        warn("stats clipboard copy failed", error);
+        var failMsg = String(this.wording?.system?.copyFailed || "").trim();
+        if (failMsg) toastNow(this.config, failMsg);
+        return;
+      }
       var msg = String(this.wording?.statsSharing?.copyToast || "").trim();
       if (msg) toastNow(this.config, msg, { timingKey: "positive" });
     };

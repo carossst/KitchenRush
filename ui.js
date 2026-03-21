@@ -3003,7 +3003,12 @@ void function () {
       : String(cfg.stripeStandardPaymentUrl || "").trim();
     if (!url || url.indexOf("REPLACE") !== -1) return;
     this._store("markCheckoutStarted",priceKey);
-    try { window.open(url, "_blank", "noopener"); } catch (_) { }
+    var opened = null;
+    try { opened = window.open(url, "_blank", "noopener"); } catch (_) { opened = null; }
+    if (!opened) {
+      var openMsg = String(this.wording?.system?.openFailed || "").trim();
+      if (openMsg) this._toastNow(this.config, openMsg);
+    }
   };
 
   UI.prototype._redeemCode = function (code) {
@@ -3035,7 +3040,11 @@ void function () {
   UI.prototype.copySupportEmail = async function () {
     var email = this._runtime.supportEmail;
     if (!email) return;
-    try { await navigator.clipboard.writeText(email); } catch (_) { return; }
+    try { await navigator.clipboard.writeText(email); } catch (_) {
+      var failMsg = String(this.wording?.system?.copyFailed || "").trim();
+      if (failMsg) this._toastNow(this.config, failMsg);
+      return;
+    }
     var msg = String(this.wording?.system?.copied || "").trim();
     if (msg) this._toastNow(this.config, msg, { timingKey: "positive" });
   };
@@ -3048,7 +3057,13 @@ void function () {
     var q = [];
     if (subject) q.push("subject=" + encodeURIComponent(subject));
     if (body) q.push("body=" + encodeURIComponent(body));
-    try { window.open("mailto:" + email + (q.length ? "?" + q.join("&") : ""), "_self"); } catch (_) { }
+    var opened = null;
+    try { opened = window.open("mailto:" + email + (q.length ? "?" + q.join("&") : ""), "_self"); } catch (_) { opened = null; }
+    if (opened === null) {
+      var openMsg = String(this.wording?.system?.emailOpenFailed || "").trim();
+      if (openMsg) this._toastNow(this.config, openMsg);
+      return;
+    }
     this.closeModal();
   };
 
@@ -3109,7 +3124,12 @@ void function () {
     var url = String(this.config?.houseAd?.url || "").trim();
     if (!url) return;
     this._store("markHouseAdClicked");
-    try { window.open(url, "_blank", "noopener"); } catch (_) { }
+    var opened = null;
+    try { opened = window.open(url, "_blank", "noopener"); } catch (_) { opened = null; }
+    if (!opened) {
+      var openMsg = String(this.wording?.system?.openFailed || "").trim();
+      if (openMsg) this._toastNow(this.config, openMsg);
+    }
   };
 
   UI.prototype.remindHouseAdLater = function () {

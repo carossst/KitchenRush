@@ -18,6 +18,15 @@
     return String(fn(String(str == null ? "" : str)));
   }
 
+  function escapeHtmlFallback(str) {
+    return String(str == null ? "" : str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
 
   // ============================================
   // Logger
@@ -47,13 +56,21 @@
   // Error display
   // ============================================
   function showFatal(message) {
-    const root = document.getElementById("app");
+    const root = document.getElementById("app") || document.body;
     if (!root) return;
 
-    const appName = escapeHtmlSafe(window.KR_CONFIG?.identity?.appName || "");
+    const esc = (value) => {
+      try {
+        return escapeHtmlSafe(value);
+      } catch (_) {
+        return escapeHtmlFallback(value);
+      }
+    };
+
+    const appName = esc(window.KR_CONFIG?.identity?.appName || "");
     const w = window.KR_WORDING?.system;
-    const safeMsg = escapeHtmlSafe(message);
-    const reloadLabel = escapeHtmlSafe(w?.reloadCta || "");
+    const safeMsg = esc(message);
+    const reloadLabel = esc(w?.reloadCta || "");
 
     // Fail-closed: render only elements that have content
     let html = '<div class="kr-card kr-card--error">';
@@ -206,7 +223,13 @@
       return false;
     }
 
-    if (!window.localStorage) {
+    let hasLocalStorage = false;
+    try {
+      hasLocalStorage = typeof window.localStorage !== "undefined" && window.localStorage !== null;
+    } catch (_) {
+      hasLocalStorage = false;
+    }
+    if (!hasLocalStorage) {
       Logger.error("localStorage not supported");
       showFatal(w?.fatalStorage || "");
       return false;

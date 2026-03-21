@@ -686,7 +686,67 @@ a:focus-visible {
   .kr-screen--landing,
   .kr-screen--end,
   .kr-screen--paywall {
+    padding-top: var(--gap-1);
     padding-bottom: calc(var(--gap-3) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .kr-landing-header,
+  .kr-end-header,
+  .kr-paywall-header {
+    padding-top: 0;
+    padding-bottom: var(--space-4);
+  }
+
+  .kr-landing-body,
+  .kr-end-body,
+  .kr-paywall-body {
+    justify-content: flex-start;
+    padding-top: var(--gap-2);
+    gap: var(--space-6);
+  }
+
+  .kr-h1,
+  .kr-h2,
+  .kr-end-score,
+  .kr-subtitle,
+  .kr-new-best,
+  .kr-end-highlight,
+  .kr-end-next-run,
+  .kr-end-debrief,
+  .kr-challenge,
+  .kr-paywall-progress,
+  .kr-paywall-timer,
+  .kr-paywall-savings,
+  .kr-early-timer,
+  .kr-muted,
+  .kr-daily-explain {
+    margin-top: 0;
+    margin-bottom: var(--space-6);
+  }
+
+  .kr-landing-best,
+  .kr-box {
+    margin-top: 0;
+    margin-bottom: var(--gap-1);
+  }
+
+  .kr-end-score {
+    font-size: 42px;
+    margin-bottom: var(--gap-1);
+  }
+
+  .kr-landing-body > .kr-box,
+  .kr-end-body > .kr-box,
+  .kr-paywall-body > .kr-box,
+  .kr-paywall-body > .kr-muted,
+  .kr-paywall-body > .kr-paywall-progress,
+  .kr-landing-body > .kr-subtitle,
+  .kr-landing-body > .kr-muted,
+  .kr-end-body > .kr-muted,
+  .kr-end-body > .kr-end-next-run,
+  .kr-end-body > .kr-end-debrief,
+  .kr-end-body > .kr-challenge {
+    max-width: 340px;
   }
 
   .kr-screen--landing .kr-actions--primary-zone,

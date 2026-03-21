@@ -26,6 +26,8 @@
       offlinePayment: "Payment requires an internet connection.",
       copied: "Copied",
       copyFailed: "Copy failed",
+      openFailed: "Could not open this action.",
+      emailOpenFailed: "Could not open your email app.",
       more: "How to play",
       notNow: "Not now",
 
