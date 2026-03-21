@@ -2285,23 +2285,27 @@ void function () {
 
     if (state.mode === MODES.RUN) {
       var livesHtml = "";
+      var livesAria = fillTemplate(String(uiWording.livesAria || "").trim(), { lives: Number(state.lives || 0) });
+      var scoreAria = fillTemplate(String(uiWording.scoreAriaTemplate || "").trim(), { score: Number(state.smashes || 0) });
       for (var i = 0; i < (state.maxLives || 3); i++) {
         livesHtml += (i < (state.lives || 0))
-          ? '<span class="kr-hud-life kr-hud-life--active"></span>'
-          : '<span class="kr-hud-life kr-hud-life--lost"></span>';
+          ? '<span class="kr-hud-life kr-hud-life--active" aria-hidden="true"></span>'
+          : '<span class="kr-hud-life kr-hud-life--lost" aria-hidden="true"></span>';
       }
       hudEl.innerHTML =
         '<div class="kr-hud-row">' +
-          '<div class="kr-hud-lives">' + livesHtml + '</div>' +
-          '<div class="kr-hud-score">' + state.smashes + '</div>' +
+          '<div class="kr-hud-lives" role="img" aria-label="' + escapeHtml(livesAria) + '">' + livesHtml + '</div>' +
+          '<div class="kr-hud-score" aria-label="' + escapeHtml(scoreAria) + '">' + state.smashes + '</div>' +
         '</div>' + viewToggleHtml;
     } else if (state.mode === MODES.SPRINT) {
       var remaining = Math.max(0, Math.ceil((state.sprintRemainingMs || 0) / 1000));
       var timerLabel = fillTemplate(this.wording?.sprint?.timerLabel || "", { remaining: remaining });
+      var timerAria = fillTemplate(String(uiWording.sprintTimerAriaTemplate || "").trim(), { remaining: remaining });
+      var sprintScoreAria = fillTemplate(String(uiWording.scoreAriaTemplate || "").trim(), { score: Number(state.smashes || 0) });
       hudEl.innerHTML =
         '<div class="kr-hud-row">' +
-          '<div class="kr-hud-timer">' + escapeHtml(timerLabel) + '</div>' +
-          '<div class="kr-hud-score">' + state.smashes + '</div>' +
+          '<div class="kr-hud-timer" aria-label="' + escapeHtml(timerAria) + '">' + escapeHtml(timerLabel) + '</div>' +
+          '<div class="kr-hud-score" aria-label="' + escapeHtml(sprintScoreAria) + '">' + state.smashes + '</div>' +
         '</div>' + viewToggleHtml;
     }
   };

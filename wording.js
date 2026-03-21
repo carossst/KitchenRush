@@ -145,6 +145,7 @@
       livesAria: "{lives} lives remaining",
       scoreLabel: "",
       scoreAriaTemplate: "Score: {score} Smashes",
+      sprintTimerAriaTemplate: "Time left: {remaining} seconds",
       gameOverTitle: "Game over",
 
       // V2: Canvas in-game labels (drawn on canvas, not DOM)
@@ -492,6 +493,7 @@
 
 
     support: {
+      label: "Contact",
       modalTitle: "Write us",
       modalBodyLine1: "Email is the fastest way to reach us.",
       modalBodyLine2: "Copy the address or open your email app.",

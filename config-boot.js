@@ -68,6 +68,10 @@
         if (typeof value !== "boolean") fail(name + " must be a boolean");
         return value;
       };
+      const reqArr = (value, name) => {
+        if (!Array.isArray(value)) fail(name + " must be an array");
+        return value;
+      };
 
       reqObj(cfg, "KR_CONFIG");
       reqObj(enums, "KR_ENUMS");

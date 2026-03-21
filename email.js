@@ -83,7 +83,7 @@
       // Footer contact link (#kr-contact-link)
       const supportLink = document.getElementById("kr-contact-link");
       if (supportLink) {
-        const label = String(wording.support?.label || "").trim();
+        const label = String(wording.support?.label || wording.footer?.contact || "").trim();
 
         if (!label) {
           // Fail-closed: no label → footer.js will remove the empty link + separator.

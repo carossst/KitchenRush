@@ -347,7 +347,7 @@
           dailyHtml += '</button>';
           if (dailyExplain) dailyHtml += '<p class="kr-daily-explain kr-muted">' + escapeHtml(dailyExplain) + '</p>';
         }
-        classicHtml = '<div class="kr-actions">' +
+        classicHtml = '<div class="kr-actions kr-actions--primary-zone">' +
           '<button class="kr-btn kr-btn--primary" data-action="play">' + ctaLabel + '</button>' +
         '</div>';
         if (!this._hasCompletedDailyToday()) {
@@ -355,7 +355,7 @@
           if (classicHint) classicHtml += '<p class="kr-landing-classic-hint kr-muted">' + escapeHtml(classicHint) + '</p>';
         }
       } else {
-        classicHtml = '<div class="kr-actions">' +
+        classicHtml = '<div class="kr-actions kr-actions--primary-zone">' +
           '<button class="kr-btn kr-btn--primary" data-action="play">' + ctaLabel + '</button>' +
         '</div>';
       }
@@ -669,7 +669,7 @@
             '<p class="kr-muted">' + bestLine + '</p>' +
             streakHtml +
             highlightHtml +
-            '<div class="kr-actions kr-actions--stack">' + ctasHtml + shareHtml + '</div>' +
+            '<div class="kr-actions kr-actions--stack kr-actions--primary-zone">' + ctasHtml + shareHtml + '</div>' +
             nextRunObjectiveHtml +
             nextPowerEndHtml +
             weeklyPowerEndHtml +
@@ -756,7 +756,7 @@
             '<div class="kr-box"><h3 class="kr-h3">' + escapeHtml(pw.valueTitle || "") + '</h3><ul class="kr-paywall-list">' + bulletHtml + '</ul></div>' +
             '<div class="kr-box"><h3 class="kr-h3">' + escapeHtml(pw.trustTitle || "") + '</h3><ul class="kr-paywall-list">' + trustBulletHtml + '</ul></div>' +
             '<p class="kr-muted">' + escapeHtml(pw.deviceNote || "") + '</p>' +
-            '<div class="kr-actions kr-actions--stack">' + priceCtas + '</div>' +
+            '<div class="kr-actions kr-actions--stack kr-actions--primary-zone">' + priceCtas + '</div>' +
             '<p class="kr-muted">' + escapeHtml(pw.checkoutNote || "") + '</p>' +
             redeemHtml +
           '</div>' +

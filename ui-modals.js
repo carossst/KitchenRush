@@ -30,12 +30,39 @@
       var overlay = el("kr-modal-overlay");
       var content = el("kr-modal-content");
       if (!overlay || !content) return;
+      var previousFocus = null;
+      try { previousFocus = document.activeElement; } catch (_) { }
+      this._runtime = this._runtime || {};
+      this._runtime.modalPreviousFocus = previousFocus || null;
       content.innerHTML = html;
       overlay.classList.add("kr-modal--visible");
       overlay.setAttribute("aria-hidden", "false");
 
       var focusable = content.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
-      if (focusable.length) focusable[0].focus();
+      if (focusable.length) {
+        try { focusable[0].focus(); } catch (_) { }
+      }
+
+      if (this._runtime.modalKeydownHandler) {
+        overlay.removeEventListener("keydown", this._runtime.modalKeydownHandler);
+      }
+      this._runtime.modalKeydownHandler = function (e) {
+        if (e.key !== "Tab") return;
+        var items = content.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
+        if (!items.length) return;
+        var first = items[0];
+        var last = items[items.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first || document.activeElement === content) {
+            e.preventDefault();
+            try { last.focus(); } catch (_) { }
+          }
+        } else if (document.activeElement === last) {
+          e.preventDefault();
+          try { first.focus(); } catch (_) { }
+        }
+      };
+      overlay.addEventListener("keydown", this._runtime.modalKeydownHandler);
 
       var self = this;
       overlay.addEventListener("click", function (e) { if (e.target === overlay) self.closeModal(); }, { once: true });
@@ -44,9 +71,18 @@
     UIModule.prototype.closeModal = function () {
       var overlay = el("kr-modal-overlay");
       if (overlay) {
+        if (this._runtime && this._runtime.modalKeydownHandler) {
+          overlay.removeEventListener("keydown", this._runtime.modalKeydownHandler);
+          this._runtime.modalKeydownHandler = null;
+        }
         overlay.classList.remove("kr-modal--visible");
         overlay.setAttribute("aria-hidden", "true");
       }
+      var previousFocus = this._runtime && this._runtime.modalPreviousFocus;
+      if (previousFocus && typeof previousFocus.focus === "function") {
+        try { previousFocus.focus(); } catch (_) { }
+      }
+      if (this._runtime) this._runtime.modalPreviousFocus = null;
     };
 
     UIModule.prototype.openHowToModal = function () {
