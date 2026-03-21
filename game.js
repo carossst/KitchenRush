@@ -147,11 +147,11 @@
   function getCourtLayout(config) {
     var c = config.court || {};
     return {
-      netY: reqNum(c.netY, "court.netY", { min: 0.05, max: 0.3 }),
+      netY: reqNum(c.netY, "court.netY", { min: 0.05, max: 0.5 }),
       kitchenLineY: reqNum(c.kitchenLineY, "court.kitchenLineY", { min: 0.2, max: 0.6 }),
       baselineY: reqNum(c.baselineY, "court.baselineY", { min: 0.5, max: 0.99 }),
       playerY: reqNum(c.playerY, "court.playerY", { min: 0.5, max: 0.9 }),
-      opponentY: reqNum(c.opponentY, "court.opponentY", { min: 0.02, max: 0.2 }),
+      opponentY: reqNum(c.opponentY, "court.opponentY", { min: 0.02, max: 0.35 }),
       controlsY: reqNum(c.controlsY, "court.controlsY", { min: 0.8, max: 1.0 })
     };
   }
@@ -170,8 +170,91 @@
       bounceForwardCarryFrac: reqNum(t.bounceForwardCarryFrac, "game.trajectory.bounceForwardCarryFrac", { min: 0, max: 1 }),
       bounceLateralCarryFrac: reqNum(t.bounceLateralCarryFrac, "game.trajectory.bounceLateralCarryFrac", { min: 0, max: 1 }),
       bounceCarryEase: reqNum(t.bounceCarryEase, "game.trajectory.bounceCarryEase", { min: 0.2, max: 6 }),
-      bounceSecondHopTimeFrac: reqNum(t.bounceSecondHopTimeFrac, "game.trajectory.bounceSecondHopTimeFrac", { min: 0.1, max: 1 })
+      bounceSecondHopTimeFrac: reqNum(t.bounceSecondHopTimeFrac, "game.trajectory.bounceSecondHopTimeFrac", { min: 0.1, max: 1 }),
+      bounceRestitution: reqNum(t.bounceRestitution, "game.trajectory.bounceRestitution", { min: 0.05, max: 1 }),
+      bounceFriction: reqNum(t.bounceFriction, "game.trajectory.bounceFriction", { min: 0, max: 20 }),
+      bounceSecondHopMomentum: reqNum(t.bounceSecondHopMomentum, "game.trajectory.bounceSecondHopMomentum", { min: 0, max: 1 })
     };
+  }
+
+  function buildFlightKinematics(startX, startY, targetX, targetY, travelMs, arcHeight) {
+    var durationSec = Math.max(0.001, travelMs / 1000);
+    var gravity = Math.max(1, (4 * Math.max(0, arcHeight)) / (durationSec * durationSec));
+    var launchVz = gravity * durationSec * 0.5;
+    return {
+      durationSec: durationSec,
+      vx: (targetX - startX) / durationSec,
+      vy: (targetY - startY) / durationSec,
+      gravity: gravity,
+      launchVz: launchVz
+    };
+  }
+
+  function integrateDampedDisplacement(v0, friction, tSec) {
+    if (!Number.isFinite(v0) || !Number.isFinite(tSec) || tSec <= 0) return 0;
+    var k = Math.max(0, Number(friction || 0));
+    if (k <= 0.0001) return v0 * tSec;
+    return (v0 / k) * (1 - Math.exp(-k * tSec));
+  }
+
+  function dampedVelocity(v0, friction, tSec) {
+    if (!Number.isFinite(v0)) return 0;
+    var k = Math.max(0, Number(friction || 0));
+    if (k <= 0.0001) return v0;
+    return v0 * Math.exp(-k * Math.max(0, tSec));
+  }
+
+  function getBallBounceProfile(ball, sinceBounceMs) {
+    var primaryAnimMs = Math.max(1, ball.bounceAnimMs || 250);
+    var secondaryAnimMs = Math.max(1, Math.round(primaryAnimMs * (Number.isFinite(ball.bounceSecondHopTimeFrac) ? ball.bounceSecondHopTimeFrac : 0.6)));
+    var totalMs = primaryAnimMs + secondaryAnimMs;
+    var tSec = Math.max(0, sinceBounceMs / 1000);
+    var primarySec = primaryAnimMs / 1000;
+    var secondarySec = secondaryAnimMs / 1000;
+    var friction = Math.max(0, Number(ball.bounceFriction || 0));
+    var vx0 = Number(ball.bounceVx || 0);
+    var vy0 = Number(ball.bounceVy || 0);
+    var vz0 = Math.max(0, Number(ball.bounceVz0 || 0));
+    var secondHopMomentum = Math.max(0, Math.min(1, Number(ball.bounceSecondHopMomentum || 0.58)));
+    var secondVz0 = vz0 * Math.max(0, Number(ball.bounceSecondHopScale || 0.22));
+    var totalDx = 0;
+    var totalDy = 0;
+    var height = 0;
+
+    if (tSec <= primarySec) {
+      var g1 = (2 * vz0) / Math.max(0.001, primarySec);
+      totalDx = integrateDampedDisplacement(vx0, friction, tSec);
+      totalDy = integrateDampedDisplacement(vy0, friction, tSec);
+      height = Math.max(0, (vz0 * tSec) - (0.5 * g1 * tSec * tSec));
+    } else {
+      totalDx = integrateDampedDisplacement(vx0, friction, primarySec);
+      totalDy = integrateDampedDisplacement(vy0, friction, primarySec);
+      var vx1 = dampedVelocity(vx0, friction, primarySec) * secondHopMomentum;
+      var vy1 = dampedVelocity(vy0, friction, primarySec) * secondHopMomentum;
+      var dt2 = Math.min(tSec - primarySec, secondarySec);
+      var g2 = (2 * secondVz0) / Math.max(0.001, secondarySec);
+      totalDx += integrateDampedDisplacement(vx1, friction, dt2);
+      totalDy += integrateDampedDisplacement(vy1, friction, dt2);
+      height = Math.max(0, (secondVz0 * dt2) - (0.5 * g2 * dt2 * dt2));
+    }
+
+    return {
+      totalMs: totalMs,
+      x: ball.targetX + totalDx,
+      y: ball.targetY + totalDy,
+      z: height
+    };
+  }
+
+  function getDepthScaledHitRange(config, court, ball, baseRange, autoMultiplier) {
+    var nearScale = reqNum(config.court.hitRangeNearScale, "court.hitRangeNearScale", { min: 0.5, max: 2 });
+    var farScale = reqNum(config.court.hitRangeFarScale, "court.hitRangeFarScale", { min: 0.5, max: 2 });
+    var baselineY = court.baselineY;
+    var netY = court.netY;
+    var sampleY = Number.isFinite(ball && ball.groundY) ? ball.groundY : (ball ? ball.y : baselineY);
+    var depthT = clamp((sampleY - netY) / Math.max(1, baselineY - netY), 0, 1);
+    var scaled = baseRange * lerp(farScale, nearScale, depthT);
+    return scaled * (autoMultiplier || 1);
   }
 
   function getFlightArcHeight(startX, startY, targetX, targetY, canvasH, trajectory, ballType) {
@@ -395,26 +478,50 @@
     // Travel duration
     var d = Math.sqrt(Math.pow(targetX - startX, 2) + Math.pow(targetY - startY, 2));
     var travelMs = Math.max(300, (d / speed) * 16.67);
+    var flight = buildFlightKinematics(startX, startY, targetX, targetY, travelMs, arcHeight);
+    var bounceAnimMs = Math.floor(reqNum(config.canvas.bounceAnimMs, "canvas.bounceAnimMs", { min: 1 }));
+    var bounceHeightPx = reqNum(config.canvas.bounceHeight, "canvas.bounceHeight", { min: 0 }) * canvasH *
+      (typeConfig && typeConfig.bounceHeightMultiplier != null
+        ? reqNum(typeConfig.bounceHeightMultiplier, "ballType.bounceHeightMultiplier", { min: 0.05, max: 3 })
+        : 1);
     var bounceForwardCarryFrac = trajectoryCfg.bounceForwardCarryFrac;
     var bounceLateralCarryFrac = trajectoryCfg.bounceLateralCarryFrac;
+    var bounceRestitution = trajectoryCfg.bounceRestitution;
+    var bounceFriction = trajectoryCfg.bounceFriction;
+    var bounceSecondHopMomentum = trajectoryCfg.bounceSecondHopMomentum;
     if (ballType === "dink") {
       bounceForwardCarryFrac *= 0.7;
       bounceLateralCarryFrac *= 0.7;
+      bounceRestitution *= 0.86;
+      bounceFriction *= 1.12;
     } else if (ballType === "lob") {
       bounceForwardCarryFrac *= 0.8;
       bounceLateralCarryFrac *= 0.85;
+      bounceRestitution *= 1.06;
+      bounceFriction *= 0.92;
     } else if (ballType === "fast") {
       bounceForwardCarryFrac *= 1.15;
       bounceLateralCarryFrac *= 1.08;
+      bounceRestitution *= 0.96;
+      bounceFriction *= 0.94;
     } else if (ballType === "skid") {
       bounceForwardCarryFrac *= 1.45;
       bounceLateralCarryFrac *= 1.2;
+      bounceRestitution *= 0.78;
+      bounceFriction *= 0.72;
+      bounceSecondHopMomentum *= 0.82;
     } else if (ballType === "heavy") {
       bounceForwardCarryFrac *= 1.08;
       bounceLateralCarryFrac *= 0.95;
+      bounceRestitution *= 0.88;
+      bounceFriction *= 1.06;
+      bounceSecondHopMomentum *= 0.9;
     }
-    var bounceCarryX = (targetX - startX) * bounceLateralCarryFrac;
-    var bounceCarryY = Math.max(0, targetY - startY) * bounceForwardCarryFrac;
+    var impactVx = flight.vx * bounceLateralCarryFrac;
+    var impactVy = flight.vy * bounceForwardCarryFrac;
+    var impactVz = flight.gravity * flight.durationSec * 0.5;
+    var configuredBounceVz = (bounceAnimMs > 0) ? ((4 * bounceHeightPx) / (bounceAnimMs / 1000)) : 0;
+    var bounceVz0 = (impactVz * bounceRestitution * 0.45) + (configuredBounceVz * 0.55);
 
     return {
       id: ++_nextBallId,
@@ -437,21 +544,27 @@
           ? reqNum(typeConfig.reboundDelayMultiplier, "ballType.reboundDelayMultiplier", { min: 0.05, max: 3 })
           : 1)
       ),
-      bounceHeightPx: reqNum(config.canvas.bounceHeight, "canvas.bounceHeight", { min: 0 }) * canvasH *
-        (typeConfig && typeConfig.bounceHeightMultiplier != null
-          ? reqNum(typeConfig.bounceHeightMultiplier, "ballType.bounceHeightMultiplier", { min: 0.05, max: 3 })
-          : 1),
-      bounceAnimMs: Math.floor(reqNum(config.canvas.bounceAnimMs, "canvas.bounceAnimMs", { min: 1 })),
+      bounceHeightPx: bounceHeightPx,
+      bounceAnimMs: bounceAnimMs,
       bounceSecondHopScale: reqNum(config.canvas.bounceSecondHopScale, "canvas.bounceSecondHopScale", { min: 0, max: 1 }),
       bounceSecondHopTimeFrac: trajectoryCfg.bounceSecondHopTimeFrac,
       bounceCarryEase: trajectoryCfg.bounceCarryEase,
-      bounceCarryX: bounceCarryX,
-      bounceCarryY: bounceCarryY,
+      bounceRestitution: bounceRestitution,
+      bounceFriction: bounceFriction,
+      bounceSecondHopMomentum: bounceSecondHopMomentum,
+      bounceVx: impactVx,
+      bounceVy: impactVy,
+      bounceVz0: bounceVz0,
       groundX: targetX,
       groundY: targetY,
+      flightVx: flight.vx,
+      flightVy: flight.vy,
+      flightGravity: flight.gravity,
+      flightLaunchVz: flight.launchVz,
       returnStartX: 0, returnStartY: 0,
       returnTargetX: 0, returnTargetY: 0,
       returnArcHeight: 0, returnTravelMs: 0,
+      returnVx: 0, returnVy: 0, returnGravity: 0, returnLaunchVz: 0,
       speed: speed,
       shadowY: targetY,
       isServe: false,
@@ -513,11 +626,11 @@
 
     if (ball.state === BALL_STATES.TRAVELING) {
       var t = clamp(elapsed / ball.travelMs, 0, 1);
-      var x = lerp(ball.startX, ball.targetX, t);
-      var yT = Math.pow(t, Number.isFinite(ball.descentPower) ? ball.descentPower : 1);
-      var yLinear = lerp(ball.startY, ball.targetY, yT);
-      var arc = -ball.arcHeight * 4 * t * (1 - t);
-      return { x: x, y: yLinear + arc, t: t };
+      var tSec = t * Math.max(0.001, ball.travelMs / 1000);
+      var x = ball.startX + (ball.flightVx || 0) * tSec;
+      var groundY = ball.startY + (ball.flightVy || 0) * tSec;
+      var z = Math.max(0, (ball.flightLaunchVz || 0) * tSec - 0.5 * (ball.flightGravity || 0) * tSec * tSec);
+      return { x: x, y: groundY - z, groundY: groundY, t: t };
     }
 
     if (ball.state === BALL_STATES.LANDED) {
@@ -526,35 +639,15 @@
 
     if (ball.state === BALL_STATES.BOUNCED) {
       var sinceBounce = gt - ball.bouncedAt;
-      var primaryAnimMs = ball.bounceAnimMs || 250;
-      var secondaryAnimMs = Math.max(1, Math.round(primaryAnimMs * (Number.isFinite(ball.bounceSecondHopTimeFrac) ? ball.bounceSecondHopTimeFrac : 0.6)));
-      var bounceHeight = Number.isFinite(ball.bounceHeightPx) ? ball.bounceHeightPx : 40;
-      var secondHopScale = Number.isFinite(ball.bounceSecondHopScale) ? ball.bounceSecondHopScale : 0.22;
-      var totalBounceMs = primaryAnimMs + secondaryAnimMs;
-      var carryProgress = clamp(sinceBounce / totalBounceMs, 0, 1);
-      var carryEase = Number.isFinite(ball.bounceCarryEase) ? ball.bounceCarryEase : 2;
-      var carryT = 1 - Math.pow(1 - carryProgress, carryEase);
-      var groundX = ball.targetX + (ball.bounceCarryX || 0) * carryT;
-      var groundY = ball.targetY + (ball.bounceCarryY || 0) * carryT;
-      var bounceAnim = 0;
-      // Primary hop
-      if (sinceBounce < primaryAnimMs) {
-        var bt = sinceBounce / primaryAnimMs;
-        bounceAnim = -bounceHeight * Math.sin(bt * Math.PI);
-      }
-      // Secondary smaller hop
-      else if (sinceBounce < primaryAnimMs + secondaryAnimMs) {
-        var bt2 = (sinceBounce - primaryAnimMs) / secondaryAnimMs;
-        bounceAnim = -(bounceHeight * secondHopScale) * Math.sin(bt2 * Math.PI);
-      }
+      var bounce = getBallBounceProfile(ball, sinceBounce);
       // Squash factor for renderer (0-1, 1=max squash at impact)
       var squash = 0;
       if (sinceBounce < 60) squash = 1 - (sinceBounce / 60);
       return {
-        x: groundX,
-        y: groundY + bounceAnim,
-        groundX: groundX,
-        groundY: groundY,
+        x: bounce.x,
+        y: bounce.y - bounce.z,
+        groundX: bounce.x,
+        groundY: bounce.y,
         landX: ball.targetX,
         landY: ball.targetY,
         t: 1,
@@ -565,10 +658,11 @@
     if (ball.state === BALL_STATES.HIT) {
       var sinceHit = gt - ball.hitAt;
       var t2 = clamp(sinceHit / ball.returnTravelMs, 0, 1);
-      var x2 = lerp(ball.returnStartX, ball.returnTargetX, t2);
-      var y2Linear = lerp(ball.returnStartY, ball.returnTargetY, t2);
-      var arc2 = -ball.returnArcHeight * 4 * t2 * (1 - t2);
-      return { x: x2, y: y2Linear + arc2, t: t2 };
+      var t2Sec = t2 * Math.max(0.001, ball.returnTravelMs / 1000);
+      var x2 = ball.returnStartX + (ball.returnVx || 0) * t2Sec;
+      var groundY2 = ball.returnStartY + (ball.returnVy || 0) * t2Sec;
+      var z2 = Math.max(0, (ball.returnLaunchVz || 0) * t2Sec - 0.5 * (ball.returnGravity || 0) * t2Sec * t2Sec);
+      return { x: x2, y: groundY2 - z2, groundY: groundY2, t: t2 };
     }
 
     return { x: ball.x, y: ball.y, t: 1 };
@@ -965,8 +1059,7 @@
     // V3: Get auto-hit proximity range
     _getAutoHitRange(r) {
       var hitRange = reqNum(r.config.court.hitRange, "court.hitRange", { min: 1 });
-      // Generous range for auto-hit (larger than explicit hit)
-      return hitRange * 1.5;
+      return getDepthScaledHitRange(r.config, r.court, r.ball, hitRange, 1.5);
     }
 
     _getEffectiveMoveSpeed(r) {
@@ -1143,6 +1236,18 @@
         r.canvasH, trajectoryCfg, ball.ballType
       ) * trajectoryCfg.returnArcScale;
       ball.returnTravelMs = Math.max(250, ball.travelMs * trajectoryCfg.returnTravelScale);
+      var returnFlight = buildFlightKinematics(
+        ball.returnStartX,
+        ball.returnStartY,
+        ball.returnTargetX,
+        ball.returnTargetY,
+        ball.returnTravelMs,
+        ball.returnArcHeight
+      );
+      ball.returnVx = returnFlight.vx;
+      ball.returnVy = returnFlight.vy;
+      ball.returnGravity = returnFlight.gravity;
+      ball.returnLaunchVz = returnFlight.launchVz;
 
       // Milestones
       for (var mi = 0; mi < r.milestones.length; mi++) {
@@ -1158,7 +1263,7 @@
     // V3: Try volley (hit ball before bounce — only valid after double bounce rule satisfied)
     _tryVolley(r, ball) {
       var hitRange = reqNum(r.config.court.hitRange, "court.hitRange", { min: 1 });
-
+      hitRange = getDepthScaledHitRange(r.config, r.court, ball, hitRange, 1);
       var d = dist(r.playerX, r.playerY, ball.x, ball.y);
       if (d > hitRange * 1.2) {
         // Too far — whiff
@@ -1308,6 +1413,10 @@
           returnTargetX: b.returnTargetX, returnTargetY: b.returnTargetY,
           returnArcHeight: b.returnArcHeight || 0,
           returnTravelMs: b.returnTravelMs || 0,
+          returnVx: b.returnVx || 0,
+          returnVy: b.returnVy || 0,
+          returnGravity: b.returnGravity || 0,
+          returnLaunchVz: b.returnLaunchVz || 0,
           timingBonus: b.timingBonus || 0,
           mustBounce: !!b.mustBounce,
           mustBounceReason: b.mustBounceReason || "",

@@ -353,7 +353,6 @@ void function () {
       case "play":              this._handlePlay("classic"); break;
       case "play-again":        this._handlePlay("classic"); break;
       case "play-daily":        this._handlePlay("daily"); break;
-      case "toggle-match-view": this._toggleMatchView(); break;
       case "sprint-again":      this._handlePowerRunAgain(); break;
       case "back-to-runs":      this.setState(STATES.LANDING); break;
       case "show-paywall":      this.setState(STATES.PAYWALL); break;
@@ -390,34 +389,9 @@ void function () {
   };
 
   UI.prototype._getMatchView = function () {
-    var defaultView = String(this.config?.canvas?.views?.defaultView || "").trim();
-    if (defaultView !== "broadcast" && defaultView !== "player") {
-      throw new Error("KR_UI: KR_CONFIG.canvas.views.defaultView invalid");
-    }
-    var stored = "";
-    try { stored = String(this._store("getMatchView") || "").trim(); } catch (_) { }
-    var resolved = (stored === "player" || stored === "broadcast") ? stored : defaultView;
+    var resolved = "broadcast";
     if (this._runtime) this._runtime.matchView = resolved;
     return resolved;
-  };
-
-  UI.prototype._setMatchView = function (view) {
-    var next = String(view || "").trim();
-    if (next !== "broadcast" && next !== "player") return;
-    if (this._runtime) this._runtime.matchView = next;
-    try { this._store("setMatchView", next); } catch (_) { }
-  };
-
-  UI.prototype._toggleMatchView = function () {
-    var current = this._getMatchView();
-    var next = (current === "player") ? "broadcast" : "player";
-    this._setMatchView(next);
-    if (this.state === STATES.PLAYING) {
-      var state = this.game.getState();
-      this._renderCanvasV2(state);
-      this._renderHUDV2(state);
-      this._checkGameEventsV2(state);
-    }
   };
 
   UI.prototype.onStorageUpdated = function () {
@@ -636,6 +610,7 @@ void function () {
     var kind = String(entryKind == null ? "classic" : entryKind).trim().toLowerCase();
     if (kind !== "daily" && kind !== "classic") throw new Error("KR_UI._handlePlay(): invalid entry kind");
 
+    this._store("markFirstRunFramingSeen");
     this._store("markLandingPlayClicked");
 
     var premium = !!(this._store("isPremium"));
@@ -1183,14 +1158,6 @@ void function () {
       var BALL_STATES = this.gameApi && this.gameApi.BALL_STATES;
       renderBall = Object.assign({}, ball);
       var groundY = Number.isFinite(ball.groundY) ? ball.groundY : ball.targetY;
-      if (BALL_STATES && ball.state === BALL_STATES.TRAVELING) {
-        var tTravel = Math.max(0, Math.min(1, (gt - ball.spawnedAt) / Math.max(1, ball.travelMs)));
-        var yTravelT = Math.pow(tTravel, Number.isFinite(ball.descentPower) ? ball.descentPower : 1);
-        groundY = (ball.startY || 0) + ((ball.targetY || 0) - (ball.startY || 0)) * yTravelT;
-      } else if (BALL_STATES && ball.state === BALL_STATES.HIT) {
-        var tReturn = Math.max(0, Math.min(1, (gt - ball.hitAt) / Math.max(1, ball.returnTravelMs)));
-        groundY = (ball.returnStartY || 0) + ((ball.returnTargetY || 0) - (ball.returnStartY || 0)) * tReturn;
-      }
       var ballHeightPx = Math.max(0, groundY - (ball.y || groundY));
       var ballDepthRatioNear = depthRatioAtY(groundY);
       var ballDepthScaleNear = requiredConfigNumber(viewCfg.ballDepthScaleNear, "canvas.views." + activeView + ".ballDepthScaleNear", { min: 0.2, max: 2 });
@@ -1496,8 +1463,6 @@ void function () {
     var _uw2 = (this.wording && this.wording.ui) || {};
     var perfCfg = this._getRenderPerfConfig();
     var perfTier = this._getRenderPerfTier();
-    var shadowMinScale = requiredConfigNumber(this.config?.canvas?.shadowMinScale, "canvas.shadowMinScale", { min: 0.05, max: 3 });
-    var shadowMaxScale = requiredConfigNumber(this.config?.canvas?.shadowMaxScale, "canvas.shadowMaxScale", { min: 0.05, max: 4 });
     var landingMarkerRadiusPx = requiredConfigNumber(this.config?.canvas?.landingMarkerRadiusPx, "canvas.landingMarkerRadiusPx", { min: 1, integer: true });
     var landingMarkerPulseMs = requiredConfigNumber(this.config?.canvas?.landingMarkerPulseMs, "canvas.landingMarkerPulseMs", { min: 1, integer: true });
     var bounceSquashMaxFrac = requiredConfigNumber(this.config?.canvas?.bounceSquashMaxFrac, "canvas.bounceSquashMaxFrac", { min: 0, max: 0.8 });
@@ -1520,7 +1485,7 @@ void function () {
     }
     if (perfTier >= perfCfg.hideReturnTrailAtTier) showReturnTrail = false;
     var courtCfg = this.config?.court || {};
-    var netY = requiredConfigNumber(courtCfg.netY, "KR_CONFIG.court.netY", { min: 0.05, max: 0.3 }) * h;
+    var netY = requiredConfigNumber(courtCfg.netY, "KR_CONFIG.court.netY", { min: 0.05, max: 0.5 }) * h;
     var baseY = requiredConfigNumber(courtCfg.baselineY, "KR_CONFIG.court.baselineY", { min: 0.5, max: 0.99 }) * h;
     var targetDepthY = (b.worldTargetY != null) ? b.worldTargetY : b.targetY;
     var depthRatio = Math.max(0, Math.min(1, (targetDepthY - netY) / Math.max(1, baseY - netY)));
@@ -1577,23 +1542,6 @@ void function () {
       ctx.arc(bounceLandX, bounceLandY, markerRadius, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
-    }
-
-
-    // Shadow at bounce point (grows as ball approaches)
-    if (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.LANDED || b.state === BALL_STATES.BOUNCED) {
-      var shadowProgress = (b.state === BALL_STATES.TRAVELING) ? Math.min(1, Math.max(0, (gt - b.spawnedAt) / b.travelMs)) : 1;
-      var shadowAlpha = 0.12 + shadowProgress * 0.28;
-      var shadowW = b.radius * (shadowMinScale + shadowProgress * (shadowMaxScale - shadowMinScale));
-      var shadowX = (b.state === BALL_STATES.TRAVELING)
-        ? (b.x + (bounceLandX - b.x) * 0.45)
-        : bounceGroundX;
-      ctx.globalAlpha = shadowAlpha;
-      ctx.fillStyle = colors.shadow;
-      ctx.beginPath();
-      ctx.ellipse(shadowX, b.shadowY + b.radius * 0.3, shadowW, shadowW * 0.35, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
     }
 
     // Ball color by type
@@ -1991,7 +1939,7 @@ void function () {
     // Scale relative to screen + depth in the frontal court view.
     var depthScaleNear = requiredConfigNumber(this.config?.canvas?.playerDepthScaleNear, "canvas.playerDepthScaleNear", { min: 0.5, max: 2 });
     var depthScaleFar = requiredConfigNumber(this.config?.canvas?.playerDepthScaleFar, "canvas.playerDepthScaleFar", { min: 0.5, max: 2 });
-    var netY = court ? court.netY * h : (h * 0.26);
+    var netY = court ? court.netY * h : (h * 0.40);
     var baseY = court ? court.baselineY * h : (h * 0.88);
     var depthSourceY = (worldY != null) ? worldY : y;
     var depthRatio = (depthSourceY - netY) / Math.max(1, baseY - netY);
@@ -2326,18 +2274,7 @@ void function () {
     var hudEl = el("kr-hud");
     if (!hudEl) return;
     var uiWording = (this.wording && this.wording.ui) ? this.wording.ui : {};
-    var currentView = this._getMatchView();
-    var currentViewLabel = currentView === "player"
-      ? String(uiWording.matchViewPlayer || "").trim()
-      : String(uiWording.matchViewBroadcast || "").trim();
-    var viewToggleText = txt(uiWording.matchViewToggleTemplate, { view: currentViewLabel });
     var viewToggleHtml = "";
-    if (viewToggleText) {
-      viewToggleHtml =
-        '<div class="kr-hud-row kr-hud-row--meta">' +
-          '<button type="button" class="kr-hud-toggle" data-action="toggle-match-view">' + escapeHtml(viewToggleText) + '</button>' +
-        '</div>';
-    }
 
     if (state.mode === MODES.RUN) {
       var livesHtml = "";

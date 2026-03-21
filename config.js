@@ -167,7 +167,10 @@
         bounceForwardCarryFrac: 0.18,
         bounceLateralCarryFrac: 0.12,
         bounceCarryEase: 2.1,
-        bounceSecondHopTimeFrac: 0.52
+        bounceSecondHopTimeFrac: 0.52,
+        bounceRestitution: 0.34,
+        bounceFriction: 4.8,
+        bounceSecondHopMomentum: 0.58
       },
 
       // Opening serve tuning: first incoming ball should read like a real diagonal serve.
@@ -391,13 +394,13 @@
       // Full court: 44ft x 20ft. Each half = 22ft deep.
       // Kitchen = 7ft from net on each side = 7/22 = 31.8% of a half-court.
       // Backcourt = 15ft = 68.2% of a half-court.
-      // We keep the player's half readable at near-full depth and compress
-      // the opponent half only in render, not in game rules.
-      netY: 0.28,
-      kitchenLineY: 0.46,
+      // With netY=0.40 and baselineY=0.88, the exact kitchen line is:
+      // 0.40 + (0.88 - 0.40) * (7 / 22) = 0.5527
+      netY: 0.40,
+      kitchenLineY: 0.553,
       baselineY: 0.88,
-      playerY: 0.75,
-      opponentY: 0.13,
+      playerY: 0.78,
+      opponentY: 0.22,
       controlsY: 0.90,
 
       // Player movement speed (pixels per frame at 60fps)
@@ -407,7 +410,9 @@
       desktopMouseDeadZonePx: 8,
 
       // Hit range (max X distance between player and ball to hit)
-      hitRange: 56
+      hitRange: 56,
+      hitRangeNearScale: 1.08,
+      hitRangeFarScale: 0.92
     },
 
 
@@ -429,12 +434,12 @@
       ballRadius: 11,
 
       // Frontal court rendering
-      opponentCourtScale: 0.62,
-      cameraPerspectivePower: 1.75,
+      opponentCourtScale: 0.84,
+      cameraPerspectivePower: 1.12,
       sidelineInsetFrac: 0.08,
-      nearSidelineInsetFrac: 0.05,
-      netSidelineInsetFrac: 0.15,
-      farSidelineInsetFrac: 0.24,
+      nearSidelineInsetFrac: 0.04,
+      netSidelineInsetFrac: 0.09,
+      farSidelineInsetFrac: 0.14,
       kitchenLineWidth: 4,
       baselineLineWidth: 3,
       sidelineLineWidth: 2.5,
@@ -473,12 +478,12 @@
       views: {
         defaultView: "broadcast",
         broadcast: {
-          opponentCourtScale: 0.62,
-          cameraPerspectivePower: 1.75,
-          opponentPerspectivePower: 1.12,
-          nearSidelineInsetFrac: 0.05,
-          netSidelineInsetFrac: 0.15,
-          farSidelineInsetFrac: 0.24,
+          opponentCourtScale: 0.84,
+          cameraPerspectivePower: 1.12,
+          opponentPerspectivePower: 1,
+          nearSidelineInsetFrac: 0.04,
+          netSidelineInsetFrac: 0.09,
+          farSidelineInsetFrac: 0.14,
           farCourtAlpha: 0.96,
           opponentKitchenAlpha: 0.95,
           serviceBoxFarAlpha: 0.95,
@@ -488,12 +493,12 @@
           ballHeightScaleFar: 0.5
         },
         player: {
-          opponentCourtScale: 0.52,
-          cameraPerspectivePower: 2.2,
-          opponentPerspectivePower: 1.08,
-          nearSidelineInsetFrac: 0.035,
-          netSidelineInsetFrac: 0.18,
-          farSidelineInsetFrac: 0.32,
+          opponentCourtScale: 0.78,
+          cameraPerspectivePower: 1.18,
+          opponentPerspectivePower: 1,
+          nearSidelineInsetFrac: 0.03,
+          netSidelineInsetFrac: 0.1,
+          farSidelineInsetFrac: 0.16,
           farCourtAlpha: 0.76,
           opponentKitchenAlpha: 0.66,
           serviceBoxFarAlpha: 0.62,

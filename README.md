@@ -73,6 +73,15 @@ These proportions are the reference for the frontal rendering and gameplay tunin
 
 The game should read from a true frontal, eye-level viewpoint.
 
+There is now one canonical in-match camera.
+
+That means:
+
+- do not maintain multiple player-selectable match views
+- do not spend tuning effort on parallel camera profiles
+- the game should converge on one strong frontal camera only
+- if readability and realism conflict, tune that one camera instead of adding alternatives
+
 That means:
 
 - the near baseline should feel wider than the net
@@ -366,6 +375,8 @@ First visit rule:
 - if Daily is disabled, fall back to `Play Classic`
 - do not show `Play Classic` alongside `Daily Challenge` on the first visit
 - do not show progression copy, best score, sparks, `Power Ball`, or extra discovery nudges on the first visit
+- use the same vertical slot for `Daily Challenge` on mobile and desktop
+- on the first visit, `Daily Challenge` should look like the main primary button, not a badge
 
 Reason:
 
@@ -376,6 +387,8 @@ After the first visit:
 
 - the landing can become richer again
 - keep useful elements such as Daily, Classic, best score, and core nudges
+- keep `Daily Challenge` in the same place on screen to avoid confusing returning players
+- after the first visit, `Daily Challenge` can step down to a secondary visual treatment
 - do not put `Next power ...` or `This week ...` on landing
 - those progression lines belong on end screen or short overlays, where they are easier to understand
 

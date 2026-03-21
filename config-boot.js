@@ -199,6 +199,9 @@
         reqNum(trajectory.bounceLateralCarryFrac, "KR_CONFIG.game.trajectory.bounceLateralCarryFrac", { min: 0, max: 1 });
         reqNum(trajectory.bounceCarryEase, "KR_CONFIG.game.trajectory.bounceCarryEase", { min: 0.2, max: 6 });
         reqNum(trajectory.bounceSecondHopTimeFrac, "KR_CONFIG.game.trajectory.bounceSecondHopTimeFrac", { min: 0.1, max: 1 });
+        reqNum(trajectory.bounceRestitution, "KR_CONFIG.game.trajectory.bounceRestitution", { min: 0.05, max: 1 });
+        reqNum(trajectory.bounceFriction, "KR_CONFIG.game.trajectory.bounceFriction", { min: 0, max: 20 });
+        reqNum(trajectory.bounceSecondHopMomentum, "KR_CONFIG.game.trajectory.bounceSecondHopMomentum", { min: 0, max: 1 });
       }
       if (game.ballTypes != null) {
         reqObj(game.ballTypes, "KR_CONFIG.game.ballTypes");
@@ -350,15 +353,17 @@
 
       // V2: Court layout validation (USAP-faithful proportions)
       const court = reqObj(cfg.court, "KR_CONFIG.court");
-      reqNum(court.netY, "KR_CONFIG.court.netY", { min: 0.05, max: 0.3 });
+      reqNum(court.netY, "KR_CONFIG.court.netY", { min: 0.05, max: 0.5 });
       reqNum(court.kitchenLineY, "KR_CONFIG.court.kitchenLineY", { min: 0.2, max: 0.6 });
       reqNum(court.baselineY, "KR_CONFIG.court.baselineY", { min: 0.7, max: 0.95 });
       reqNum(court.playerY, "KR_CONFIG.court.playerY", { min: 0.5, max: 0.9 });
-      reqNum(court.opponentY, "KR_CONFIG.court.opponentY", { min: 0.02, max: 0.2 });
+      reqNum(court.opponentY, "KR_CONFIG.court.opponentY", { min: 0.02, max: 0.35 });
       reqNum(court.controlsY, "KR_CONFIG.court.controlsY", { min: 0.8, max: 1.0 });
       reqNum(court.playerSpeed, "KR_CONFIG.court.playerSpeed", { min: 0.1 });
       reqNum(court.desktopMouseDeadZonePx, "KR_CONFIG.court.desktopMouseDeadZonePx", { min: 0 });
       reqNum(court.hitRange, "KR_CONFIG.court.hitRange", { min: 1 });
+      reqNum(court.hitRangeNearScale, "KR_CONFIG.court.hitRangeNearScale", { min: 0.5, max: 2 });
+      reqNum(court.hitRangeFarScale, "KR_CONFIG.court.hitRangeFarScale", { min: 0.5, max: 2 });
 
       const limits = reqObj(cfg.limits, "KR_CONFIG.limits");
       reqNum(limits.freeRuns, "KR_CONFIG.limits.freeRuns", { min: 0, integer: true });

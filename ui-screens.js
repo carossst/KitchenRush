@@ -139,7 +139,7 @@
       var balance = this._store("getRunsBalance") || 0;
       var counters = this._store("getCounters") || {};
       var runCompletes = counters.runCompletes || 0;
-      var isFirstLanding = runCompletes <= 0;
+      var isFirstLanding = !this._store("hasFirstRunFramingSeen");
 
       var ctaLabel = (runCompletes > 0)
         ? escapeHtml(lw.ctaPlayAfterFirstRun || lw.ctaPlay || "")
@@ -342,10 +342,18 @@
         if (dailyLabel) {
           var dailyExplain = String(lw.dailyExplain || "").trim();
           var dailyCta = String(lw.ctaPlayDaily || "").trim() || dailyLabel;
-          dailyHtml = '<button class="kr-daily-badge kr-daily-badge--cta" data-action="play-daily" aria-label="' + escapeHtml(dailyCta) + '">';
-          dailyHtml += '<span class="kr-daily-badge-icon">📅</span>';
-          dailyHtml += '<span class="kr-daily-badge-label">' + escapeHtml(dailyLabel) + '</span>';
-          dailyHtml += '</button>';
+          if (isFirstLanding) {
+            dailyHtml = '<div class="kr-actions kr-actions--primary-zone">';
+            dailyHtml += '<button class="kr-btn kr-btn--primary" data-action="play-daily" aria-label="' + escapeHtml(dailyCta) + '">';
+            dailyHtml += '📅 ' + escapeHtml(dailyLabel);
+            dailyHtml += '</button>';
+            dailyHtml += '</div>';
+          } else {
+            dailyHtml = '<button class="kr-daily-badge kr-daily-badge--cta" data-action="play-daily" aria-label="' + escapeHtml(dailyCta) + '">';
+            dailyHtml += '<span class="kr-daily-badge-icon">📅</span>';
+            dailyHtml += '<span class="kr-daily-badge-label">' + escapeHtml(dailyLabel) + '</span>';
+            dailyHtml += '</button>';
+          }
           if (dailyExplain && !isFirstLanding) dailyHtml += '<p class="kr-daily-explain kr-muted">' + escapeHtml(dailyExplain) + '</p>';
         }
         classicHtml = '<div class="kr-actions kr-actions--primary-zone">' +
