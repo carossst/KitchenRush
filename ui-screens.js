@@ -145,7 +145,7 @@
         ? escapeHtml(lw.ctaPlayAfterFirstRun || lw.ctaPlay || "")
         : escapeHtml(lw.ctaPlay || "");
 
-      var showPowerBall = this._canShowPowerBall(STATES.LANDING);
+      var showPowerBall = !isFirstLanding && this._canShowPowerBall(STATES.LANDING);
       var solved = !!(this._store("hasPowerBallHintSolved"));
       var powerBallHtml = showPowerBall
         ? '<button class="kr-btn-icon' + (solved ? "" : " kr-btn-icon--tease") + '" data-kr-secret="power-ball" aria-label="' + escapeHtml((w?.sprint || {}).chestAria || "") + '">\uD83D\uDFE1</button>' : "";
@@ -361,6 +361,23 @@
         '</div>';
       }
 
+      var firstLandingPrimaryHtml = isFirstLanding
+        ? (dailyHtml || classicHtml)
+        : classicHtml;
+
+      var firstLandingHtml = isFirstLanding
+        ? firstLandingPrimaryHtml
+        : (
+            dailyHtml +
+            firstLandingPrimaryHtml +
+            bestHtml +
+            powerTeaseHtml +
+            premiumLabelHtml +
+            earlyTickerHtml +
+            primaryLandingNudgeHtml +
+            landingMetaHtml
+          );
+
       this.appEl.innerHTML =
         '<div class="kr-screen kr-screen--landing">' +
           '<div class="kr-landing-header"><div class="kr-landing-header-row">' +
@@ -370,16 +387,7 @@
           '<div class="kr-landing-body">' +
             '<h1 class="kr-h1">' + escapeHtml(lw.tagline || "") + '</h1>' +
             '<p class="kr-subtitle">' + escapeHtml(lw.subtitle || "") + '</p>' +
-            dailyHtml +
-            classicHtml +
-            bestHtml +
-            powerTeaseHtml +
-            nextPowerHtml +
-            weeklyPowerHtml +
-            premiumLabelHtml +
-            earlyTickerHtml +
-            primaryLandingNudgeHtml +
-            landingMetaHtml +
+            firstLandingHtml +
           '</div>' +
         '</div>';
 

@@ -682,6 +682,107 @@ a:focus-visible {
   color: rgb(var(--primary));
 }
 
+@media (min-width: 900px) {
+  .kr-main {
+    min-height: 100dvh;
+  }
+
+  .kr-screen {
+    min-height: auto;
+    flex: 1;
+  }
+
+  .kr-screen--landing,
+  .kr-screen--end,
+  .kr-screen--paywall {
+    padding-top: var(--space-6);
+    padding-bottom: var(--space-6);
+  }
+
+  .kr-landing-header,
+  .kr-end-header,
+  .kr-paywall-header {
+    padding: 0;
+  }
+
+  .kr-landing-body,
+  .kr-end-body {
+    justify-content: center;
+    padding: var(--gap-2) 0 var(--space-6);
+    gap: var(--space-6);
+  }
+
+  .kr-paywall-body {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: center;
+    align-items: start;
+    justify-items: center;
+    column-gap: var(--gap-2);
+    row-gap: var(--space-6);
+    padding: var(--space-6) 0 0;
+  }
+
+  .kr-paywall-body > .kr-h2,
+  .kr-paywall-body > .kr-paywall-progress,
+  .kr-paywall-body > .kr-muted,
+  .kr-paywall-body > .kr-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+  }
+
+  .kr-paywall-body > .kr-box {
+    width: 100%;
+    max-width: none;
+    align-self: stretch;
+  }
+
+  .kr-paywall-body > .kr-box .kr-h3 {
+    margin-bottom: var(--space-4);
+  }
+
+  .kr-paywall-list {
+    margin: 0;
+  }
+
+  .kr-paywall-list li {
+    padding: var(--space-2) 0;
+    line-height: 1.35;
+  }
+
+  .kr-end-score {
+    font-size: 44px;
+    margin: var(--space-6) 0;
+  }
+
+  .kr-landing-best,
+  .kr-box,
+  .kr-end-debrief,
+  .kr-end-next-run,
+  .kr-challenge,
+  .kr-paywall-progress,
+  .kr-paywall-timer,
+  .kr-paywall-savings,
+  .kr-early-timer,
+  .kr-muted,
+  .kr-daily-explain {
+    margin-top: 0;
+    margin-bottom: var(--space-4);
+  }
+
+  .kr-footer {
+    padding: var(--space-6) 0 calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .kr-footer-inner {
+    gap: var(--space-4);
+  }
+}
+
 @media (max-width: 600px) {
   .kr-screen--landing,
   .kr-screen--end,

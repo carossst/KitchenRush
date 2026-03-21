@@ -354,6 +354,31 @@ The intended perceived value is:
 If a feature exists in gameplay but the player cannot understand it in the first sessions,
 it is not yet product-complete.
 
+## Landing screen rules
+
+The first landing must be radically simpler than later visits.
+
+First visit rule:
+
+- show the title
+- show the short subtitle
+- show only `Daily Challenge` as the primary CTA when Daily is enabled
+- if Daily is disabled, fall back to `Play Classic`
+- do not show `Play Classic` alongside `Daily Challenge` on the first visit
+- do not show progression copy, best score, sparks, `Power Ball`, or extra discovery nudges on the first visit
+
+Reason:
+
+- first impression must feel clean, premium, and easy to parse
+- the first job is to get the player into a run, not to explain the meta loop
+
+After the first visit:
+
+- the landing can become richer again
+- keep useful elements such as Daily, Classic, best score, and core nudges
+- do not put `Next power ...` or `This week ...` on landing
+- those progression lines belong on end screen or short overlays, where they are easier to understand
+
 ## Non-negotiable development constraints
 
 - Mobile first.
