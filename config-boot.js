@@ -35,6 +35,12 @@
 
       if (cfg.support && !cfg.support.emailObfuscated) warn("support.emailObfuscated missing");
       if (cfg.waitlist && cfg.waitlist.enabled && !cfg.waitlist.toEmailObfuscated) warn("waitlist.enabled true but toEmailObfuscated missing");
+      if (cfg.waitlist) {
+        const placement = String(cfg.waitlist.placement || "").trim();
+        if (placement && placement !== "end-and-landing-after-seen-once" && placement !== "landing-only" && placement !== "end-only") {
+          warn("waitlist.placement is unknown", placement);
+        }
+      }
     },
 
     validateConfigStrict: function () {
@@ -84,10 +90,71 @@
       reqStr(cfg.storage.storageKey, "KR_CONFIG.storage.storageKey");
       reqStr(cfg.storage.vanityCodeStorageKey, "KR_CONFIG.storage.vanityCodeStorageKey");
 
+      const houseAd = reqObj(cfg.houseAd, "KR_CONFIG.houseAd");
+      reqBool(houseAd.enabled, "KR_CONFIG.houseAd.enabled");
+      reqBool(houseAd.premiumOnly, "KR_CONFIG.houseAd.premiumOnly");
+      reqBool(houseAd.showAfterEnd, "KR_CONFIG.houseAd.showAfterEnd");
+      reqBool(houseAd.suppressOnPostPaywall, "KR_CONFIG.houseAd.suppressOnPostPaywall");
+      reqBool(houseAd.suppressWhenWaitlistVisible, "KR_CONFIG.houseAd.suppressWhenWaitlistVisible");
+      reqNum(houseAd.minRunCompletesToShow, "KR_CONFIG.houseAd.minRunCompletesToShow", { min: 0, integer: true });
+      reqNum(houseAd.hideMs, "KR_CONFIG.houseAd.hideMs", { min: 0, integer: true });
+
+      const waitlist = reqObj(cfg.waitlist, "KR_CONFIG.waitlist");
+      reqBool(waitlist.enabled, "KR_CONFIG.waitlist.enabled");
+      reqNum(waitlist.minRunCompletesToShow, "KR_CONFIG.waitlist.minRunCompletesToShow", { min: 0, integer: true });
+      const waitlistPlacement = reqStr(waitlist.placement, "KR_CONFIG.waitlist.placement");
+      if (waitlistPlacement !== "end-and-landing-after-seen-once" && waitlistPlacement !== "landing-only" && waitlistPlacement !== "end-only") {
+        fail("KR_CONFIG.waitlist.placement invalid");
+      }
+      reqBool(waitlist.afterPoolExhaustedOnly, "KR_CONFIG.waitlist.afterPoolExhaustedOnly");
+      reqBool(waitlist.showModalOneShot, "KR_CONFIG.waitlist.showModalOneShot");
+      reqBool(waitlist.showOnSprintEnd, "KR_CONFIG.waitlist.showOnSprintEnd");
+      reqBool(waitlist.suppressOnPostPaywall, "KR_CONFIG.waitlist.suppressOnPostPaywall");
+      reqBool(waitlist.suppressWhenHouseAdVisible, "KR_CONFIG.waitlist.suppressWhenHouseAdVisible");
+      reqBool(waitlist.suppressWhenStatsPromptVisible, "KR_CONFIG.waitlist.suppressWhenStatsPromptVisible");
+      reqBool(waitlist.suppressWhenShareVisible, "KR_CONFIG.waitlist.suppressWhenShareVisible");
+      reqStr(waitlist.subjectPrefix, "KR_CONFIG.waitlist.subjectPrefix");
+
+      const end = reqObj(cfg.end, "KR_CONFIG.end");
+      reqNum(end.bestStreakLineMin, "KR_CONFIG.end.bestStreakLineMin", { min: 1, integer: true });
+      reqNum(end.almostBestGapMax, "KR_CONFIG.end.almostBestGapMax", { min: 1, integer: true });
+      reqNum(end.playAgainNearBestGapMax, "KR_CONFIG.end.playAgainNearBestGapMax", { min: 1, integer: true });
+
+      const history = reqObj(cfg.history, "KR_CONFIG.history");
+      reqNum(history.minRunCompletesForNewBestCelebrate, "KR_CONFIG.history.minRunCompletesForNewBestCelebrate", { min: 0, integer: true });
+      reqNum(history.minSprintCompletesForNewBestCelebrate, "KR_CONFIG.history.minSprintCompletesForNewBestCelebrate", { min: 0, integer: true });
+
+      const share = reqObj(cfg.share, "KR_CONFIG.share");
+      reqBool(share.enabled, "KR_CONFIG.share.enabled");
+      reqStr(share.verificationSalt, "KR_CONFIG.share.verificationSalt");
+      reqNum(share.autoOpenDelayMs, "KR_CONFIG.share.autoOpenDelayMs", { min: 0, integer: true });
+      reqNum(share.autoOpenNewBestScoreMin, "KR_CONFIG.share.autoOpenNewBestScoreMin", { min: 1, integer: true });
+      reqNum(share.autoOpenDailyScoreMin, "KR_CONFIG.share.autoOpenDailyScoreMin", { min: 1, integer: true });
+
+      const endNudges = reqObj(cfg.endNudges, "KR_CONFIG.endNudges");
+      reqBool(endNudges.showShareOnNewBest, "KR_CONFIG.endNudges.showShareOnNewBest");
+      reqBool(endNudges.showShareOnDaily, "KR_CONFIG.endNudges.showShareOnDaily");
+      reqBool(endNudges.showShareByDefault, "KR_CONFIG.endNudges.showShareByDefault");
+      reqBool(endNudges.autoShareOnNewBest, "KR_CONFIG.endNudges.autoShareOnNewBest");
+      reqBool(endNudges.autoShareOnDaily, "KR_CONFIG.endNudges.autoShareOnDaily");
+      reqBool(endNudges.showStatsPromptWhenReplayPrimary, "KR_CONFIG.endNudges.showStatsPromptWhenReplayPrimary");
+      reqBool(endNudges.suppressShareWhenNoRuns, "KR_CONFIG.endNudges.suppressShareWhenNoRuns");
+      reqBool(endNudges.suppressStatsPromptWhenNoRuns, "KR_CONFIG.endNudges.suppressStatsPromptWhenNoRuns");
+
       const game = reqObj(cfg.game, "KR_CONFIG.game");
       reqNum(game.lives, "KR_CONFIG.game.lives", { min: 1, integer: true });
       reqNum(game.onboardingShield, "KR_CONFIG.game.onboardingShield", { min: 0, integer: true });
       reqNum(game.reboundDelayMs, "KR_CONFIG.game.reboundDelayMs", { min: 1, integer: true });
+      const timing = reqObj(game.timing, "KR_CONFIG.game.timing");
+      reqNum(timing.niceThreshold, "KR_CONFIG.game.timing.niceThreshold", { min: 0, max: 1 });
+      reqNum(timing.perfectThreshold, "KR_CONFIG.game.timing.perfectThreshold", { min: 0, max: 1 });
+      reqNum(timing.sweetSpot, "KR_CONFIG.game.timing.sweetSpot", { min: 0, max: 1 });
+      reqNum(timing.falloffWindow, "KR_CONFIG.game.timing.falloffWindow", { min: 0.01, max: 1 });
+      reqNum(timing.autoHitGraceFrac, "KR_CONFIG.game.timing.autoHitGraceFrac", { min: 0, max: 1 });
+      reqNum(timing.basePoints, "KR_CONFIG.game.timing.basePoints", { min: 1, integer: true });
+      reqNum(timing.perfectPoints, "KR_CONFIG.game.timing.perfectPoints", { min: 1, integer: true });
+      if (Number(timing.perfectThreshold) < Number(timing.niceThreshold)) fail("KR_CONFIG.game.timing.perfectThreshold must be >= niceThreshold");
+      if (Number(timing.perfectPoints) < Number(timing.basePoints)) fail("KR_CONFIG.game.timing.perfectPoints must be >= basePoints");
       reqObj(game.speed, "KR_CONFIG.game.speed");
       reqNum(game.speed.base, "KR_CONFIG.game.speed.base", { min: 0.1 });
       reqNum(game.speed.accelPerSec, "KR_CONFIG.game.speed.accelPerSec", { min: 0 });
@@ -110,6 +177,7 @@
         reqNum(trajectory.arcMinFrac, "KR_CONFIG.game.trajectory.arcMinFrac", { min: 0.005, max: 0.2 });
         reqNum(trajectory.arcMaxFrac, "KR_CONFIG.game.trajectory.arcMaxFrac", { min: 0.01, max: 0.3 });
         reqNum(trajectory.arcDepthWeight, "KR_CONFIG.game.trajectory.arcDepthWeight", { min: 0, max: 1 });
+        reqNum(trajectory.descentPower, "KR_CONFIG.game.trajectory.descentPower", { min: 0.8, max: 2 });
         reqNum(trajectory.returnArcScale, "KR_CONFIG.game.trajectory.returnArcScale", { min: 0.1, max: 2 });
         reqNum(trajectory.returnTravelScale, "KR_CONFIG.game.trajectory.returnTravelScale", { min: 0.1, max: 2 });
       }
@@ -135,8 +203,20 @@
       reqNum(canvas.kitchenLineY, "KR_CONFIG.canvas.kitchenLineY", { min: 0.01, max: 0.99 });
       reqNum(canvas.minLandingYFrac, "KR_CONFIG.canvas.minLandingYFrac", { min: 0, max: 0.99 });
       reqNum(canvas.ballRadius, "KR_CONFIG.canvas.ballRadius", { min: 1, integer: true });
+      reqNum(canvas.opponentCourtScale, "KR_CONFIG.canvas.opponentCourtScale", { min: 0.1, max: 1 });
+      reqNum(canvas.sidelineInsetFrac, "KR_CONFIG.canvas.sidelineInsetFrac", { min: 0.01, max: 0.3 });
+      reqNum(canvas.netCenterSagPx, "KR_CONFIG.canvas.netCenterSagPx", { min: 0, integer: true });
+      reqNum(canvas.netPostHeightPx, "KR_CONFIG.canvas.netPostHeightPx", { min: 1, integer: true });
       reqNum(canvas.hitTolerancePx, "KR_CONFIG.canvas.hitTolerancePx", { min: 0, integer: true });
       reqNum(canvas.shadowGrowthFactor, "KR_CONFIG.canvas.shadowGrowthFactor", { min: 0, max: 1 });
+      reqNum(canvas.shadowMinScale, "KR_CONFIG.canvas.shadowMinScale", { min: 0.05, max: 3 });
+      reqNum(canvas.shadowMaxScale, "KR_CONFIG.canvas.shadowMaxScale", { min: 0.05, max: 4 });
+      reqNum(canvas.landingMarkerRadiusPx, "KR_CONFIG.canvas.landingMarkerRadiusPx", { min: 1, integer: true });
+      reqNum(canvas.landingMarkerPulseMs, "KR_CONFIG.canvas.landingMarkerPulseMs", { min: 1, integer: true });
+      reqNum(canvas.playerDepthScaleNear, "KR_CONFIG.canvas.playerDepthScaleNear", { min: 0.5, max: 2 });
+      reqNum(canvas.playerDepthScaleFar, "KR_CONFIG.canvas.playerDepthScaleFar", { min: 0.5, max: 2 });
+      reqNum(canvas.bounceSecondHopScale, "KR_CONFIG.canvas.bounceSecondHopScale", { min: 0, max: 1 });
+      reqNum(canvas.bounceSquashMaxFrac, "KR_CONFIG.canvas.bounceSquashMaxFrac", { min: 0, max: 0.8 });
       reqNum(canvas.bounceHeight, "KR_CONFIG.canvas.bounceHeight", { min: 0 });
       reqNum(canvas.bounceAnimMs, "KR_CONFIG.canvas.bounceAnimMs", { min: 1, integer: true });
       reqNum(canvas.smashOutMs, "KR_CONFIG.canvas.smashOutMs", { min: 1, integer: true });
@@ -191,7 +271,12 @@
       const ui = reqObj(cfg.ui, "KR_CONFIG.ui");
       reqBool(ui.toastDismissOnTap, "KR_CONFIG.ui.toastDismissOnTap");
       reqNum(ui.runStartOverlayMs, "KR_CONFIG.ui.runStartOverlayMs", { min: 1, integer: true });
+      reqNum(ui.runStartOverlayFastTrackMs, "KR_CONFIG.ui.runStartOverlayFastTrackMs", { min: 0, integer: true });
+      reqNum(ui.dailyObjectiveOverlayMs, "KR_CONFIG.ui.dailyObjectiveOverlayMs", { min: 1, integer: true });
       reqNum(ui.lifeLostOverlayMs, "KR_CONFIG.ui.lifeLostOverlayMs", { min: 1, integer: true });
+      reqNum(ui.desktopClickHitReleaseMs, "KR_CONFIG.ui.desktopClickHitReleaseMs", { min: 0, integer: true });
+      reqNum(ui.firstFaultExplainUntilFaultCount, "KR_CONFIG.ui.firstFaultExplainUntilFaultCount", { min: 0, integer: true });
+      reqNum(ui.lastLifeTriggerLives, "KR_CONFIG.ui.lastLifeTriggerLives", { min: 0, integer: true });
       reqNum(ui.gameplayPulseMs, "KR_CONFIG.ui.gameplayPulseMs", { min: 1, integer: true });
       reqNum(ui.endRecordMomentMs, "KR_CONFIG.ui.endRecordMomentMs", { min: 1, integer: true });
       reqNum(ui.paywallTickerMs, "KR_CONFIG.ui.paywallTickerMs", { min: 1, integer: true });

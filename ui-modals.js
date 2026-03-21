@@ -3,6 +3,12 @@
 (() => {
   "use strict";
 
+  function warn(message, error) {
+    try {
+      console.warn("[KR Modals]", message, error || "");
+    } catch (_) { }
+  }
+
   function install(UIModule, deps) {
     if (!UIModule || !UIModule.prototype) throw new Error("KR_UI_MODALS.install(): UI constructor missing");
 
@@ -124,7 +130,9 @@
           if (emailApi && typeof emailApi.getSupportEmailDecoded === "function") {
             this._runtime.supportEmail = emailApi.getSupportEmailDecoded() || "";
           }
-        } catch (_) { }
+        } catch (error) {
+          warn("support email decode failed", error);
+        }
       }
       if (!this._runtime.supportEmail) return;
 
@@ -205,7 +213,7 @@
         mailto = emailApi.buildMailto(this.config, idea);
       }
       if (!mailto) return;
-      try { window.open(mailto, "_self"); } catch (_) { return; }
+      try { window.open(mailto, "_self"); } catch (error) { warn("waitlist mailto open failed", error); return; }
       this._store("setWaitlistStatus", "joined");
       this.closeModal();
     };
@@ -246,7 +254,7 @@
       var q = [];
       if (subject) q.push("subject=" + encodeURIComponent(subject));
       if (body) q.push("body=" + encodeURIComponent(body));
-      try { window.open("mailto:" + email + (q.length ? "?" + q.join("&") : ""), "_self"); } catch (_) { return; }
+      try { window.open("mailto:" + email + (q.length ? "?" + q.join("&") : ""), "_self"); } catch (error) { warn("stats mailto open failed", error); return; }
 
       var msg = String(this.wording?.statsSharing?.successToast || "").trim();
       if (msg) toastNow(this.config, msg, { timingKey: "positive" });
@@ -256,7 +264,7 @@
     UIModule.prototype.copyStatsToClipboard = async function () {
       var payload = this._store("getAnonymousStatsPayload") || null;
       if (!payload) return;
-      try { await navigator.clipboard.writeText(JSON.stringify(payload, null, 2)); } catch (_) { return; }
+      try { await navigator.clipboard.writeText(JSON.stringify(payload, null, 2)); } catch (error) { warn("stats clipboard copy failed", error); return; }
       var msg = String(this.wording?.statsSharing?.copyToast || "").trim();
       if (msg) toastNow(this.config, msg, { timingKey: "positive" });
     };

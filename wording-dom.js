@@ -1,6 +1,12 @@
 (() => {
   "use strict";
 
+  function warn(message, error) {
+    try {
+      console.warn("[KR Wording]", message, error || "");
+    } catch (_) { }
+  }
+
   function getByPath(root, path) {
     const p = String(path).trim();
     if (!p) throw new Error("KR wording path missing");
@@ -38,7 +44,9 @@
   function tryAutoApply() {
     try {
       applyToDocument(document);
-    } catch (_) { }
+    } catch (error) {
+      warn("Auto-apply failed", error);
+    }
   }
 
   if (document.readyState === "loading") {

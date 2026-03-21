@@ -97,14 +97,6 @@ void function () {
     throw new Error("KR_UI: KR_ENUMS.GAME_MODES invalid");
   }
 
-  function todayDateParts() {
-    var d = new Date();
-    var monthNames = (window.KR_WORDING && window.KR_WORDING.system && window.KR_WORDING.system.monthsShort)
-      ? window.KR_WORDING.system.monthsShort
-      : [];
-    return { month: monthNames[d.getUTCMonth()] || "", day: d.getUTCDate(), year: d.getUTCFullYear() };
-  }
-
   // ============================================
   // UI Constructor
   // ============================================
@@ -170,6 +162,8 @@ void function () {
 
       // Support modal cache
       supportEmail: "",
+      landingHouseAdImpressionMarked: false,
+      endWaitlistImpressionMarked: false,
 
       // Current run
       runMode: MODES.RUN,           // MODES.RUN | MODES.SPRINT
@@ -213,6 +207,8 @@ void function () {
       // End record moment
       endRecordMomentUntil: 0,
       endRecordMomentTimer: null,
+      shareCardAutoOpenTimer: null,
+      endTransitionTimerIds: [],
 
       // Run start overlay timer
       runStartOverlayTimerId: null
@@ -241,6 +237,19 @@ void function () {
         window.Logger.warn("_store(\"" + method + "\") failed:", err);
       }
       return undefined;
+    }
+  };
+
+  UI.prototype._clearEndTransitionTimers = function () {
+    if (!this._runtime || !Array.isArray(this._runtime.endTransitionTimerIds)) return;
+    while (this._runtime.endTransitionTimerIds.length) {
+      clearTimeout(this._runtime.endTransitionTimerIds.pop());
+    }
+    if (this._canvas) {
+      try { this._canvas.style.filter = ""; } catch (_) { }
+    }
+    if (this.appEl) {
+      try { this.appEl.classList.remove("kr-fade", "kr-fade--out", "kr-fade--in", "transitioning"); } catch (_) { }
     }
   };
 
@@ -366,6 +375,12 @@ void function () {
     // Paywall ticker management
     if (prev === STATES.PAYWALL && next !== STATES.PAYWALL && next !== STATES.LANDING) this._stopPaywallTicker();
     if (prev === STATES.LANDING && next !== STATES.LANDING && next !== STATES.PAYWALL) this._stopPaywallTicker();
+    if (prev === STATES.LANDING && next !== STATES.LANDING && this._runtime) {
+      this._runtime.landingHouseAdImpressionMarked = false;
+    }
+    if (prev === STATES.END && next !== STATES.END && this._runtime) {
+      this._runtime.endWaitlistImpressionMarked = false;
+    }
 
     // Remember paywall origin for "Not now" routing
     if (next === STATES.PAYWALL && prev !== STATES.PAYWALL) {
@@ -395,10 +410,39 @@ void function () {
     // Landing entry: early timer if active
     if (next === STATES.LANDING && prev !== STATES.LANDING) {
       var ep = null;
+      var landingBalance = this._store("getRunsBalance") || 0;
+      var landingPremium = !!(this._store("isPremium"));
+      var landingCounters = this._store("getCounters") || {};
+      var landingPostPaywallActive = (!landingPremium && landingBalance <= 0 && (landingCounters.runCompletes || 0) > 0);
+      var landingWaitlistActive = false;
       try { ep = this._store("getEarlyPriceState") || null; } catch (_) { }
       if (ep && ep.phase === "EARLY" && Number(ep.remainingMs) > 0) {
         this._stopPaywallTicker(); this._startPaywallTicker();
       } else { this._stopPaywallTicker(); }
+      try {
+        landingWaitlistActive = !!this._store("shouldShowWaitlistNow", {
+          screen: STATES.LANDING,
+          inRun: false,
+          premium: landingPremium,
+          balance: landingBalance,
+          postPaywallActive: landingPostPaywallActive
+        });
+      } catch (_) { }
+      if (this._runtime && !this._runtime.landingHouseAdImpressionMarked) {
+        try {
+          if (this._store("shouldShowHouseAdNow", {
+            screen: STATES.LANDING,
+            inRun: false,
+            premium: landingPremium,
+            balance: landingBalance,
+            postPaywallActive: landingPostPaywallActive,
+            waitlistActive: landingWaitlistActive
+          })) {
+            this._store("markHouseAdShown");
+            this._runtime.landingHouseAdImpressionMarked = true;
+          }
+        } catch (_) { }
+      }
     }
 
     // Stop game loop when leaving PLAYING
@@ -422,6 +466,11 @@ void function () {
         clearTimeout(this._runtime.hudPulseCleanupTimerId);
         this._runtime.hudPulseCleanupTimerId = null;
       }
+      if (this._runtime && this._runtime.shareCardAutoOpenTimer) {
+        clearTimeout(this._runtime.shareCardAutoOpenTimer);
+        this._runtime.shareCardAutoOpenTimer = null;
+      }
+      this._clearEndTransitionTimers();
       // T5: Disconnect ResizeObserver
       if (this._resizeObserver) {
         this._resizeObserver.disconnect();
@@ -441,10 +490,33 @@ void function () {
     // END entry hooks
     if (next === STATES.END && prev !== STATES.END) {
       // Stats sharing milestone prompt
+      var endNudge = null;
       try {
-        var endNudge = this._getEndNudgePriority();
+        endNudge = this._getEndNudgePriority();
         if (endNudge.showStatsPrompt) this._maybePromptStatsSharingMilestone();
       } catch (_) { }
+
+      if (this._runtime && !this._runtime.endWaitlistImpressionMarked) {
+        try {
+          var waitlistLastRun = (this._runtime && this._runtime.lastRun) ? this._runtime.lastRun : {};
+          var waitlistPremium = !!(this._store("isPremium"));
+          var waitlistBalance = this._store("getRunsBalance") || 0;
+          var showWaitlistEnd = !!this._store("shouldShowWaitlistNow", {
+            screen: STATES.END,
+            inRun: false,
+            premium: waitlistPremium,
+            balance: waitlistBalance,
+            isSprint: (waitlistLastRun.mode === MODES.SPRINT),
+            postPaywallActive: (!waitlistPremium && waitlistLastRun.mode !== MODES.SPRINT && waitlistBalance <= 0),
+            showStatsPrompt: !!(endNudge && endNudge.showStatsPrompt),
+            showShare: !!(endNudge && endNudge.showShare)
+          });
+          if (showWaitlistEnd && this._store("getWaitlistStatus") === "not_seen") {
+            this._store("setWaitlistStatus", "seen");
+          }
+          this._runtime.endWaitlistImpressionMarked = true;
+        } catch (_) { }
+      }
 
       // Record moment (premium + RUN + newBest)
       try {
@@ -562,6 +634,7 @@ void function () {
     }
 
     this._store("markSprintStarted");
+    this._runtime.currentRunIsDaily = false;
     this._runtime.runMode = MODES.SPRINT;
     this._startGameplay(MODES.SPRINT, MODES.SPRINT);
   };
@@ -599,11 +672,17 @@ void function () {
 
     this._runtime.tapLocked = false;
     this._runtime.finishingRun = false;
+    this._clearEndTransitionTimers();
+    if (this._runtime.shareCardAutoOpenTimer) {
+      clearTimeout(this._runtime.shareCardAutoOpenTimer);
+      this._runtime.shareCardAutoOpenTimer = null;
+    }
     this._runtime.runMode = mode;
     this._runtime._lastBallState = {};
+    this._runtime._lastDailyObjectiveMet = false;
 
     // Start engine
-    var isDaily = !!(this._runtime.currentRunIsDaily);
+    var isDaily = (mode === MODES.RUN) && !!(this._runtime.currentRunIsDaily);
     this.game.start({ config: this.config, mode: mode, canvasW: appW, canvasH: appH, isDaily: isDaily });
 
     // beforeunload guard (warn on accidental tab close during gameplay)
@@ -639,6 +718,7 @@ void function () {
       if (self.state !== STATES.PLAYING) return;
       var dtMs = ts - self._lastFrameTs;
       self._lastFrameTs = ts;
+      self._syncDesktopPointerInput();
 
       // Feed input to game engine
       var inp = self._runtime.inputState || {};
@@ -688,6 +768,19 @@ void function () {
     var playerYpx = court.playerY * h;
     var controlsYpx = court.controlsY * h;
     var opponentYpx = court.opponentY * h;
+    var playerHalfDepthPx = Math.max(1, baselineYpx - netYpx);
+    var kitchenDepthPx = Math.max(1, kitchenLineYpx - netYpx);
+    var oppScale = requiredConfigNumber(this.config?.canvas?.opponentCourtScale, "canvas.opponentCourtScale", { min: 0.1, max: 1 });
+    var sidelineInsetFrac = requiredConfigNumber(this.config?.canvas?.sidelineInsetFrac, "canvas.sidelineInsetFrac", { min: 0.01, max: 0.3 });
+    var netCenterSagPx = requiredConfigNumber(this.config?.canvas?.netCenterSagPx, "canvas.netCenterSagPx", { min: 0, integer: true });
+    var netPostHeightPx = requiredConfigNumber(this.config?.canvas?.netPostHeightPx, "canvas.netPostHeightPx", { min: 1, integer: true });
+    var oppHalfDepthPx = playerHalfDepthPx * oppScale;
+    var oppBaselineYpx = Math.max(0, netYpx - oppHalfDepthPx);
+    var oppKitchenLineYpx = Math.max(0, netYpx - kitchenDepthPx * oppScale);
+    var sidelineInsetPx = w * sidelineInsetFrac;
+    var leftSidelineX = sidelineInsetPx;
+    var rightSidelineX = w - sidelineInsetPx;
+    var centerLineX = w / 2;
 
     // Screen shake
     var shakeX = 0, shakeY = 0;
@@ -701,12 +794,31 @@ void function () {
     if (shakeX || shakeY) ctx.translate(shakeX, shakeY);
 
     // Court background
-    ctx.fillStyle = colors.courtBg || "#0a1628";
+    ctx.fillStyle = colors.courtBg;
     ctx.fillRect(0, 0, w, h);
 
-    // Kitchen zone
-    ctx.fillStyle = colors.kitchenBg || "#2a1a0a";
-    ctx.fillRect(0, netYpx, w, kitchenLineYpx - netYpx);
+    // Player kitchen zone
+    ctx.fillStyle = colors.kitchenBg;
+    ctx.fillRect(leftSidelineX, netYpx, rightSidelineX - leftSidelineX, kitchenLineYpx - netYpx);
+
+    // Opponent kitchen zone (compressed but symmetric for a frontal read)
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = colors.opponentKitchenOverlay;
+    ctx.fillRect(leftSidelineX, oppKitchenLineYpx, rightSidelineX - leftSidelineX, netYpx - oppKitchenLineYpx);
+    ctx.restore();
+
+    // Service boxes: very light tint to reinforce the frontal court layout.
+    if (colors.serviceBoxTint) {
+      ctx.fillStyle = colors.serviceBoxTint;
+      ctx.fillRect(leftSidelineX, kitchenLineYpx, centerLineX - leftSidelineX, baselineYpx - kitchenLineYpx);
+      ctx.fillRect(centerLineX, kitchenLineYpx, rightSidelineX - centerLineX, baselineYpx - kitchenLineYpx);
+      ctx.save();
+      ctx.globalAlpha = 0.65;
+      ctx.fillRect(leftSidelineX, oppKitchenLineYpx, centerLineX - leftSidelineX, oppBaselineYpx - oppKitchenLineYpx);
+      ctx.fillRect(centerLineX, oppKitchenLineYpx, rightSidelineX - centerLineX, oppBaselineYpx - oppKitchenLineYpx);
+      ctx.restore();
+    }
 
     // Kitchen label
     if (colors.kitchenLabelColor) {
@@ -714,107 +826,129 @@ void function () {
       ctx.fillStyle = colors.kitchenLabelColor;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      var _kitchenLabel = String((this.wording && this.wording.ui && this.wording.ui.kitchenLabel) || "KITCHEN"); ctx.fillText(_kitchenLabel, w / 2, netYpx + (kitchenLineYpx - netYpx) / 2);
+      var _kitchenLabel = String((this.wording && this.wording.ui && this.wording.ui.kitchenLabel) || "").trim();
+      if (_kitchenLabel) ctx.fillText(_kitchenLabel, w / 2, netYpx + (kitchenLineYpx - netYpx) / 2);
     }
 
-    // Kitchen line
-    ctx.strokeStyle = colors.kitchenLine || "#ff6b4a";
+    // Kitchen lines
+    ctx.strokeStyle = colors.kitchenLine;
     ctx.lineWidth = 3;
     ctx.setLineDash([]);
     ctx.beginPath();
-    ctx.moveTo(0, kitchenLineYpx);
-    ctx.lineTo(w, kitchenLineYpx);
+    ctx.moveTo(leftSidelineX, kitchenLineYpx);
+    ctx.lineTo(rightSidelineX, kitchenLineYpx);
+    ctx.moveTo(leftSidelineX, oppKitchenLineYpx);
+    ctx.lineTo(rightSidelineX, oppKitchenLineYpx);
     ctx.stroke();
 
-    // Net
-    ctx.strokeStyle = colors.netColor || "#e0e0e0";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(0, netYpx);
-    ctx.lineTo(w, netYpx);
-    ctx.stroke();
-    // Net posts
-    ctx.fillStyle = colors.netColor || "#e0e0e0";
-    ctx.fillRect(0, netYpx - 8, 4, 16);
-    ctx.fillRect(w - 4, netYpx - 8, 4, 16);
-    // Net mesh
-    ctx.strokeStyle = colors.netMesh || "rgba(255,255,255,0.15)";
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 6]);
-    for (var ni = 1; ni <= 3; ni++) {
-      ctx.beginPath();
-      ctx.moveTo(4, netYpx - 6 + ni * 4);
-      ctx.lineTo(w - 4, netYpx - 6 + ni * 4);
-      ctx.stroke();
-    }
-    ctx.setLineDash([]);
-
-    // Court lines (USAP-faithful layout)
+    // Court lines (frontal)
     if (colors.courtLines) {
       ctx.strokeStyle = colors.courtLines;
-      ctx.lineWidth = 1;
-      // Centerline (NVZ line to baseline)
-      ctx.beginPath(); ctx.moveTo(w / 2, kitchenLineYpx); ctx.lineTo(w / 2, baselineYpx); ctx.stroke();
-      // Sidelines
-      ctx.beginPath(); ctx.moveTo(w * 0.08, netYpx); ctx.lineTo(w * 0.08, baselineYpx); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(w * 0.92, netYpx); ctx.lineTo(w * 0.92, baselineYpx); ctx.stroke();
-      // Baseline
       ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(w * 0.08, baselineYpx); ctx.lineTo(w * 0.92, baselineYpx); ctx.stroke();
-      // Opponent's side: NVZ line (mirrored, subtle)
+      ctx.beginPath();
+      ctx.moveTo(leftSidelineX, oppBaselineYpx);
+      ctx.lineTo(leftSidelineX, baselineYpx);
+      ctx.moveTo(rightSidelineX, oppBaselineYpx);
+      ctx.lineTo(rightSidelineX, baselineYpx);
+      ctx.moveTo(leftSidelineX, baselineYpx);
+      ctx.lineTo(rightSidelineX, baselineYpx);
+      ctx.moveTo(leftSidelineX, oppBaselineYpx);
+      ctx.lineTo(rightSidelineX, oppBaselineYpx);
+      ctx.stroke();
+
       ctx.lineWidth = 1;
-      ctx.globalAlpha = 0.4;
-      var oppNvzY = netYpx - (kitchenLineYpx - netYpx) * 0.4; // compressed perspective
-      ctx.beginPath(); ctx.moveTo(w * 0.15, oppNvzY); ctx.lineTo(w * 0.85, oppNvzY); ctx.stroke();
-      // Opponent's baseline (far, very compressed)
-      ctx.globalAlpha = 0.2;
-      ctx.beginPath(); ctx.moveTo(w * 0.2, opponentYpx * 0.5); ctx.lineTo(w * 0.8, opponentYpx * 0.5); ctx.stroke();
-      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.moveTo(centerLineX, kitchenLineYpx);
+      ctx.lineTo(centerLineX, baselineYpx);
+      ctx.moveTo(centerLineX, oppKitchenLineYpx);
+      ctx.lineTo(centerLineX, oppBaselineYpx);
+      ctx.stroke();
+    }
+
+    // Net seen from the front, with a slight center sag (36in sides, 34in center)
+    ctx.strokeStyle = colors.netColor;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(leftSidelineX, netYpx);
+    ctx.quadraticCurveTo(centerLineX, netYpx + netCenterSagPx, rightSidelineX, netYpx);
+    ctx.stroke();
+
+    // Net posts
+    ctx.fillStyle = colors.netColor;
+    ctx.fillRect(leftSidelineX - 2, netYpx - netPostHeightPx / 2, 4, netPostHeightPx);
+    ctx.fillRect(rightSidelineX - 2, netYpx - netPostHeightPx / 2, 4, netPostHeightPx);
+
+    // Net mesh
+    ctx.strokeStyle = colors.netMesh;
+    ctx.lineWidth = 1;
+    for (var ni = 1; ni <= 3; ni++) {
+      var meshY = netYpx + ni * 3;
+      ctx.beginPath();
+      ctx.moveTo(leftSidelineX + 2, meshY);
+      ctx.lineTo(rightSidelineX - 2, meshY);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = colors.netMesh;
+    for (var mx = leftSidelineX + 10; mx < rightSidelineX; mx += 18) {
+      ctx.beginPath();
+      ctx.moveTo(mx, netYpx);
+      ctx.lineTo(mx, netYpx + 10);
+      ctx.stroke();
     }
 
     // Opponent silhouette
     var oppX = state.opponentX || w / 2;
-    var oppW = w * 0.06;
-    var oppH = h * 0.06;
-    ctx.fillStyle = colors.opponentColor || "#667788";
+    var oppW = w * (0.05 + oppScale * 0.02);
+    var oppH = h * (0.05 + oppScale * 0.02);
+    ctx.save();
+    ctx.fillStyle = colors.opponentShadow;
     ctx.beginPath();
-    ctx.arc(oppX, opponentYpx - oppH * 0.3, oppW * 0.4, 0, Math.PI * 2);
+    ctx.ellipse(oppX, opponentYpx + oppH * 0.78, oppW * 0.5, oppH * 0.16, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillRect(oppX - oppW * 0.35, opponentYpx - oppH * 0.1, oppW * 0.7, oppH * 0.7);
+    ctx.restore();
+    ctx.fillStyle = colors.opponentColor;
+    ctx.beginPath();
+    ctx.arc(oppX, opponentYpx - oppH * 0.35, oppW * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(oppX - oppW * 0.35, opponentYpx - oppH * 0.1, oppW * 0.7, oppH * 0.75);
 
     // Ball
     var ball = state.ball;
     if (ball) {
-      this._renderBallV2(ctx, ball, colors, w, h, gt, n, juice, state.rallyCount || 0);
+      this._renderBallV2(ctx, ball, colors, w, h, gt, n, juice);
     }
 
     // Player (V3: 2D position from game state)
     var playerX = state.playerX || w / 2;
     var playerYState = state.playerY || (court.playerY * h);
     var pState = state.playerState || "idle";
-    this._renderPlayerV2(ctx, playerX, playerYState, pState, colors, w, h, n);
+    this._renderPlayerV2(ctx, playerX, playerYState, pState, colors, w, h, n, court);
 
     // V3 Controls zone: left half = MOVE, right half = HIT (timing bonus)
-    ctx.fillStyle = colors.controlZoneBg || "rgba(255,255,255,0.03)";
+    ctx.fillStyle = colors.controlZoneBg;
     ctx.fillRect(0, controlsYpx, w, h - controlsYpx);
     // Divider
-    ctx.strokeStyle = colors.controlZoneBorder || "rgba(255,255,255,0.08)";
+    ctx.strokeStyle = colors.controlZoneBorder;
     ctx.lineWidth = 1;
     ctx.strokeRect(4, controlsYpx + 4, w / 2 - 8, h - controlsYpx - 8);
-    ctx.strokeStyle = colors.controlZoneHitBorder || "rgba(255,255,255,0.12)";
+    ctx.strokeStyle = colors.controlZoneHitBorder;
     ctx.strokeRect(w / 2 + 4, controlsYpx + 4, w / 2 - 8, h - controlsYpx - 8);
     ctx.font = Math.round(w * 0.025) + "px system-ui, sans-serif";
-    ctx.fillStyle = colors.controlZoneText || "rgba(255,255,255,0.2)";
+    ctx.fillStyle = colors.controlZoneText;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     var ctrlMidY = controlsYpx + (h - controlsYpx) / 2;
     var _uw = (this.wording && this.wording.ui) || {};
-    ctx.fillText(String(_uw.controlMoveLabel || "MOVE"), w / 4, ctrlMidY);
-    ctx.fillText(String(_uw.controlTimingLabel || "HIT"), w * 3 / 4, ctrlMidY);
+    var controlMoveLabel = String(_uw.controlMoveLabel || "").trim();
+    var controlTimingLabel = String(_uw.controlTimingLabel || "").trim();
+    if (controlMoveLabel) ctx.fillText(controlMoveLabel, w / 4, ctrlMidY);
+    if (controlTimingLabel) ctx.fillText(controlTimingLabel, w * 3 / 4, ctrlMidY);
 
     // V3: Timing bonus indicator
-    if (state.lastTimingBonus > 0.5 && colors.smashFlashColor) {
-      var timingLabel = state.lastTimingBonus > 0.7
+    var timingNiceThreshold = requiredConfigNumber(this.config?.game?.timing?.niceThreshold, "KR_CONFIG.game.timing.niceThreshold", { min: 0, max: 1 });
+    var timingPerfectThreshold = requiredConfigNumber(this.config?.game?.timing?.perfectThreshold, "KR_CONFIG.game.timing.perfectThreshold", { min: 0, max: 1 });
+    if (state.lastTimingBonus > timingNiceThreshold && colors.smashFlashColor) {
+      var timingLabel = state.lastTimingBonus > timingPerfectThreshold
         ? String((_uw && _uw.timingPerfectLabel) || "").trim()
         : String((_uw && _uw.timingNiceLabel) || "").trim();
       if (timingLabel) {
@@ -869,7 +1003,7 @@ void function () {
       var faultP = 1 - (juice.flashUntil - n) / faultFlashDur;
       var faultA = Math.max(0, 0.3 * (1 - faultP));
       var vigGrad = ctx.createRadialGradient(w / 2, h / 2, w * 0.3, w / 2, h / 2, w * 0.8);
-      var _fvc = colors.faultVignetteColor || "239,71,111";
+      var _fvc = colors.faultVignetteColor;
       vigGrad.addColorStop(0, "rgba(" + _fvc + ",0)");
       vigGrad.addColorStop(1, "rgba(" + _fvc + "," + faultA.toFixed(2) + ")");
       ctx.fillStyle = vigGrad;
@@ -905,7 +1039,7 @@ void function () {
       var penP = 1 - (juice.sprintPenaltyUntil - n) / 400;
       var penA = Math.max(0, 0.9 * (1 - penP));
       ctx.font = "bold 28px system-ui, sans-serif";
-      ctx.fillStyle = "rgba(" + (colors.faultVignetteColor || "239,71,111") + "," + penA.toFixed(2) + ")";
+      ctx.fillStyle = "rgba(" + colors.faultVignetteColor + "," + penA.toFixed(2) + ")";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       var penText = String(this.wording?.sprint?.penaltyFlash || "").trim();
@@ -919,37 +1053,61 @@ void function () {
   // ============================================
   // V2: Ball renderer
   // ============================================
-  UI.prototype._renderBallV2 = function (ctx, b, colors, w, h, gt, n, juice, rallyCount) {
+  UI.prototype._renderBallV2 = function (ctx, b, colors, w, h, gt, n, juice) {
     var BALL_STATES = this.gameApi && this.gameApi.BALL_STATES;
     if (!BALL_STATES) return;
     var _uw2 = (this.wording && this.wording.ui) || {};
+    var shadowMinScale = requiredConfigNumber(this.config?.canvas?.shadowMinScale, "canvas.shadowMinScale", { min: 0.05, max: 3 });
+    var shadowMaxScale = requiredConfigNumber(this.config?.canvas?.shadowMaxScale, "canvas.shadowMaxScale", { min: 0.05, max: 4 });
+    var landingMarkerRadiusPx = requiredConfigNumber(this.config?.canvas?.landingMarkerRadiusPx, "canvas.landingMarkerRadiusPx", { min: 1, integer: true });
+    var landingMarkerPulseMs = requiredConfigNumber(this.config?.canvas?.landingMarkerPulseMs, "canvas.landingMarkerPulseMs", { min: 1, integer: true });
+    var bounceSquashMaxFrac = requiredConfigNumber(this.config?.canvas?.bounceSquashMaxFrac, "canvas.bounceSquashMaxFrac", { min: 0, max: 0.8 });
 
-    // V3: Show "MUST BOUNCE" indicator when double bounce rule applies
-    var mustBounce = (rallyCount < 2) || b.inKitchen;
+    // V3: Show "MUST BOUNCE" indicator from the explicit ball state.
+    var mustBounce = !!b.mustBounce;
+    var mustBounceReason = String(b.mustBounceReason || "");
     if (mustBounce && b.state === BALL_STATES.TRAVELING) {
       var mbAlpha = 0.4 + 0.2 * Math.sin(gt / 150);
       ctx.globalAlpha = mbAlpha;
       ctx.font = "bold " + Math.round(w * 0.022) + "px system-ui, sans-serif";
-      ctx.fillStyle = colors.waitIndicator || "#ff6b4a";
+      ctx.fillStyle = colors.waitIndicator;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      var mbLabel = (rallyCount < 2)
-        ? String((_uw2 && _uw2.doubleBounceLabel) || "LET IT BOUNCE")
-        : String((_uw2 && _uw2.waitLabel) || "WAIT");
-      ctx.fillText(mbLabel, b.targetX, b.targetY + b.radius + 4);
+      var mbLabel = (mustBounceReason === "double_bounce")
+        ? String((_uw2 && _uw2.doubleBounceLabel) || "").trim()
+        : String((_uw2 && _uw2.waitLabel) || "").trim();
+      if (mbLabel) ctx.fillText(mbLabel, b.targetX, b.targetY + b.radius + 4);
       ctx.globalAlpha = 1;
+    }
+
+    if (mustBounce && (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.LANDED)) {
+      var pulseT = (gt % landingMarkerPulseMs) / landingMarkerPulseMs;
+      var markerRadius = landingMarkerRadiusPx + pulseT * 10;
+      var markerAlpha = (b.state === BALL_STATES.LANDED) ? 0.55 : (0.2 + (1 - pulseT) * 0.22);
+      var markerColor = colors.waitIndicator;
+      ctx.save();
+      ctx.globalAlpha = markerAlpha;
+      ctx.strokeStyle = markerColor;
+      ctx.lineWidth = (b.state === BALL_STATES.LANDED) ? 3 : 2;
+      ctx.beginPath();
+      ctx.arc(b.targetX, b.targetY, markerRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
     }
 
 
     // Shadow at bounce point (grows as ball approaches)
     if (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.LANDED || b.state === BALL_STATES.BOUNCED) {
       var shadowProgress = (b.state === BALL_STATES.TRAVELING) ? Math.min(1, Math.max(0, (gt - b.spawnedAt) / b.travelMs)) : 1;
-      var shadowAlpha = 0.1 + shadowProgress * 0.2;
-      var shadowW = b.radius * (0.4 + shadowProgress * 0.6);
+      var shadowAlpha = 0.12 + shadowProgress * 0.28;
+      var shadowW = b.radius * (shadowMinScale + shadowProgress * (shadowMaxScale - shadowMinScale));
+      var shadowX = (b.state === BALL_STATES.TRAVELING)
+        ? (b.x + (b.targetX - b.x) * 0.45)
+        : b.targetX;
       ctx.globalAlpha = shadowAlpha;
-      ctx.fillStyle = colors.shadow || "#000";
+      ctx.fillStyle = colors.shadow;
       ctx.beginPath();
-      ctx.ellipse(b.targetX, b.shadowY + b.radius * 0.3, shadowW, shadowW * 0.35, 0, 0, Math.PI * 2);
+      ctx.ellipse(shadowX, b.shadowY + b.radius * 0.3, shadowW, shadowW * 0.35, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
     }
@@ -959,23 +1117,49 @@ void function () {
     if (bt === "dink" && colors.ballDink) ctx.fillStyle = colors.ballDink;
     else if (bt === "lob" && colors.ballLob) ctx.fillStyle = colors.ballLob;
     else if (bt === "fast" && colors.ballFast) ctx.fillStyle = colors.ballFast;
-    else ctx.fillStyle = colors.ballDefault || "#ffd60a";
+    else ctx.fillStyle = colors.ballDefault;
 
     if (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.LANDED || b.state === BALL_STATES.BOUNCED) {
       // WAIT indicator for kitchen balls in flight
-      if (b.inKitchen && b.state === BALL_STATES.TRAVELING) {
+      if (mustBounceReason === "kitchen" && b.state === BALL_STATES.TRAVELING) {
         var waitAlpha = 0.5 + 0.3 * Math.sin(gt / 200);
         ctx.globalAlpha = waitAlpha;
         ctx.font = "bold " + Math.round(b.radius * 1.1) + "px system-ui, sans-serif";
-        ctx.fillStyle = colors.waitIndicator || "#ff6b4a";
+        ctx.fillStyle = colors.waitIndicator;
         ctx.textAlign = "center";
         ctx.textBaseline = "bottom";
-        ctx.fillText(String((_uw2 && _uw2.waitLabel) || "WAIT"), b.x, b.y - b.radius - 6);
+        var waitLabel = String((_uw2 && _uw2.waitLabel) || "").trim();
+        if (waitLabel) ctx.fillText(waitLabel, b.x, b.y - b.radius - 6);
         ctx.globalAlpha = 1;
         if (bt === "dink" && colors.ballDink) ctx.fillStyle = colors.ballDink;
         else if (bt === "lob" && colors.ballLob) ctx.fillStyle = colors.ballLob;
         else if (bt === "fast" && colors.ballFast) ctx.fillStyle = colors.ballFast;
-        else ctx.fillStyle = colors.ballDefault || "#ffd60a";
+        else ctx.fillStyle = colors.ballDefault;
+      }
+
+      if (mustBounce && b.state === BALL_STATES.LANDED) {
+        var landedAlpha = 0.55 + 0.25 * Math.sin(gt / 140);
+        ctx.globalAlpha = Math.max(0.2, landedAlpha);
+        ctx.font = "bold " + Math.round(b.radius * 1.25) + "px system-ui, sans-serif";
+        ctx.fillStyle = colors.waitIndicator;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        var landedLabel = String((_uw2 && _uw2.waitLabel) || "").trim();
+        if (landedLabel) ctx.fillText(landedLabel, b.targetX, b.targetY - b.radius - 10);
+        ctx.globalAlpha = 1;
+      }
+
+      if (mustBounceReason === "kitchen" && b.state === BALL_STATES.BOUNCED) {
+        var kitchenOpenLabel = String((_uw2 && _uw2.kitchenOpenLabel) || "").trim();
+        if (kitchenOpenLabel) {
+          ctx.globalAlpha = 0.85;
+          ctx.font = "bold " + Math.round(b.radius * 1.1) + "px system-ui, sans-serif";
+          ctx.fillStyle = colors.bounceRing;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          ctx.fillText(kitchenOpenLabel, b.x, b.y + b.radius + 10);
+          ctx.globalAlpha = 1;
+        }
       }
 
       // V3: BOUNCE IMPACT — big visible feedback
@@ -997,7 +1181,7 @@ void function () {
         if (sinceBounce < 500) {
           var impactT = sinceBounce / 500;
           ctx.globalAlpha = Math.max(0, 0.5 * (1 - impactT));
-          ctx.fillStyle = b.inKitchen ? (colors.kitchenLine || "#ff6b4a") : "rgba(255,255,255,0.6)";
+          ctx.fillStyle = b.inKitchen ? colors.kitchenLine : colors.highlightWhite;
           ctx.beginPath();
           ctx.ellipse(b.targetX, b.targetY, b.radius * (1 + impactT * 0.5), b.radius * 0.3, 0, 0, Math.PI * 2);
           ctx.fill();
@@ -1025,7 +1209,7 @@ void function () {
         // 4) Colored flash ring
         if (sinceBounce < 300) {
           var bAlpha = Math.max(0, 1 - sinceBounce / 300);
-          var ringColor = b.inKitchen ? (colors.kitchenLine || "#ff6b4a") : (colors.bounceRingFlash || "#06d6a0");
+          var ringColor = b.inKitchen ? colors.kitchenLine : colors.bounceRingFlash;
           ctx.strokeStyle = ringColor;
           ctx.globalAlpha = bAlpha;
           ctx.lineWidth = 3;
@@ -1040,8 +1224,10 @@ void function () {
             ctx.fillStyle = ringColor;
             ctx.textAlign = "center";
             ctx.textBaseline = "bottom";
-            var bounceLabel = b.inKitchen ? String((_uw2 && _uw2.nowLabel) || "NOW!") : String((_uw2 && _uw2.goLabel) || "GO!");
-            ctx.fillText(bounceLabel, b.x, b.y - b.radius - 10);
+            var bounceLabel = b.inKitchen
+              ? String((_uw2 && _uw2.nowLabel) || "").trim()
+              : String((_uw2 && _uw2.goLabel) || "").trim();
+            if (bounceLabel) ctx.fillText(bounceLabel, b.x, b.y - b.radius - 10);
             ctx.globalAlpha = 1;
           }
 
@@ -1053,7 +1239,7 @@ void function () {
 
         // 5) Pulsing ring while waiting
         var pulseScale = 1 + 0.12 * Math.sin(gt / 70);
-        ctx.strokeStyle = colors.bounceRing || "#06d6a0";
+        ctx.strokeStyle = colors.bounceRing;
         ctx.lineWidth = 2;
         ctx.globalAlpha = 0.7;
         ctx.beginPath();
@@ -1063,21 +1249,24 @@ void function () {
       }
 
       // Ball with glow
+      var squash = Math.max(0, Math.min(1, Number(b.squash) || 0));
+      var ballRadiusX = b.radius * (1 + bounceSquashMaxFrac * squash);
+      var ballRadiusY = b.radius * (1 - bounceSquashMaxFrac * 0.7 * squash);
       ctx.save();
       ctx.shadowColor = ctx.fillStyle;
       ctx.shadowBlur = 10;
       ctx.beginPath();
-      ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+      ctx.ellipse(b.x, b.y, ballRadiusX, ballRadiusY, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
 
       // Highlight
-      var grad = ctx.createRadialGradient(b.x - b.radius * 0.3, b.y - b.radius * 0.3, b.radius * 0.1, b.x, b.y, b.radius);
-      grad.addColorStop(0, colors.highlightWhite || "rgba(255,255,255,0.4)");
+      var grad = ctx.createRadialGradient(b.x - ballRadiusX * 0.3, b.y - ballRadiusY * 0.3, Math.min(ballRadiusX, ballRadiusY) * 0.1, b.x, b.y, Math.max(ballRadiusX, ballRadiusY));
+      grad.addColorStop(0, colors.highlightWhite);
       grad.addColorStop(1, "rgba(255,255,255,0)");
       ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+      ctx.ellipse(b.x, b.y, ballRadiusX, ballRadiusY, 0, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -1086,7 +1275,7 @@ void function () {
       var sinceHit = gt - b.hitAt;
       var retT = Math.min(1, sinceHit / (b.returnTravelMs || 500));
       ctx.globalAlpha = Math.max(0, 1 - retT * 0.7);
-      ctx.fillStyle = colors.ballSmashed || "#06d6a0";
+      ctx.fillStyle = colors.ballSmashed;
       ctx.beginPath();
       ctx.arc(b.x, b.y, Math.max(2, b.radius * (1 - retT * 0.4)), 0, Math.PI * 2);
       ctx.fill();
@@ -1098,7 +1287,7 @@ void function () {
       var sinceFault = gt - b.faultedAt;
       if (sinceFault < 400) {
         ctx.globalAlpha = Math.max(0, 0.7 * (1 - sinceFault / 400));
-        ctx.fillStyle = colors.ballFaulted || "#ef476f";
+        ctx.fillStyle = colors.ballFaulted;
         ctx.beginPath();
         ctx.arc(b.x, b.y, b.radius + (sinceFault / 400) * 15, 0, Math.PI * 2);
         ctx.fill();
@@ -1111,7 +1300,7 @@ void function () {
       var sinceMiss = gt - b.missedAt;
       if (sinceMiss < 500) {
         ctx.globalAlpha = Math.max(0, 0.4 * (1 - sinceMiss / 500));
-        ctx.fillStyle = colors.ballMissed || "#6c757d";
+        ctx.fillStyle = colors.ballMissed;
         ctx.beginPath();
         ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
         ctx.fill();
@@ -1124,13 +1313,20 @@ void function () {
   // ============================================
   // V2: Player renderer — sport moderne fluid silhouette
   // ============================================
-  UI.prototype._renderPlayerV2 = function (ctx, x, y, pState, colors, w, h, n) {
-    var pColor = colors.playerColor || "#44ccff";
-    var pOutline = colors.playerOutline || "#2288bb";
-    var pGlow = colors.playerGlow || "rgba(68,204,255,0.25)";
+  UI.prototype._renderPlayerV2 = function (ctx, x, y, pState, colors, w, h, n, court) {
+    var pColor = colors.playerColor;
+    var pOutline = colors.playerOutline;
+    var pGlow = colors.playerGlow;
 
-    // Scale relative to screen
-    var scale = Math.min(w, h) / 500;
+    // Scale relative to screen + depth in the frontal court view.
+    var depthScaleNear = requiredConfigNumber(this.config?.canvas?.playerDepthScaleNear, "canvas.playerDepthScaleNear", { min: 0.5, max: 2 });
+    var depthScaleFar = requiredConfigNumber(this.config?.canvas?.playerDepthScaleFar, "canvas.playerDepthScaleFar", { min: 0.5, max: 2 });
+    var netY = court ? court.netY * h : (h * 0.26);
+    var baseY = court ? court.baselineY * h : (h * 0.88);
+    var depthRatio = (y - netY) / Math.max(1, baseY - netY);
+    depthRatio = Math.max(0, Math.min(1, depthRatio));
+    var depthScale = depthScaleNear + (depthScaleFar - depthScaleNear) * depthRatio;
+    var scale = (Math.min(w, h) / 500) * depthScale;
     var S = function (v) { return v * scale; };
 
     // Animation phase
@@ -1264,7 +1460,7 @@ void function () {
     // ── Motion trail when running ──
     if (isRunning) {
       var trailDir = (pState === "runLeft") ? 1 : -1;
-      ctx.strokeStyle = colors.motionLines || "rgba(255,255,255,0.15)";
+      ctx.strokeStyle = colors.motionLines;
       ctx.lineWidth = S(1);
       for (var mi = 0; mi < 4; mi++) {
         var mx = trailDir * (S(12) + mi * S(5));
@@ -1329,6 +1525,39 @@ void function () {
   // ============================================
   // V2: Input system (touch zones + keyboard)
   // ============================================
+  UI.prototype._syncDesktopPointerInput = function () {
+    if (!this._runtime || this._runtime._mouseActive !== true) return;
+
+    var mouse = this._runtime._mouseState || {};
+    var keyboard = this._runtime._keyboardState || {};
+    var input = this._runtime.inputState || {};
+    var canvas = this._canvas;
+    if (!canvas) return;
+
+    var mouseX = Number(this._runtime._mouseTargetX);
+    var mouseY = Number(this._runtime._mouseTargetY);
+    if (!Number.isFinite(mouseX) || !Number.isFinite(mouseY)) return;
+
+    var deadZone = requiredConfigNumber(this.config?.court?.desktopMouseDeadZonePx, "KR_CONFIG.court.desktopMouseDeadZonePx", { min: 0 });
+    var playerX = (this.game && this.game.run) ? this.game.run.playerX : canvas.width / 2;
+    var playerY = (this.game && this.game.run) ? this.game.run.playerY : canvas.height * 0.75;
+    var diffX = mouseX - playerX;
+    var diffY = mouseY - playerY;
+
+    mouse.left = diffX < -deadZone;
+    mouse.right = diffX > deadZone;
+    mouse.up = diffY < -deadZone;
+    mouse.down = diffY > deadZone;
+
+    var keyboardHorizontalActive = !!keyboard.left || !!keyboard.right;
+    var keyboardVerticalActive = !!keyboard.up || !!keyboard.down;
+
+    input.left = keyboardHorizontalActive ? !!keyboard.left : !!mouse.left;
+    input.right = keyboardHorizontalActive ? !!keyboard.right : !!mouse.right;
+    input.up = keyboardVerticalActive ? !!keyboard.up : !!mouse.up;
+    input.down = keyboardVerticalActive ? !!keyboard.down : !!mouse.down;
+  };
+
   UI.prototype._setupInputV2 = function () {
     var self = this;
     if (!this._runtime.inputState) {
@@ -1451,7 +1680,7 @@ void function () {
     if (!isTouchDevice) {
       this._runtime._mouseActive = false;
       this._runtime._mouseTargetX = -1;
-      var deadZone = requiredConfigNumber(this.config?.court?.desktopMouseDeadZonePx, "KR_CONFIG.court.desktopMouseDeadZonePx", { min: 0 });
+      this._runtime._mouseTargetY = -1;
 
       this._mouseMoveHandler = function (e) {
         if (self.state !== STATES.PLAYING) return;
@@ -1460,35 +1689,23 @@ void function () {
         var mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
         self._runtime._mouseActive = true;
         self._runtime._mouseTargetX = mouseX;
-
-        // Convert cursor position to directional input relative to player position
-        var playerX = (self.game && self.game.run) ? self.game.run.playerX : canvas.width / 2;
-        var playerY = (self.game && self.game.run) ? self.game.run.playerY : canvas.height * 0.75;
-        var diff = mouseX - playerX;
-        var diffY = mouseY - playerY;
-        if (diff < -deadZone) {
-          self._runtime._mouseState.left = true;
-          self._runtime._mouseState.right = false;
-        } else if (diff > deadZone) {
-          self._runtime._mouseState.left = false;
-          self._runtime._mouseState.right = true;
-        } else {
-          self._runtime._mouseState.left = false;
-          self._runtime._mouseState.right = false;
-        }
-        if (diffY < -deadZone) {
-          self._runtime._mouseState.up = true;
-          self._runtime._mouseState.down = false;
-        } else if (diffY > deadZone) {
-          self._runtime._mouseState.up = false;
-          self._runtime._mouseState.down = true;
-        } else {
-          self._runtime._mouseState.up = false;
-          self._runtime._mouseState.down = false;
-        }
+        self._runtime._mouseTargetY = mouseY;
+        self._syncDesktopPointerInput();
         syncDesktopMovement();
       };
       canvas.addEventListener("mousemove", this._mouseMoveHandler);
+
+      this._mouseLeaveHandler = function () {
+        self._runtime._mouseActive = false;
+        self._runtime._mouseTargetX = -1;
+        self._runtime._mouseTargetY = -1;
+        self._runtime._mouseState.left = false;
+        self._runtime._mouseState.right = false;
+        self._runtime._mouseState.up = false;
+        self._runtime._mouseState.down = false;
+        syncDesktopMovement();
+      };
+      canvas.addEventListener("mouseleave", this._mouseLeaveHandler);
 
       this._mouseClickHandler = function (e) {
         if (self.state !== STATES.PLAYING) return;
@@ -1496,7 +1713,7 @@ void function () {
         if (self.audio && typeof self.audio.unlock === "function") self.audio.unlock();
         self._runtime.inputState.hit = true;
         // Auto-release hit after one frame
-        setTimeout(function () { self._runtime.inputState.hit = false; }, 50);
+        setTimeout(function () { self._runtime.inputState.hit = false; }, requiredConfigNumber(self.config?.ui?.desktopClickHitReleaseMs, "KR_CONFIG.ui.desktopClickHitReleaseMs", { min: 0, integer: true }));
       };
       canvas.addEventListener("click", this._mouseClickHandler);
     }
@@ -1507,6 +1724,7 @@ void function () {
     if (this._keyupHandler) { document.removeEventListener("keyup", this._keyupHandler); this._keyupHandler = null; }
     if (this._blurHandler) { window.removeEventListener("blur", this._blurHandler); this._blurHandler = null; }
     if (this._mouseMoveHandler && this._canvas) { this._canvas.removeEventListener("mousemove", this._mouseMoveHandler); this._mouseMoveHandler = null; }
+    if (this._mouseLeaveHandler && this._canvas) { this._canvas.removeEventListener("mouseleave", this._mouseLeaveHandler); this._mouseLeaveHandler = null; }
     if (this._mouseClickHandler && this._canvas) { this._canvas.removeEventListener("click", this._mouseClickHandler); this._mouseClickHandler = null; }
     this._runtime.inputState = { left: false, right: false, up: false, down: false, hit: false };
     if (this._runtime) {
@@ -1514,6 +1732,7 @@ void function () {
       this._runtime._mouseState = { left: false, right: false, up: false, down: false };
       this._runtime._mouseActive = false;
       this._runtime._mouseTargetX = -1;
+      this._runtime._mouseTargetY = -1;
     }
   };
 
@@ -1522,11 +1741,26 @@ void function () {
   // V2: Check game events for juice/audio
   // ============================================
   UI.prototype._checkGameEventsV2 = function (state) {
+    var n = performance.now();
+    if (state.dailyObjectiveMet === true && this._runtime._lastDailyObjectiveMet !== true) {
+      var dailyMsg = String(this.wording?.microFeedback?.dailyObjectiveMet || this.wording?.ui?.dailyObjectiveMet || "").trim();
+      if (dailyMsg) {
+        this._showGameplayOverlay(dailyMsg, {
+          durationMs: requiredConfigNumber(this.config?.ui?.dailyObjectiveOverlayMs, "KR_CONFIG.ui.dailyObjectiveOverlayMs", { min: 1, integer: true }),
+          variant: "success"
+        });
+        this._playSound("milestone");
+        this._runtime.microFeedback.endHighlight = dailyMsg;
+        this._runtime.microFeedback.endHighlightVariant = "success";
+        this._runtime.microFeedback.endHighlightPriority = Math.max(110, Number(this._runtime.microFeedback.endHighlightPriority || -1));
+      }
+    }
+    this._runtime._lastDailyObjectiveMet = !!state.dailyObjectiveMet;
+
     var ball = state.ball;
     if (!ball) return;
 
     var juice = this._runtime.juice;
-    var n = performance.now();
     var lastCheck = this._runtime._lastBallState || {};
     var BALL_STATES = this.gameApi && this.gameApi.BALL_STATES;
     if (!BALL_STATES) return;
@@ -1536,14 +1770,19 @@ void function () {
     if (curState !== prevState || (lastCheck.id && lastCheck.id !== ball.id)) {
       if (curState === BALL_STATES.HIT && prevState !== BALL_STATES.HIT) {
         var uw = (this.wording && this.wording.ui) || {};
+        var timingCfg = this.config?.game?.timing || {};
         var timingBonus = Number(ball.timingBonus || 0);
-        var points = timingBonus > 0.7 ? 2 : 1;
+        var perfectThreshold = requiredConfigNumber(timingCfg.perfectThreshold, "KR_CONFIG.game.timing.perfectThreshold", { min: 0, max: 1 });
+        var niceThreshold = requiredConfigNumber(timingCfg.niceThreshold, "KR_CONFIG.game.timing.niceThreshold", { min: 0, max: 1 });
+        var basePoints = requiredConfigNumber(timingCfg.basePoints, "KR_CONFIG.game.timing.basePoints", { min: 1, integer: true });
+        var perfectPoints = requiredConfigNumber(timingCfg.perfectPoints, "KR_CONFIG.game.timing.perfectPoints", { min: 1, integer: true });
+        var points = timingBonus > perfectThreshold ? perfectPoints : basePoints;
         var popupText = (points > 1)
           ? String(uw.scoreGainedDoubleDeltaText || "").trim()
           : String(uw.scoreGainedDeltaText || "").trim();
         var popupTimingLabel = "";
-        if (timingBonus > 0.7) popupTimingLabel = String(uw.timingPerfectLabel || "").trim();
-        else if (timingBonus > 0.5) popupTimingLabel = String(uw.timingNiceLabel || "").trim();
+        if (timingBonus > perfectThreshold) popupTimingLabel = String(uw.timingPerfectLabel || "").trim();
+        else if (timingBonus > niceThreshold) popupTimingLabel = String(uw.timingNiceLabel || "").trim();
         this._haptic("smash");
         this._playSound("smash");
         juice.flashType = "smash";
@@ -1729,9 +1968,10 @@ void function () {
 
       // Near-miss feedback: Kitchen fault explanation (§6: error + correction = durable learning)
       var tooEarlyMsg = "";
+      var firstFaultExplainUntil = requiredConfigNumber(this.config?.ui?.firstFaultExplainUntilFaultCount, "KR_CONFIG.ui.firstFaultExplainUntilFaultCount", { min: 0, integer: true });
       if (this._runtime.runMode === MODES.RUN) {
         // First Kitchen fault in run: teach the rule (Roediger §1.2: explain errors)
-        if ((gameState.totalFaulted || 0) <= 1) {
+        if ((gameState.totalFaulted || 0) <= firstFaultExplainUntil) {
           tooEarlyMsg = String(mfw.firstFaultExplain || mfw.tooEarly || "").trim();
         } else {
           tooEarlyMsg = String(mfw.tooEarly || "").trim();
@@ -1741,7 +1981,7 @@ void function () {
         tooEarlyMsg = String(mfw.tooEarly || "").trim();
       }
       if (tooEarlyMsg) {
-        var faultDur = ((gameState.totalFaulted || 0) <= 1)
+        var faultDur = ((gameState.totalFaulted || 0) <= firstFaultExplainUntil)
           ? requiredConfigNumber(this.config?.juice?.firstFaultOverlayMs, "KR_CONFIG.juice.firstFaultOverlayMs", { min: 1, integer: true })
           : requiredConfigNumber(this.config?.juice?.repeatFaultOverlayMs, "KR_CONFIG.juice.repeatFaultOverlayMs", { min: 1, integer: true });
         this._showGameplayOverlay(tooEarlyMsg, { durationMs: faultDur, variant: "danger" });
@@ -1749,7 +1989,8 @@ void function () {
       }
 
       // Close call / Last life warning (one-shot per run)
-      if (gameState.lives === 1 && !mf.lastLifeShown) {
+      var lastLifeTriggerLives = requiredConfigNumber(this.config?.ui?.lastLifeTriggerLives, "KR_CONFIG.ui.lastLifeTriggerLives", { min: 0, integer: true });
+      if (gameState.lives === lastLifeTriggerLives && !mf.lastLifeShown) {
         mf.lastLifeShown = true;
         var llMsg = String(mfw.lastLife || "").trim();
         if (llMsg) {
@@ -1860,7 +2101,7 @@ void function () {
       try { this._canvas.style.filter = "saturate(0.3)"; } catch (_) { }
     }
 
-    setTimeout(function () {
+    var freezeTimerId = setTimeout(function () {
       // Remove desaturation
       if (self._canvas) {
         try { self._canvas.style.filter = ""; } catch (_) { }
@@ -1879,11 +2120,11 @@ void function () {
         return;
       }
 
-      setTimeout(function () {
+      var fadeOutTimerId = setTimeout(function () {
         self._runtime.finishingRun = false;
         self.setState(STATES.END);
 
-        setTimeout(function () {
+        var fadeInTimerId = setTimeout(function () {
           var a = el("app");
           if (!a) return;
           try {
@@ -1891,14 +2132,18 @@ void function () {
             a.classList.add("kr-fade--in");
           } catch (_) { }
 
-          setTimeout(function () {
+          var cleanupTimerId = setTimeout(function () {
             var b = el("app");
             if (!b) return;
             try { b.classList.remove("kr-fade", "kr-fade--out", "kr-fade--in", "transitioning"); } catch (_) { }
           }, FADE_MS + 40);
+          self._runtime.endTransitionTimerIds.push(cleanupTimerId);
         }, 0);
+        self._runtime.endTransitionTimerIds.push(fadeInTimerId);
       }, FADE_MS);
+      self._runtime.endTransitionTimerIds.push(fadeOutTimerId);
     }, FREEZE_MS);
+    this._runtime.endTransitionTimerIds.push(freezeTimerId);
   };
 
 

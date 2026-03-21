@@ -21,6 +21,8 @@
   --primary: 48 209 88;
   --primary-dark: 34 170 58;
   --primary-depth: 22 140 42;
+  --accent-warm: 214 185 74;
+  --accent-warm-deep: 182 150 46;
 
   /* Semantic */
   --success: 48 209 88;
@@ -28,11 +30,11 @@
   --danger: 255 68 68;
   --danger-dark: 200 40 40;
 
-  /* Surfaces (dark-first: KR is a dark game) */
-  --bg: 12 24 18;
-  --surface: 20 40 30;
-  --surface-muted: 28 52 38;
-  --border: 40 70 52;
+  /* Surfaces (dark court, lighter app shell) */
+  --bg: 20 34 28;
+  --surface: 30 48 40;
+  --surface-muted: 38 60 49;
+  --border: 58 92 72;
 
   /* Text */
   --text-strong: 255 255 255;
@@ -141,7 +143,9 @@ body {
   margin: 0;
   font: var(--fs-base)/var(--lh-base) system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: rgb(var(--text));
-  background: rgb(var(--bg));
+  background:
+    radial-gradient(circle at top, rgb(var(--court-deep) / var(--kr-a-40)), transparent 42%),
+    linear-gradient(180deg, rgb(var(--bg)), rgb(var(--surface)));
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   overscroll-behavior-y: none;
@@ -190,6 +194,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
+  background: linear-gradient(180deg, rgb(var(--bg) / var(--kr-a-40)), transparent 28%);
 }
 
 .kr-container {
@@ -330,7 +335,7 @@ body {
 
 .kr-btn-icon--tease {
   animation: krTease var(--kr-anim-tease) ease-in-out infinite;
-  filter: drop-shadow(0 0 6px rgba(255, 204, 0, 0.6));
+  filter: drop-shadow(0 0 6px rgb(var(--accent-warm) / var(--kr-a-soft)));
 }
 
 
@@ -354,6 +359,7 @@ body {
   border-radius: var(--r-md);
   padding: var(--gap-2);
   margin: var(--gap-2) 0;
+  border: 1px solid rgb(var(--border) / var(--kr-a-40));
 }
 
 .kr-box--tinted {
@@ -418,6 +424,17 @@ body {
 .kr-input:focus {
   outline: 2px solid rgb(var(--primary));
   outline-offset: 1px;
+}
+
+.kr-btn:focus-visible,
+.kr-btn-icon:focus-visible,
+.kr-daily-badge:focus-visible,
+.kr-footer-link:focus-visible,
+.kr-branding:focus-visible,
+.kr-skip-link:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgb(var(--primary));
+  outline-offset: 2px;
 }
 
 .kr-redeem-inline {
@@ -818,6 +835,17 @@ body {
   border-radius: var(--r-sm);
 }
 
+.kr-spark-bar--h1 { height: 10%; }
+.kr-spark-bar--h2 { height: 20%; }
+.kr-spark-bar--h3 { height: 30%; }
+.kr-spark-bar--h4 { height: 40%; }
+.kr-spark-bar--h5 { height: 50%; }
+.kr-spark-bar--h6 { height: 60%; }
+.kr-spark-bar--h7 { height: 70%; }
+.kr-spark-bar--h8 { height: 80%; }
+.kr-spark-bar--h9 { height: 90%; }
+.kr-spark-bar--h10 { height: 100%; }
+
 
 /* ============================================
    CHEST HINT
@@ -866,7 +894,7 @@ body {
 }
 
 .kr-rule-dot--green { background: rgb(var(--success)); }
-.kr-rule-dot--yellow { background: #ffcc00; }
+.kr-rule-dot--yellow { background: rgb(var(--accent-warm)); }
 .kr-rule-dot--red { background: rgb(var(--danger)); }
 
 .kr-first-run-hint {
@@ -899,8 +927,8 @@ body {
   display: inline-flex;
   align-items: center;
   gap: var(--gap-1);
-  background: rgba(255, 204, 0, 0.15);
-  border: 1px solid rgba(255, 204, 0, 0.3);
+  background: rgb(var(--accent-warm) / var(--kr-a-16));
+  border: 1px solid rgb(var(--accent-warm) / var(--kr-a-30));
   border-radius: 20px;
   padding: 6px 16px;
   margin-bottom: var(--gap-1);
@@ -913,7 +941,7 @@ body {
 }
 .kr-daily-badge:hover,
 .kr-daily-badge:active {
-  background: rgba(255, 204, 0, 0.25);
+  background: rgb(var(--accent-warm) / var(--kr-a-25));
   transform: scale(1.03);
 }
 
@@ -924,7 +952,7 @@ body {
 .kr-daily-badge-label {
   font-size: var(--fs-sm);
   font-weight: 700;
-  color: #ffcc00;
+  color: rgb(var(--accent-warm));
 }
 
 .kr-daily-explain {
@@ -1138,6 +1166,10 @@ body {
   font-size: var(--fs-xs);
 }
 
+.kr-page-nav {
+  margin-bottom: var(--gap-3);
+}
+
 
 /* ============================================
    FOOTER
@@ -1247,13 +1279,13 @@ body {
   100% {
     transform: scale(1);
     opacity: 1;
-    filter: drop-shadow(0 0 4px rgba(255, 204, 0, 0.4));
+    filter: drop-shadow(0 0 4px rgb(var(--accent-warm) / var(--kr-a-40)));
   }
 
   50% {
     transform: scale(1.2);
     opacity: var(--kr-a-85);
-    filter: drop-shadow(0 0 10px rgba(255, 204, 0, 0.8));
+    filter: drop-shadow(0 0 10px rgb(var(--accent-warm) / var(--kr-a-85)));
   }
 }
 

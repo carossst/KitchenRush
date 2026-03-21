@@ -29,6 +29,25 @@
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
   };
+  window.KR_UTILS.getUtcDateParts = function (date) {
+    var d = (date instanceof Date) ? date : new Date();
+    return {
+      monthIndex: d.getUTCMonth(),
+      day: d.getUTCDate(),
+      year: d.getUTCFullYear()
+    };
+  };
+  window.KR_UTILS.getUtcDisplayDateParts = function (wording, date) {
+    var parts = window.KR_UTILS.getUtcDateParts(date);
+    var monthNames = (wording && wording.system && Array.isArray(wording.system.monthsShort))
+      ? wording.system.monthsShort
+      : [];
+    return {
+      month: String(monthNames[parts.monthIndex] || "").trim(),
+      day: parts.day,
+      year: parts.year
+    };
+  };
 
   // Single source of truth for critical enums (no scattered magic strings).
   window.KR_ENUMS = Object.freeze({
@@ -97,6 +116,16 @@
       // U5: Increased from 150 to 350 for satisfying Kitchen tension (the "aha" moment)
       reboundDelayMs: 420,
 
+      timing: {
+        niceThreshold: 0.5,
+        perfectThreshold: 0.7,
+        sweetSpot: 0.3,
+        falloffWindow: 0.5,
+        autoHitGraceFrac: 0.4,
+        basePoints: 1,
+        perfectPoints: 2
+      },
+
       // Speed curve: speed(t) = base + accelPerSec * t
       speed: {
         base: 2.45,
@@ -131,6 +160,7 @@
         arcMinFrac: 0.028,
         arcMaxFrac: 0.14,
         arcDepthWeight: 0.45,
+        descentPower: 1.18,
         returnArcScale: 0.75,
         returnTravelScale: 0.82
       },
@@ -202,16 +232,18 @@
     // COURT — V2 game layout (fractions of canvas height)
     // ============================================
     court: {
-      // V2 court layout — proportions faithful to USAP 2026 rulebook
-      // Real court: 44ft × 20ft. Player's half = 22ft deep.
-      // NVZ (kitchen) = 7ft from net = 7/22 ≈ 31.8% of player's half.
-      // We show ~12% of opponent's compressed side above the net.
-      netY: 0.12,              // net position: 12% from top
-      kitchenLineY: 0.39,      // NVZ line: net + 27% ≈ 39% from top
-      baselineY: 0.82,         // baseline: 82% from top
-      playerY: 0.75,           // player position: service court
-      opponentY: 0.06,         // opponent: compressed far side
-      controlsY: 0.85,         // touch controls zone start
+      // Frontal broadcast layout based on official pickleball dimensions:
+      // Full court: 44ft x 20ft. Each half = 22ft deep.
+      // Kitchen = 7ft from net on each side = 7/22 = 31.8% of a half-court.
+      // Backcourt = 15ft = 68.2% of a half-court.
+      // We keep the player's half readable at near-full depth and compress
+      // the opponent half only in render, not in game rules.
+      netY: 0.26,
+      kitchenLineY: 0.46,
+      baselineY: 0.88,
+      playerY: 0.73,
+      opponentY: 0.15,
+      controlsY: 0.90,
 
       // Player movement speed (pixels per frame at 60fps)
       playerSpeed: 4.9,
@@ -241,6 +273,12 @@
       // Ball
       ballRadius: 18,
 
+      // Frontal court rendering
+      opponentCourtScale: 0.55,
+      sidelineInsetFrac: 0.08,
+      netCenterSagPx: 5,
+      netPostHeightPx: 18,
+
       // Hit tolerance (pixels) — tap doesn't need pixel-perfect precision
       hitTolerancePx: 50,
 
@@ -249,6 +287,14 @@
 
       // Shadow growth factor (0..1 range relative to ball y-position)
       shadowGrowthFactor: 0.7,
+      shadowMinScale: 0.4,
+      shadowMaxScale: 1.15,
+      landingMarkerRadiusPx: 24,
+      landingMarkerPulseMs: 700,
+      playerDepthScaleNear: 0.88,
+      playerDepthScaleFar: 1.06,
+      bounceSecondHopScale: 0.22,
+      bounceSquashMaxFrac: 0.28,
 
       // Bounce animation: ball jumps up visually after landing
       bounceHeight: 0.08,      // fraction of canvas height
@@ -272,11 +318,14 @@
         kitchenLine: "#ff6b4a",      // corail vif — kitchen delimiter
         kitchenLabelColor: "#ff6b4a44",
         netColor: "#e0e0e0",         // blanc/gris clair
+        opponentKitchenOverlay: "rgba(255,255,255,0.05)",
+        serviceBoxTint: "rgba(255,255,255,0.03)",
 
         // Player/opponent
         playerColor: "#44ccff",      // cyan — distinct du terrain et kitchen
         playerOutline: "#2288bb",
         opponentColor: "#667788",    // gris-bleu — silhouette discrète
+        opponentShadow: "rgba(0,0,0,0.18)",
 
         // Ball
         ballDefault: "#ffd60a",      // jaune vif exclusif (per briefing)
@@ -368,6 +417,23 @@
       lowAccuracyMinSmashes: 3 // min smashes for accuracy to be meaningful
     },
 
+    // ============================================
+    // END SCREEN
+    // ============================================
+    end: {
+      bestStreakLineMin: 3,
+      almostBestGapMax: 10,
+      playAgainNearBestGapMax: 5
+    },
+
+    // ============================================
+    // HISTORY / PERSONAL BEST RULES
+    // ============================================
+    history: {
+      minRunCompletesForNewBestCelebrate: 2,
+      minSprintCompletesForNewBestCelebrate: 2
+    },
+
 
     // ============================================
     // SPRINT — secret mode (chest discovery)
@@ -452,6 +518,8 @@
       premiumOnly: false,
       url: "",                   // TBD: URL to cross-sell game
       showAfterEnd: true,
+      suppressOnPostPaywall: true,
+      suppressWhenWaitlistVisible: true,
 
       // Unlock threshold (completed runs, not pool-based)
       minRunCompletesToShow: 5,
@@ -472,6 +540,11 @@
       placement: "end-and-landing-after-seen-once",
       afterPoolExhaustedOnly: false,
       showModalOneShot: false,
+      showOnSprintEnd: false,
+      suppressOnPostPaywall: true,
+      suppressWhenHouseAdVisible: true,
+      suppressWhenStatsPromptVisible: true,
+      suppressWhenShareVisible: true,
 
       // Obfuscated email (anti-scraping)
       toEmailObfuscated: "",     // TBD
@@ -538,6 +611,11 @@
       // Overlays (PLAYING)
       lifeLostOverlayMs: 2000,
       runStartOverlayMs: 2400,
+      runStartOverlayFastTrackMs: 900,
+      dailyObjectiveOverlayMs: 1400,
+      desktopClickHitReleaseMs: 50,
+      firstFaultExplainUntilFaultCount: 1,
+      lastLifeTriggerLives: 1,
 
       // Pulses (HUD)
       gameplayPulseMs: 950,
@@ -569,7 +647,24 @@
     // ============================================
     share: {
       enabled: true,
-      verificationSalt: "kr2026"
+      verificationSalt: "kr2026",
+      autoOpenDelayMs: 1200,
+      autoOpenNewBestScoreMin: 5,
+      autoOpenDailyScoreMin: 3
+    },
+
+    // ============================================
+    // END NUDGES
+    // ============================================
+    endNudges: {
+      showShareOnNewBest: true,
+      showShareOnDaily: true,
+      showShareByDefault: true,
+      autoShareOnNewBest: false,
+      autoShareOnDaily: false,
+      showStatsPromptWhenReplayPrimary: true,
+      suppressShareWhenNoRuns: true,
+      suppressStatsPromptWhenNoRuns: true
     },
 
     // ============================================

@@ -103,14 +103,31 @@
       var isSprint = (last.mode === MODES.SPRINT);
       var isDaily = !!(last && last.isDaily === true);
       var newBest = !!(last && last.newBest === true);
+      var cfg = this.config?.endNudges || {};
+      var noRuns = (!isSprint && !premium && balance <= 0);
 
-      if (!isSprint && !premium && balance <= 0) {
-        return { primary: "paywall", showShare: false, autoShare: false, showStatsPrompt: false };
+      if (noRuns) {
+        return {
+          primary: "paywall",
+          showShare: (cfg.suppressShareWhenNoRuns === true) ? false : !!cfg.showShareByDefault,
+          autoShare: false,
+          showStatsPrompt: (cfg.suppressStatsPromptWhenNoRuns === true) ? false : !!cfg.showStatsPromptWhenReplayPrimary
+        };
       }
       if (newBest || isDaily) {
-        return { primary: "replay", showShare: true, autoShare: false, showStatsPrompt: false };
+        return {
+          primary: "replay",
+          showShare: (newBest ? !!cfg.showShareOnNewBest : !!cfg.showShareOnDaily),
+          autoShare: (newBest ? !!cfg.autoShareOnNewBest : !!cfg.autoShareOnDaily),
+          showStatsPrompt: false
+        };
       }
-      return { primary: "replay", showShare: true, autoShare: false, showStatsPrompt: true };
+      return {
+        primary: "replay",
+        showShare: !!cfg.showShareByDefault,
+        autoShare: false,
+        showStatsPrompt: !!cfg.showStatsPromptWhenReplayPrimary
+      };
     };
 
     UIModule.prototype._shouldShowRunStartOverlay = function (mode) {
@@ -124,12 +141,22 @@
       return true;
     };
 
+    UIModule.prototype._shouldFastTrackRunStartOverlay = function (mode) {
+      if (!(mode === MODES.SPRINT || (this._runtime && this._runtime.currentRunIsDaily))) return false;
+      var counters = this._store("getCounters") || {};
+      var runCompletes = Number(counters.runCompletes);
+      return Number.isFinite(runCompletes) && runCompletes > 0;
+    };
+
     UIModule.prototype._showRunStartOverlay = function (mode, runType) {
       var cfg = this.config;
       var w = this.wording;
       var premium = !!(this._store("isPremium"));
       var ms = Number(cfg?.ui?.runStartOverlayMs);
+      var fastTrackMs = requiredConfigNumber(cfg?.ui?.runStartOverlayFastTrackMs, "KR_CONFIG.ui.runStartOverlayFastTrackMs", { min: 0, integer: true });
       if (!Number.isFinite(ms) || ms <= 0) throw new Error("KR_UI._showRunStartOverlay(): invalid config.ui.runStartOverlayMs");
+      var uiw = w?.ui || {};
+      var fastTrack = this._shouldFastTrackRunStartOverlay(mode);
 
       var line1 = "";
       var line2 = "";
@@ -164,23 +191,24 @@
 
       var isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
       var controlsHtml = "";
-      if (isTouchDevice) {
+      if (!fastTrack && isTouchDevice) {
         controlsHtml =
           '<div class="kr-start-controls">' +
-            '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">Left half</span> <span class="kr-start-ctrl-label">Drag to move into range</span></div>' +
-            '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">Right half</span> <span class="kr-start-ctrl-label">Tap to time your hit</span></div>' +
+            '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">' + escapeHtml(uiw.startOverlayTouchLeftKey || "") + '</span> <span class="kr-start-ctrl-label">' + escapeHtml(uiw.startOverlayMoveTouch || "") + '</span></div>' +
+            '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">' + escapeHtml(uiw.startOverlayTouchRightKey || "") + '</span> <span class="kr-start-ctrl-label">' + escapeHtml(uiw.startOverlayHitTouch || "") + '</span></div>' +
           '</div>';
-      } else {
+      } else if (!fastTrack) {
         controlsHtml =
           '<div class="kr-start-controls">' +
-            '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">Mouse</span> <span class="kr-start-ctrl-label">Move around the court</span></div>' +
-            '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">\u2190\u2191\u2192\u2193</span> <span class="kr-start-ctrl-label">Arrow-key movement</span></div>' +
-            '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">Click / Space</span> <span class="kr-start-ctrl-label">Time your hit</span></div>' +
+            '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">' + escapeHtml(uiw.startOverlayMouseKey || "") + '</span> <span class="kr-start-ctrl-label">' + escapeHtml(uiw.startOverlayMoveMouse || "") + '</span></div>' +
+            '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">' + escapeHtml(uiw.startOverlayKeyboardKey || "") + '</span> <span class="kr-start-ctrl-label">' + escapeHtml(uiw.startOverlayMoveKeys || "") + '</span></div>' +
+            '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">' + escapeHtml(uiw.startOverlayClickKey || "") + '</span> <span class="kr-start-ctrl-label">' + escapeHtml(uiw.startOverlayHitDesktop || "") + '</span></div>' +
           '</div>' +
-          '<p class="kr-run-start-hint kr-muted">Get close and it auto-returns. Time your hit for double points!</p>';
+          '<p class="kr-run-start-hint kr-muted">' + escapeHtml(uiw.startOverlayAutoReturnHint || "") + '</p>';
       }
 
-      var kitchenHint = '<p class="kr-run-start-hint kr-muted">Kitchen ball: let it bounce, then hit</p>';
+      var kitchenHintMsg = String(uiw.startOverlayKitchenHint || "").trim();
+      var kitchenHint = kitchenHintMsg ? '<p class="kr-run-start-hint kr-muted">' + escapeHtml(kitchenHintMsg) + '</p>' : "";
 
       var dailyHtml = "";
       if (this._runtime.currentRunIsDaily && this.gameApi && typeof this.gameApi.getDailyModifier === "function") {
@@ -205,7 +233,7 @@
           (line2 ? '<p class="kr-run-start-line2">' + escapeHtml(line2) + '</p>' : '') +
           controlsHtml +
           kitchenHint +
-          '<p class="kr-run-start-hint kr-muted">Tap to start</p>' +
+          (String(uiw.startOverlayTapToStart || "").trim() ? '<p class="kr-run-start-hint kr-muted">' + escapeHtml(uiw.startOverlayTapToStart || "") + '</p>' : '') +
         '</div>';
       node.classList.add("kr-run-start-overlay--visible");
 
@@ -213,11 +241,23 @@
       this._runtime.runStartOverlayTimerId = null;
 
       var self = this;
-      node.addEventListener("pointerdown", function dismiss() {
+      var dismissed = false;
+      function dismiss() {
+        if (dismissed) return;
+        dismissed = true;
         node.classList.remove("kr-run-start-overlay--visible");
+        if (self._runtime.runStartOverlayTimerId) {
+          clearTimeout(self._runtime.runStartOverlayTimerId);
+          self._runtime.runStartOverlayTimerId = null;
+        }
         node.removeEventListener("pointerdown", dismiss);
         self._startGameLoop();
-      }, { once: true });
+      }
+      node.addEventListener("pointerdown", dismiss, { once: true });
+
+      if (fastTrack && fastTrackMs > 0) {
+        this._runtime.runStartOverlayTimerId = setTimeout(dismiss, fastTrackMs);
+      }
     };
 
     UIModule.prototype._showFirstRunFraming = function (callback) {

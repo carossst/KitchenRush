@@ -9,19 +9,19 @@
 // ============================================
 const CFG = {
   lives: 3,
-  onboardingShield: 3,
-  reboundDelayMs: 150,
-  speed: { base: 2.2, accelPerSec: 0.04 },
-  spawn: { initialMs: 1200, decayPerSec: 12, minMs: 400 },
-  window: { initialMs: 140, decayPerSec: 1.2, minMs: 80 },
-  kitchenRatio: { base: 0.3, growthPerSec: 0.01, max: 0.7 },
+  onboardingShield: 5,
+  reboundDelayMs: 420,
+  speed: { base: 2.45, accelPerSec: 0.04 },
+  spawn: { initialMs: 1350, decayPerSec: 10, minMs: 480 },
+  window: { initialMs: 440, decayPerSec: 1.8, minMs: 110 },
+  kitchenRatio: { base: 0.18, growthPerSec: 0.007, max: 0.55 },
   ballTypes: {
-    dink: { unlockAfterSec: 15, weight: 0.2, speedMul: 0.5, forceKitchen: true, tapMul: 1.8 },
-    lob: { unlockAfterSec: 30, weight: 0.15, speedMul: 0.35, tapMul: 0.7 },
-    fast: { unlockAfterSec: 45, weight: 0.15, speedMul: 2.0, tapMul: 0.6 }
+    dink: { unlockAfterSec: 18, weight: 0.2, speedMul: 0.5, forceKitchen: true, tapMul: 1.8 },
+    lob: { unlockAfterSec: 34, weight: 0.15, speedMul: 0.35, tapMul: 0.85 },
+    fast: { unlockAfterSec: 55, weight: 0.15, speedMul: 1.8, tapMul: 0.72 }
   },
-  freeRuns: 3,
-  sprintFreeRuns: 2,
+  freeRuns: 5,
+  sprintFreeRuns: 5,
   sprintDurationMs: 20000,
   sprintFaultPenaltyMs: 2000,
   earlyPriceCents: 499,
@@ -38,7 +38,7 @@ const ARCHETYPES = [
   // reflex = probability of hitting a ball in the tap window (0-1)
   // patience = willingness to wait/explore (0-1)
   // kitchenLearn = how fast they learn the Kitchen rule (0-1)
-  // Note: onboarding shield gives 3 free non-Kitchen balls, so even low-reflex players get 1-3 smashes
+  // Note: onboarding shield gives 5 free non-Kitchen balls, so even low-reflex players get a fair first read
   { name: "Casual Mobile", count: 25, reflex: [0.4, 0.6], patience: [0.3, 0.6], kitchenLearn: [0.35, 0.65], priceThreshold: [300, 600], age: [14, 55], pbAware: [0, 0.15], shareProb: [0.05, 0.2], returnD1: [0.15, 0.35] },
   { name: "Pickleball Fan", count: 15, reflex: [0.5, 0.7], patience: [0.5, 0.8], kitchenLearn: [0.75, 0.95], priceThreshold: [400, 900], age: [22, 60], pbAware: [0.8, 1.0], shareProb: [0.15, 0.4], returnD1: [0.4, 0.7] },
   { name: "Gamer Teen", count: 15, reflex: [0.65, 0.85], patience: [0.2, 0.45], kitchenLearn: [0.45, 0.75], priceThreshold: [100, 400], age: [13, 19], pbAware: [0.05, 0.3], shareProb: [0.25, 0.5], returnD1: [0.2, 0.45] },
@@ -108,9 +108,9 @@ function simulateRun(persona, runNumber, mode) {
 
     // Ball type (V2)
     let ballType = "normal";
-    if (elapsedSec >= 45 && Math.random() < 0.15) ballType = "fast";
-    else if (elapsedSec >= 30 && Math.random() < 0.15) ballType = "lob";
-    else if (elapsedSec >= 15 && Math.random() < 0.2) ballType = "dink";
+    if (elapsedSec >= 55 && Math.random() < 0.15) ballType = "fast";
+    else if (elapsedSec >= 34 && Math.random() < 0.15) ballType = "lob";
+    else if (elapsedSec >= 18 && Math.random() < 0.2) ballType = "dink";
 
     // Tap window
     let tapMul = 1;
@@ -139,8 +139,8 @@ function simulateRun(persona, runNumber, mode) {
 
       if (Math.random() < waitProb) {
         // Waited correctly → now must tap in window
-        // Window difficulty: 140ms = easy (1.0), 80ms = hard (0.6)
-        const windowDifficulty = clamp(tapWindowMs / 160, 0.5, 1.2);
+        // Window difficulty tuned to the current game windows (440ms -> 110ms)
+        const windowDifficulty = clamp(tapWindowMs / 320, 0.45, 1.25);
         const hitProb = clamp(effectiveReflex * windowDifficulty, 0.15, 0.95);
         if (Math.random() < hitProb) {
           smashes++;
@@ -167,7 +167,7 @@ function simulateRun(persona, runNumber, mode) {
       // Non-kitchen ball: tap in window
       // Speed difficulty: fast balls are harder, lobs are easier
       const speedDifficulty = (ballType === "fast") ? 0.65 : (ballType === "lob" ? 0.9 : 1.0);
-      const windowDifficulty = clamp(tapWindowMs / 160, 0.5, 1.2);
+      const windowDifficulty = clamp(tapWindowMs / 320, 0.45, 1.25);
       const hitProb = clamp(effectiveReflex * speedDifficulty * windowDifficulty, 0.2, 0.95);
       if (Math.random() < hitProb) {
         smashes++;

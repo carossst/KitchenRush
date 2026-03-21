@@ -106,8 +106,8 @@
 
       // Daily challenge badge (shown when daily.enabled)
       dailyBadge: "Daily Challenge",
-      dailyExplain: "One shared challenge each day. Same run for everyone.",
-      classicUnlockHint: "Finish today's Daily to play Classic",
+      dailyExplain: "One shared challenge each day. Same run for everyone. Uses 1 run.",
+      classicUnlockHint: "Daily is featured first. Classic is always available.",
       ctaPlayDaily: "Play Daily Challenge",
 
       ctaPlay: "Play Classic",
@@ -144,6 +144,7 @@
 
       // V2: Canvas in-game labels (drawn on canvas, not DOM)
       kitchenLabel: "KITCHEN",
+      kitchenOpenLabel: "KITCHEN OPEN",
       waitLabel: "WAIT",
       nowLabel: "NOW!",
       goLabel: "GO!",
@@ -155,6 +156,20 @@
       controlTimingLabel: "TIME HIT",
       timingPerfectLabel: "PERFECT!",
       timingNiceLabel: "NICE!",
+      startOverlayTouchLeftKey: "Left half",
+      startOverlayTouchRightKey: "Right half",
+      startOverlayMouseKey: "Mouse",
+      startOverlayKeyboardKey: "←↑→↓",
+      startOverlayClickKey: "Click / Space",
+      startOverlayMoveTouch: "Drag to move into range",
+      startOverlayHitTouch: "Tap to time your hit",
+      startOverlayMoveMouse: "Move around the court",
+      startOverlayMoveKeys: "Arrow-key movement",
+      startOverlayHitDesktop: "Time your hit",
+      startOverlayAutoReturnHint: "Get close and it auto-returns. Time your hit for double points!",
+      startOverlayKitchenHint: "Kitchen ball: let it bounce, then hit",
+      startOverlayTapToStart: "Tap to start",
+      dailyObjectiveMet: "Daily objective complete!",
 
       // Start-of-run overlay (economy)
       startRunTypeFree: "FREE RUN",
@@ -347,6 +362,7 @@
 
     share: {
       ctaLabel: "Share score",
+      ctaDailyLabel: "Share daily score",
       emailAria: "Share via email",
       toastCopied: "Copied!",
       templateDefault: "Kitchen Rush \u2014 {score} Smashes {hashtag}\nCan you beat that?\n{url}",
@@ -459,6 +475,7 @@
 
       // One-shot moments
       kitchenMaster: "Kitchen master!",
+      dailyObjectiveMet: "Daily objective complete!",
       lastLife: "Last life — match point.",
       closeCall: "Close call!",
       tooEarly: "Too early!",

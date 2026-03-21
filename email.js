@@ -16,6 +16,12 @@
 (() => {
   "use strict";
 
+  function warn(message, error) {
+    try {
+      console.warn("[KR Email]", message, error || "");
+    } catch (_) { }
+  }
+
   /** Decode HTML-entity-obfuscated string (e.g. "a&#64;b&#46;c" → "a@b.c") */
   function decodeHtmlEntities(str) {
     const t = document.createElement("textarea");
@@ -84,6 +90,7 @@
         } else {
           supportLink.textContent = label;
           supportLink.setAttribute("aria-label", label);
+          supportLink.onclick = null;
 
           if (typeof window.KR_SUPPORT_OPEN !== "function") {
             supportLink.removeAttribute("href");
@@ -97,10 +104,10 @@
               supportLink.removeAttribute("href");
             }
 
-            supportLink.addEventListener("click", (e) => {
+            supportLink.onclick = function (e) {
               e.preventDefault();
               window.KR_SUPPORT_OPEN();
-            });
+            };
           }
         }
       }
@@ -118,8 +125,8 @@
 
         link.href = `mailto:${user}@${domain}`;
       });
-    } catch (_) {
-      // Silent fail — fail-closed.
+    } catch (error) {
+      warn("initEmailLinks failed", error);
     }
   }
 

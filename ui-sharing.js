@@ -3,6 +3,12 @@
 (() => {
   "use strict";
 
+  function warn(message, error) {
+    try {
+      console.warn("[KR Share]", message, error || "");
+    } catch (_) { }
+  }
+
   function shareHash(score, mode, salt) {
     var d = new Date();
     var str = String(score) + "|" + String(mode) + "|" + d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate() + "|" + String(salt);
@@ -26,12 +32,10 @@
     if (typeof fillTemplate !== "function") throw new Error("KR_UI_SHARING.install(): fillTemplate missing");
     if (!MODES || !MODES.RUN || !MODES.SPRINT) throw new Error("KR_UI_SHARING.install(): MODES missing");
 
-    function todayDateParts() {
-      var d = new Date();
-      var monthNames = (window.KR_WORDING && window.KR_WORDING.system && window.KR_WORDING.system.monthsShort)
-        ? window.KR_WORDING.system.monthsShort
-        : [];
-      return { month: monthNames[d.getMonth()] || "", day: d.getDate(), year: d.getFullYear() };
+    function todayDateParts(wording) {
+      var fn = window.KR_UTILS && window.KR_UTILS.getUtcDisplayDateParts;
+      if (typeof fn === "function") return fn(wording);
+      return { month: "", day: 0, year: 0 };
     }
 
     UIModule.prototype._generateShareCard = function () {
@@ -82,7 +86,7 @@
       var modeLabel = "";
       if (isDaily) {
         modeLabel = String(w.cardDailyLabel || "").trim();
-        var dp = todayDateParts();
+        var dp = todayDateParts(this.wording);
         var dateFmt = String(w.cardDateFormat || "").trim();
         if (dateFmt && modeLabel) {
           modeLabel += " — " + fillTemplate(dateFmt, dp);
@@ -148,7 +152,7 @@
       var hashtagPrefix = String(w.hashtagPrefix || "").trim();
       var hashtag = hashtagPrefix ? hashtagPrefix + (last.smashes || 0) : "";
 
-      var dp = todayDateParts();
+      var dp = todayDateParts(this.wording);
       var dateStr = dp.month + " " + dp.day;
 
       var modLabel = "";
@@ -202,15 +206,20 @@
           }
         } catch (e) {
           if (e && e.name === "AbortError") return;
+          warn("native share with file failed", e);
         }
       }
 
       if (navigator.share) {
-        try { await navigator.share({ text: text }); return; } catch (_) { }
+        try { await navigator.share({ text: text }); return; } catch (error) {
+          if (error && error.name === "AbortError") return;
+          warn("native text share failed", error);
+        }
       }
 
       try { await navigator.clipboard.writeText(text); }
-      catch (_) {
+      catch (error) {
+        warn("clipboard share copy failed", error);
         try {
           var ta = document.createElement("textarea");
           ta.value = text;
@@ -218,7 +227,10 @@
           ta.select();
           document.execCommand("copy");
           document.body.removeChild(ta);
-        } catch (_) { return; }
+        } catch (fallbackError) {
+          warn("fallback share copy failed", fallbackError);
+          return;
+        }
       }
 
       var msg = String(this.wording?.share?.toastCopied || "").trim();
@@ -231,7 +243,7 @@
       this._store("markShareClicked");
       var subject = String(this.config?.identity?.appName || "").trim();
       var url = "mailto:?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(text);
-      try { window.open(url, "_self"); } catch (_) { }
+      try { window.open(url, "_self"); } catch (error) { warn("share email open failed", error); }
     };
 
     UIModule.prototype._showShareCardModal = function () {
@@ -244,7 +256,7 @@
       var shareCta = String(sw.ctaLabel || "").trim();
 
       var dataUrl = "";
-      try { dataUrl = card.toDataURL("image/png"); } catch (_) { return; }
+      try { dataUrl = card.toDataURL("image/png"); } catch (error) { warn("share card toDataURL failed", error); return; }
 
       var html = '<div class="kr-share-card-modal">';
       if (shareTitle) html += '<p class="kr-share-card-title">' + escapeHtml(shareTitle) + '</p>';

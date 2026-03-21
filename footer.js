@@ -6,6 +6,12 @@
 (() => {
   "use strict";
 
+  function warn(message, error) {
+    try {
+      console.warn("[KR Footer]", message, error || "");
+    } catch (_) { }
+  }
+
   function hasNonEmptyContent(el) {
     if (!el) return false;
     const txt = String(el.textContent || "").replace(/\s+/g, " ").trim();
@@ -49,24 +55,17 @@
     const cfg = window.KR_CONFIG || {};
     const w = window.KR_WORDING || {};
 
+    var wordingDom = window.KR_WORDING_DOM;
+
     // Apply wording (scoped to footer only)
     try {
-      const nodes = root.querySelectorAll("[data-kr-wording]");
-      nodes.forEach((el) => {
-        const key = String(el.getAttribute("data-kr-wording") || "").trim();
-        if (!key) return;
-
-        const parts = key.split(".");
-        let cur = w;
-        for (const p of parts) {
-          if (!cur || typeof cur !== "object") { cur = null; break; }
-          cur = cur[p];
-        }
-
-        const txt = String(cur || "").trim();
-        el.textContent = txt || "";
-      });
-    } catch (_) { /* silent */ }
+      if (!wordingDom || typeof wordingDom.applyToDocument !== "function") {
+        throw new Error("KR_WORDING_DOM.applyToDocument missing");
+      }
+      wordingDom.applyToDocument(root, w);
+    } catch (error) {
+      warn("Footer wording hydration failed", error);
+    }
 
     // Creator line (prefer HTML if provided)
     try {
@@ -77,7 +76,9 @@
         if (html) creatorEl.innerHTML = html;
         else creatorEl.textContent = line || "";
       }
-    } catch (_) { /* silent */ }
+    } catch (error) {
+      warn("Footer creator hydration failed", error);
+    }
 
     // Parent link (optional)
     try {
@@ -104,7 +105,9 @@
           if (parentSep) parentSep.style.display = "none";
         }
       }
-    } catch (_) { /* silent */ }
+    } catch (error) {
+      warn("Footer parent link hydration failed", error);
+    }
 
     // Version
     try {
@@ -114,7 +117,9 @@
       if (vEl) {
         vEl.textContent = (v && prefix) ? `${prefix}${v}` : "";
       }
-    } catch (_) { /* silent */ }
+    } catch (error) {
+      warn("Footer version hydration failed", error);
+    }
   }
 
   function tryInject() {
@@ -153,8 +158,12 @@
   function runConfigBoot() {
     var boot = window.KR_CONFIG_BOOT;
     if (!boot || typeof boot !== "object") return;
-    if (typeof boot.validateConfigSoft === "function") try { boot.validateConfigSoft(); } catch (_) { }
-    if (typeof boot.applyBrandText === "function") try { boot.applyBrandText(); } catch (_) { }
+    if (typeof boot.validateConfigSoft === "function") {
+      try { boot.validateConfigSoft(); } catch (error) { warn("Footer config soft validation failed", error); }
+    }
+    if (typeof boot.applyBrandText === "function") {
+      try { boot.applyBrandText(); } catch (error) { warn("Footer brand hydration failed", error); }
+    }
   }
 
   if (document.readyState === "loading") {

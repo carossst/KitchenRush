@@ -2,6 +2,15 @@
 (() => {
   "use strict";
 
+  let initialized = false;
+  let statusTimerId = null;
+
+  function warn(message, error) {
+    try {
+      console.warn("[KR Success]", message, error || "");
+    } catch (_) { }
+  }
+
   function requireConfig() {
     const cfg = window.KR_CONFIG;
     if (!cfg || typeof cfg !== "object") throw new Error("KR success: KR_CONFIG missing");
@@ -38,7 +47,9 @@
       data.counters.codeGenerated = Number.isFinite(current) ? current + 1 : 1;
       data.updatedAt = Date.now();
       localStorage.setItem(cfg.storage.storageKey, JSON.stringify(data));
-    } catch (_) {}
+    } catch (error) {
+      warn("markCodeGeneratedBestEffort failed", error);
+    }
   }
 
   function renderCode(code) {
@@ -52,7 +63,14 @@
     const dur = Number(cfg.ui.toast.default.durationMs);
     statusEl.textContent = msg;
     statusEl.classList.remove("kr-hidden");
-    setTimeout(() => { statusEl.classList.add("kr-hidden"); }, Math.floor(dur));
+    if (statusTimerId) {
+      clearTimeout(statusTimerId);
+      statusTimerId = null;
+    }
+    statusTimerId = setTimeout(() => {
+      statusEl.classList.add("kr-hidden");
+      statusTimerId = null;
+    }, Math.floor(dur));
   }
 
   function fallbackCopy(text) {
@@ -63,7 +81,7 @@
     document.body.appendChild(ta);
     ta.select();
     let ok = false;
-    try { ok = document.execCommand("copy"); } catch (_) { ok = false; }
+    try { ok = document.execCommand("copy"); } catch (error) { warn("fallbackCopy failed", error); ok = false; }
     document.body.removeChild(ta);
     return ok;
   }
@@ -78,7 +96,9 @@
         showStatus(cfg, wording.system.copied);
         return;
       }
-    } catch (_) {}
+    } catch (error) {
+      warn("clipboard copy failed", error);
+    }
     showStatus(cfg, fallbackCopy(code) ? wording.system.copied : wording.system.copyFailed);
   }
 
@@ -97,9 +117,10 @@
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 0);
+      setTimeout(() => { try { URL.revokeObjectURL(url); } catch (error) { warn("revokeObjectURL failed", error); } }, 0);
       showStatus(cfg, wording.system.downloaded);
-    } catch (_) {
+    } catch (error) {
+      warn("downloadCodeTxt failed; falling back to copy", error);
       copyCode(cfg, wording);
     }
   }
@@ -125,6 +146,9 @@
   }
 
   function init() {
+    if (initialized) return;
+    initialized = true;
+
     const cfg = requireConfig();
     const wording = requireWording();
     const wordingDom = requireWordingDom();

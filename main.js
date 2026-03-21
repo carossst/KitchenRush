@@ -5,6 +5,8 @@
 (() => {
   "use strict";
 
+  let swUpdateIntervalId = null;
+
   // ============================================
   // escapeHtml (strict contract)
   // ============================================
@@ -139,7 +141,8 @@
           Logger.log("Service Worker registered:", registration.scope);
 
           if (cfg.serviceWorker.autoUpdate) {
-            setInterval(() => {
+            if (swUpdateIntervalId) clearInterval(swUpdateIntervalId);
+            swUpdateIntervalId = setInterval(() => {
               registration.update().catch(() => { });
             }, 10 * 60 * 1000); // Every 10 min
           }
@@ -164,6 +167,13 @@
         });
     });
   }
+
+  window.addEventListener("pagehide", () => {
+    if (swUpdateIntervalId) {
+      clearInterval(swUpdateIntervalId);
+      swUpdateIntervalId = null;
+    }
+  });
 
 
   // ============================================
@@ -226,6 +236,9 @@
   function validateModules() {
     const required = [
       "KR_StorageManager",
+      "KR_STORAGE_UX",
+      "KR_STORAGE_PREMIUM",
+      "KR_STORAGE_RUNS",
       "KR_Game",
       "KR_UI",
       "KR_UI_OVERLAYS",
@@ -236,6 +249,9 @@
     const missing = required.filter((name) => !window[name]);
 
     const invalid = [];
+    if (window.KR_STORAGE_UX && typeof window.KR_STORAGE_UX.install !== "function") invalid.push("KR_STORAGE_UX.install");
+    if (window.KR_STORAGE_PREMIUM && typeof window.KR_STORAGE_PREMIUM.install !== "function") invalid.push("KR_STORAGE_PREMIUM.install");
+    if (window.KR_STORAGE_RUNS && typeof window.KR_STORAGE_RUNS.install !== "function") invalid.push("KR_STORAGE_RUNS.install");
     if (window.KR_UI_OVERLAYS && typeof window.KR_UI_OVERLAYS.install !== "function") invalid.push("KR_UI_OVERLAYS.install");
     if (window.KR_UI_MODALS && typeof window.KR_UI_MODALS.install !== "function") invalid.push("KR_UI_MODALS.install");
     if (window.KR_UI_SHARING && typeof window.KR_UI_SHARING.install !== "function") invalid.push("KR_UI_SHARING.install");
@@ -283,6 +299,10 @@
       const pwa = (window.KR_PWA && typeof window.KR_PWA === "object") ? window.KR_PWA : null;
       const audio = (window.KR_Audio && typeof window.KR_Audio === "object") ? window.KR_Audio : null;
       const gameApi = (window.KR_Game && typeof window.KR_Game === "object") ? window.KR_Game : null;
+
+      window.KR_STORAGE_UX.install(window.KR_StorageManager);
+      window.KR_STORAGE_PREMIUM.install(window.KR_StorageManager);
+      window.KR_STORAGE_RUNS.install(window.KR_StorageManager);
 
       // Init storage
       const storage = new window.KR_StorageManager(config);

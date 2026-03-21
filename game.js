@@ -79,6 +79,19 @@
     return Math.floor(Date.UTC(parts.year, parts.month - 1, parts.day) / 86400000);
   }
 
+  function getTimingConfig(config) {
+    var timing = (config && config.game && config.game.timing) ? config.game.timing : {};
+    return {
+      niceThreshold: reqNum(timing.niceThreshold, "game.timing.niceThreshold", { min: 0, max: 1 }),
+      perfectThreshold: reqNum(timing.perfectThreshold, "game.timing.perfectThreshold", { min: 0, max: 1 }),
+      sweetSpot: reqNum(timing.sweetSpot, "game.timing.sweetSpot", { min: 0, max: 1 }),
+      falloffWindow: reqNum(timing.falloffWindow, "game.timing.falloffWindow", { min: 0.01, max: 1 }),
+      autoHitGraceFrac: reqNum(timing.autoHitGraceFrac, "game.timing.autoHitGraceFrac", { min: 0, max: 1 }),
+      basePoints: reqNum(timing.basePoints, "game.timing.basePoints", { min: 1, integer: true }),
+      perfectPoints: reqNum(timing.perfectPoints, "game.timing.perfectPoints", { min: 1, integer: true })
+    };
+  }
+
   // Game-time clock
   var _gt = 0;
   function gameTime() { return _gt; }
@@ -146,6 +159,7 @@
       arcMinFrac: Number.isFinite(Number(t.arcMinFrac)) ? Number(t.arcMinFrac) : 0.028,
       arcMaxFrac: Number.isFinite(Number(t.arcMaxFrac)) ? Number(t.arcMaxFrac) : 0.14,
       arcDepthWeight: Number.isFinite(Number(t.arcDepthWeight)) ? Number(t.arcDepthWeight) : 0.45,
+      descentPower: Number.isFinite(Number(t.descentPower)) ? Number(t.descentPower) : 1.18,
       returnArcScale: Number.isFinite(Number(t.returnArcScale)) ? Number(t.returnArcScale) : 0.75,
       returnTravelScale: Number.isFinite(Number(t.returnTravelScale)) ? Number(t.returnTravelScale) : 0.82
     };
@@ -271,6 +285,7 @@
       startX: startX, startY: startY,
       targetX: targetX, targetY: targetY,
       arcHeight: arcHeight,
+      descentPower: trajectoryCfg.descentPower,
       travelMs: travelMs,
       x: startX, y: startY,
       state: BALL_STATES.TRAVELING,
@@ -280,6 +295,7 @@
       reboundDelayMs: Math.floor(reqNum(gameCfg.reboundDelayMs, "game.reboundDelayMs", { min: 1 })),
       bounceHeightPx: reqNum(config.canvas.bounceHeight, "canvas.bounceHeight", { min: 0 }) * canvasH,
       bounceAnimMs: Math.floor(reqNum(config.canvas.bounceAnimMs, "canvas.bounceAnimMs", { min: 1 })),
+      bounceSecondHopScale: reqNum(config.canvas.bounceSecondHopScale, "canvas.bounceSecondHopScale", { min: 0, max: 1 }),
       returnStartX: 0, returnStartY: 0,
       returnTargetX: 0, returnTargetY: 0,
       returnArcHeight: 0, returnTravelMs: 0,
@@ -333,7 +349,8 @@
     if (ball.state === BALL_STATES.TRAVELING) {
       var t = clamp(elapsed / ball.travelMs, 0, 1);
       var x = lerp(ball.startX, ball.targetX, t);
-      var yLinear = lerp(ball.startY, ball.targetY, t);
+      var yT = Math.pow(t, Number.isFinite(ball.descentPower) ? ball.descentPower : 1);
+      var yLinear = lerp(ball.startY, ball.targetY, yT);
       var arc = -ball.arcHeight * 4 * t * (1 - t);
       return { x: x, y: yLinear + arc, t: t };
     }
@@ -348,6 +365,7 @@
       var primaryAnimMs = ball.bounceAnimMs || 250;
       var secondaryAnimMs = Math.max(1, Math.round(primaryAnimMs * 0.6));
       var bounceHeight = Number.isFinite(ball.bounceHeightPx) ? ball.bounceHeightPx : 40;
+      var secondHopScale = Number.isFinite(ball.bounceSecondHopScale) ? ball.bounceSecondHopScale : 0.22;
       // Primary hop
       if (sinceBounce < primaryAnimMs) {
         var bt = sinceBounce / primaryAnimMs;
@@ -356,7 +374,7 @@
       // Secondary smaller hop
       else if (sinceBounce < primaryAnimMs + secondaryAnimMs) {
         var bt2 = (sinceBounce - primaryAnimMs) / secondaryAnimMs;
-        bounceAnim = -(bounceHeight * 0.3) * Math.sin(bt2 * Math.PI);
+        bounceAnim = -(bounceHeight * secondHopScale) * Math.sin(bt2 * Math.PI);
       }
       // Squash factor for renderer (0-1, 1=max squash at impact)
       var squash = 0;
@@ -429,7 +447,7 @@
         // V3: Player 2D position
         playerX: canvasW / 2,
         playerY: court.playerY * canvasH,
-        playerMinY: court.kitchenLineY * canvasH + 10, // can't enter kitchen
+        playerMinY: court.netY * canvasH + 10,
         playerMaxY: (court.baselineY || 0.82) * canvasH + 30, // can go slightly behind baseline
         playerState: "idle",
         playerSwingUntil: 0,
@@ -449,6 +467,7 @@
         smashes: 0,
         ball: null,
         rallyCount: 0,
+        doubleBouncePhase: 0,
         totalRallies: 0,
 
         totalSpawned: 0,
@@ -656,6 +675,7 @@
           this._loseLife(r);
           r.waitUntil = r.elapsedMs + 600;
           r.rallyCount = 0;
+          r.doubleBouncePhase = 0;
         }
       }
 
@@ -672,16 +692,15 @@
           if (r.input.hit && !r.input.hitConsumed) {
             r.input.hit = false;
             r.input.hitConsumed = true;
-            // Timing bonus: best at ~20-40% of window (sweet spot)
-            var sweetSpot = 0.3;
-            var timingBonus = Math.max(0, 1 - Math.abs(timingRatio - sweetSpot) / 0.5);
+            var timingCfg = getTimingConfig(r.config);
+            var timingBonus = Math.max(0, 1 - Math.abs(timingRatio - timingCfg.sweetSpot) / timingCfg.falloffWindow);
             ball.autoHitFired = true;
             this._executeHit(r, ball, timingBonus);
             return this.getState();
           }
 
           // Auto-hit after short grace period (give player chance to time it)
-          var gracePeriodMs = ball.tapWindowMs * 0.4;
+          var gracePeriodMs = ball.tapWindowMs * getTimingConfig(r.config).autoHitGraceFrac;
           if (sinceBounce >= gracePeriodMs) {
             ball.autoHitFired = true;
             ball.timingBonus = 0;
@@ -733,13 +752,12 @@
       return hitRange * 1.5;
     }
 
-
     // V3: Execute a valid hit (shared between auto-hit and explicit hit)
     _executeHit(r, ball, timingBonus) {
       var court = r.court;
 
       // Double bounce rule check
-      var mustBounce = (r.rallyCount < 2) || ball.inKitchen;
+      var mustBounce = !!ball.mustBounce;
       if (mustBounce && ball.state !== BALL_STATES.BOUNCED) {
         // Should not happen in auto-hit (only fires on BOUNCED), but safety check
         this._faultBall(r, ball);
@@ -750,14 +768,15 @@
       ball.hitAt = gameTime();
       ball.timingBonus = timingBonus;
 
-      // Score: base 1 + timing bonus (0-1 extra)
-      var points = 1;
-      if (timingBonus > 0.7) points = 2; // perfect timing = double points
+      var timingCfg = getTimingConfig(r.config);
+      var points = timingCfg.basePoints;
+      if (timingBonus > timingCfg.perfectThreshold) points = timingCfg.perfectPoints;
       r.smashes += points;
       r.totalSmashed++;
       r.currentStreak++;
       if (r.currentStreak > r.bestStreak) r.bestStreak = r.currentStreak;
       r.rallyCount++;
+      if (r.doubleBouncePhase === 0) r.doubleBouncePhase = 1;
       r.lastTimingBonus = timingBonus;
 
       r.playerState = "swing";
@@ -790,7 +809,6 @@
 
     // V3: Try volley (hit ball before bounce — only valid after double bounce rule satisfied)
     _tryVolley(r, ball) {
-      var court = r.court;
       var hitRange = reqNum(r.config.court.hitRange, "court.hitRange", { min: 1 });
 
       var d = dist(r.playerX, r.playerY, ball.x, ball.y);
@@ -801,8 +819,8 @@
         return;
       }
 
-      // Double bounce rule: must bounce if rallyCount < 2 or in kitchen
-      var mustBounce = (r.rallyCount < 2) || ball.inKitchen;
+      // Volley stays illegal while this incoming ball still must bounce.
+      var mustBounce = !!ball.mustBounce;
       if (mustBounce) {
         this._faultBall(r, ball);
         return;
@@ -820,6 +838,7 @@
       r.totalFaulted++;
       r.currentStreak = 0;
       r.rallyCount = 0;
+      r.doubleBouncePhase = 0;
 
       if (r.mode === MODES.RUN) {
         this._loseLife(r);
@@ -840,6 +859,10 @@
 
 
     _spawnBall(r, elapsedSec) {
+      // After the player's first legal return, the opponent-side forced bounce
+      // happens offscreen before the next incoming ball is spawned.
+      if (r.doubleBouncePhase === 1) r.doubleBouncePhase = 2;
+
       var ball = createBallFromOpponent(
         r.config, elapsedSec, r.canvasW, r.canvasH, r.court,
         r.playerX, r.playerY, r.rng, r.modifier
@@ -853,6 +876,9 @@
         ball.targetY = kitchenLineYpx + rand() * (baselineYpx - kitchenLineYpx - 20) + 10;
         ball.shadowY = ball.targetY;
       }
+
+      ball.mustBounceReason = ball.inKitchen ? "kitchen" : (r.doubleBouncePhase === 0 ? "double_bounce" : "");
+      ball.mustBounce = !!ball.mustBounceReason;
 
       if (ball.inKitchen && !r.firstKitchenSpawned) {
         r.firstKitchenSpawned = true;
@@ -913,6 +939,8 @@
           returnArcHeight: b.returnArcHeight || 0,
           returnTravelMs: b.returnTravelMs || 0,
           timingBonus: b.timingBonus || 0,
+          mustBounce: !!b.mustBounce,
+          mustBounceReason: b.mustBounceReason || "",
           autoHitFired: !!b.autoHitFired,
           squash: b.squash || 0
         };
@@ -937,6 +965,7 @@
         ball: ballState,
 
         rallyCount: r.rallyCount,
+        doubleBouncePhase: r.doubleBouncePhase,
         totalSpawned: r.totalSpawned,
         totalSmashed: r.totalSmashed,
         totalMissed: r.totalMissed,

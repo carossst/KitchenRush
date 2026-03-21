@@ -26,8 +26,12 @@ const ASSET_GROUPS = {
   appScripts: [
     "./config.js",
     "./wording.js",
+    "./wording-dom.js",
     "./config-boot.js",
     "./storage.js",
+    "./storage-ux.js",
+    "./storage-premium.js",
+    "./storage-runs.js",
     "./game.js",
     "./audio.js",
     "./ui-overlays.js",

@@ -86,7 +86,8 @@
           var barsHtml = "";
           for (var j = 0; j < lastRuns.length; j += 1) {
             var pct = Math.round(((lastRuns[j].smashes || 0) / maxS) * 100);
-            barsHtml += '<div class="kr-spark-bar" style="height:' + pct + '%" title="' + (lastRuns[j].smashes || 0) + ' Smashes"></div>';
+            var bucket = Math.max(1, Math.min(10, Math.round(pct / 10)));
+            barsHtml += '<div class="kr-spark-bar kr-spark-bar--h' + bucket + '" title="' + (lastRuns[j].smashes || 0) + ' Smashes"></div>';
           }
           sparkHtml = '<div class="kr-spark-bars">' + barsHtml + '</div>';
         }
@@ -140,7 +141,9 @@
       }
 
       var postPaywallHtml = "";
+      var postPaywallActive = false;
       if (!premium && balance <= 0 && runCompletes > 0) {
+        postPaywallActive = true;
         postPaywallHtml = '<div class="kr-box kr-box--tinted">';
         var sprintUsed = this._store("getSprintFreeRunsUsed") || 0;
         if (showChest && sprintUsed === 0 && String(lw.postPaywallSbTitle || "").trim()) {
@@ -154,10 +157,24 @@
         postPaywallHtml += '</div>';
       }
 
+      var showWaitlistLanding = !!this._store("shouldShowWaitlistNow", {
+        screen: STATES.LANDING,
+        inRun: false,
+        premium: premium,
+        balance: balance,
+        postPaywallActive: postPaywallActive
+      });
+
       var houseAdHtml = "";
-      if (this._store("shouldShowHouseAdNow", { inRun: false })) {
+      if (this._store("shouldShowHouseAdNow", {
+        screen: STATES.LANDING,
+        inRun: false,
+        premium: premium,
+        balance: balance,
+        postPaywallActive: postPaywallActive,
+        waitlistActive: showWaitlistLanding
+      })) {
         var ha = (w && w.houseAd) ? w.houseAd : {};
-        this._store("markHouseAdShown");
         houseAdHtml = '<div class="kr-box">';
         houseAdHtml += '<p>' + escapeHtml(ha.bodyLine1 || "") + '</p>';
         houseAdHtml += '<p class="kr-muted">' + escapeHtml(ha.bodyLine2 || "") + '</p>';
@@ -165,6 +182,29 @@
         houseAdHtml += '<button class="kr-btn kr-btn--secondary" data-action="house-ad-open">' + escapeHtml(ha.ctaPrimary || "") + '</button>';
         houseAdHtml += '<button class="kr-btn kr-btn--secondary" data-action="house-ad-later">' + escapeHtml(ha.ctaRemindLater || "") + '</button>';
         houseAdHtml += '</div></div>';
+      }
+
+      var waitlistHtml = "";
+      if (showWaitlistLanding) {
+        var wl = (w && w.waitlist) ? w.waitlist : {};
+        var wlLabel = String(wl.ctaLabel || "").trim();
+        var wlBody = String(wl.disclaimer || "").trim();
+        var wlCta = String(wl.cta || "").trim();
+        if (wlLabel && wlCta) {
+          waitlistHtml = '<div class="kr-box">';
+          waitlistHtml += '<p>' + escapeHtml(wlLabel) + '</p>';
+          if (wlBody) waitlistHtml += '<p class="kr-muted">' + escapeHtml(wlBody) + '</p>';
+          waitlistHtml += '<div class="kr-actions">';
+          waitlistHtml += '<button class="kr-btn kr-btn--secondary" data-action="waitlist">' + escapeHtml(wlCta) + '</button>';
+          waitlistHtml += '</div></div>';
+        }
+      }
+
+      var primaryLandingNudgeHtml = postPaywallHtml || waitlistHtml || houseAdHtml || landingChallengeHtml || chestHintHtml;
+      var showLandingMeta = !primaryLandingNudgeHtml;
+      var landingMetaHtml = "";
+      if (showLandingMeta) {
+        landingMetaHtml = sparkHtml + lifetimeHtml;
       }
 
       var dailyHtml = "";
@@ -205,14 +245,10 @@
             dailyHtml +
             classicHtml +
             bestHtml +
-            landingChallengeHtml +
             premiumLabelHtml +
-            sparkHtml +
-            lifetimeHtml +
-            chestHintHtml +
             earlyTickerHtml +
-            postPaywallHtml +
-            houseAdHtml +
+            primaryLandingNudgeHtml +
+            landingMetaHtml +
           '</div>' +
         '</div>';
 
@@ -247,9 +283,13 @@
 
       var endHighlight = (this._runtime && this._runtime.microFeedback) ? (this._runtime.microFeedback.endHighlight || "") : "";
       var highlightHtml = endHighlight ? '<p class="kr-end-highlight kr-muted">' + escapeHtml(endHighlight) + '</p>' : "";
+      var endCfg = (cfg?.end) || {};
+      var bestStreakLineMin = requiredConfigNumber(endCfg.bestStreakLineMin, "KR_CONFIG.end.bestStreakLineMin", { min: 1, integer: true });
+      var almostBestGapMax = requiredConfigNumber(endCfg.almostBestGapMax, "KR_CONFIG.end.almostBestGapMax", { min: 1, integer: true });
+      var playAgainNearBestGapMax = requiredConfigNumber(endCfg.playAgainNearBestGapMax, "KR_CONFIG.end.playAgainNearBestGapMax", { min: 1, integer: true });
 
       var bestStreak = last.bestStreak || 0;
-      var streakHtml = (bestStreak >= 3 && !isSprint)
+      var streakHtml = (bestStreak >= bestStreakLineMin && !isSprint)
         ? '<p class="kr-muted">' + escapeHtml(fillTemplate(ew.bestStreakLine || "", { streak: bestStreak })) + '</p>' : "";
 
       var debriefHtml = "";
@@ -262,7 +302,7 @@
         var deltaHtml = "";
         if (bestSmashes > 0 && !newBest && last.smashes > 0) {
           var gap = bestSmashes - last.smashes;
-          if (gap > 0 && gap <= 10) {
+          if (gap > 0 && gap <= almostBestGapMax) {
             var dw = isSprint ? (w?.sprint || {}) : (w?.end || {});
             var almostMsg = String(dw.almostBest || (w?.end || {}).almostBest || "").trim();
             if (almostMsg) deltaHtml = '<p class="kr-end-delta">' + escapeHtml(fillTemplate(almostMsg, { gap: gap })) + '</p>';
@@ -343,6 +383,30 @@
         ? '<button class="kr-btn-icon' + (solvedChest ? "" : " kr-btn-icon--tease") + '" data-kr-secret="chest" aria-label="' + escapeHtml(sw.chestAria || "") + '">\uD83C\uDF81</button>' : "";
 
       var endNudge = this._getEndNudgePriority();
+      var waitlistHtml = "";
+      if (this._store("shouldShowWaitlistNow", {
+        screen: STATES.END,
+        inRun: false,
+        premium: premium,
+        balance: balance,
+        isSprint: isSprint,
+        postPaywallActive: (!premium && !isSprint && balance <= 0),
+        showStatsPrompt: !!endNudge.showStatsPrompt,
+        showShare: !!endNudge.showShare
+      })) {
+        var wl = (w && w.waitlist) ? w.waitlist : {};
+        var wlTitle = String(wl.title || "").trim();
+        var wlBody = String(wl.bodyLine1 || "").trim();
+        var wlCta = String(wl.cta || "").trim();
+        if (wlTitle && wlCta) {
+          waitlistHtml = '<div class="kr-box kr-box--tinted">';
+          waitlistHtml += '<p><strong>' + escapeHtml(wlTitle) + '</strong></p>';
+          if (wlBody) waitlistHtml += '<p class="kr-muted">' + escapeHtml(wlBody) + '</p>';
+          waitlistHtml += '<button class="kr-btn kr-btn--secondary" data-action="waitlist">' + escapeHtml(wlCta) + '</button>';
+          waitlistHtml += '</div>';
+        }
+      }
+
       var ctasHtml = "";
       if (isSprint) {
         ctasHtml =
@@ -355,7 +419,7 @@
         if (newBest) ctaText = ew.playAgainAfterBest || ew.playAgain || "";
         else if (bestSmashes > 0 && last.smashes > 0) {
           var nearGap = bestSmashes - last.smashes;
-          if (nearGap > 0 && nearGap <= 5) ctaText = ew.playAgainNearBest || ew.playAgain || "";
+          if (nearGap > 0 && nearGap <= playAgainNearBestGapMax) ctaText = ew.playAgainNearBest || ew.playAgain || "";
         }
         ctasHtml = '<button class="kr-btn kr-btn--primary" data-action="play-again">' + escapeHtml(ctaText) + '</button>';
       }
@@ -364,7 +428,9 @@
       var isDaily = !!(last && last.isDaily === true);
       if (cfg?.share?.enabled && endNudge.showShare) {
         var shareBtnClass = isDaily ? "kr-btn kr-btn--primary" : "kr-btn kr-btn--secondary";
-        var shareLabel = isDaily ? "Share daily score" : escapeHtml((w?.share || {}).ctaLabel || "");
+        var shareLabel = isDaily
+          ? escapeHtml((w?.share || {}).ctaDailyLabel || (w?.share || {}).ctaLabel || "")
+          : escapeHtml((w?.share || {}).ctaLabel || "");
         shareHtml = '<div class="kr-share-row">' +
           '<button class="' + shareBtnClass + '" data-action="share">' + shareLabel + '</button>' +
           '<button class="kr-btn kr-btn--secondary" data-action="share-email" aria-label="' + escapeHtml((w?.share || {}).emailAria || "") + '">\u2709</button>' +
@@ -372,10 +438,24 @@
       }
 
       if (cfg?.share?.enabled && endNudge.autoShare) {
-        var autoShareScore = newBest ? 5 : (isDaily ? 3 : 999999);
+        var autoShareScore = newBest
+          ? requiredConfigNumber(cfg?.share?.autoOpenNewBestScoreMin, "KR_CONFIG.share.autoOpenNewBestScoreMin", { min: 1, integer: true })
+          : (isDaily
+              ? requiredConfigNumber(cfg?.share?.autoOpenDailyScoreMin, "KR_CONFIG.share.autoOpenDailyScoreMin", { min: 1, integer: true })
+              : 999999);
         if (last.smashes >= autoShareScore) {
           var self = this;
-          setTimeout(function () { self._showShareCardModal(); }, 1200);
+          if (this._runtime && this._runtime.shareCardAutoOpenTimer) {
+            clearTimeout(this._runtime.shareCardAutoOpenTimer);
+            this._runtime.shareCardAutoOpenTimer = null;
+          }
+          if (this._runtime) {
+            var autoOpenDelayMs = requiredConfigNumber(cfg?.share?.autoOpenDelayMs, "KR_CONFIG.share.autoOpenDelayMs", { min: 0, integer: true });
+            this._runtime.shareCardAutoOpenTimer = setTimeout(function () {
+              self._runtime.shareCardAutoOpenTimer = null;
+              self._showShareCardModal();
+            }, autoOpenDelayMs);
+          }
         }
       }
 
@@ -392,11 +472,12 @@
             '<p class="kr-muted">' + bestLine + '</p>' +
             streakHtml +
             highlightHtml +
+            '<div class="kr-actions kr-actions--stack">' + ctasHtml + shareHtml + '</div>' +
             debriefHtml +
             challengeHtml +
+            waitlistHtml +
             freeRunHtml +
             sprintFreeHtml +
-            '<div class="kr-actions kr-actions--stack">' + ctasHtml + shareHtml + '</div>' +
           '</div>' +
         '</div>';
 
