@@ -104,11 +104,11 @@
     landing: {
       title: "Kitchen Rush",
       tagline: "Fast pickleball arcade.",
-      subtitle: "Move into range. Time your hit. Let Kitchen balls bounce. 3 lives.",
+      subtitle: "Move, time your hit, let Kitchen balls bounce. 3 lives.",
 
       // Daily challenge badge (shown when daily.enabled)
       dailyBadge: "Daily Challenge",
-      dailyExplain: "One shared challenge each day. Uses 1 run.",
+      dailyExplain: "One shared challenge each day.",
       classicUnlockHint: "Classic is always available.",
       ctaPlayDaily: "Play Daily Challenge",
 
@@ -119,7 +119,7 @@
       bestAriaTemplate: "Personal best: {best} Smashes",
       bestTargetTemplate: "Can you reach {target}?",
       premiumLabel: "Unlimited runs on this device",
-      powerTease: "Longer runs unlock power balls and bonus boosts.",
+      powerTease: "Longer runs unlock powers.",
       nextPowerLabel: "Next power",
       nextPowerTemplate: "{power} at {score} hits",
       weeklyPowerLabel: "This week",
@@ -138,7 +138,7 @@
 
       // Post-paywall + secret bonus hint
       postPaywallSbTitle: "Before you decide...",
-      postPaywallSbBody: "You've got a secret mode to find. Look for the \uD83C\uDF81."
+      postPaywallSbBody: "You've got a secret mode to find. Look for the power ball."
     },
 
 

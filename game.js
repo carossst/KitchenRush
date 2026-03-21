@@ -110,6 +110,10 @@
     FAULTED: "FAULTED"
   };
 
+  function isSwingState(state) {
+    return state === "swing" || state === "swingForehand" || state === "swingBackhand";
+  }
+
 
   // ============================================
   // Daily Challenge Modifiers
@@ -162,7 +166,11 @@
       arcDepthWeight: reqNum(t.arcDepthWeight, "game.trajectory.arcDepthWeight", { min: 0, max: 1 }),
       descentPower: reqNum(t.descentPower, "game.trajectory.descentPower", { min: 0.1, max: 4 }),
       returnArcScale: reqNum(t.returnArcScale, "game.trajectory.returnArcScale", { min: 0.1, max: 2 }),
-      returnTravelScale: reqNum(t.returnTravelScale, "game.trajectory.returnTravelScale", { min: 0.1, max: 2 })
+      returnTravelScale: reqNum(t.returnTravelScale, "game.trajectory.returnTravelScale", { min: 0.1, max: 2 }),
+      bounceForwardCarryFrac: reqNum(t.bounceForwardCarryFrac, "game.trajectory.bounceForwardCarryFrac", { min: 0, max: 1 }),
+      bounceLateralCarryFrac: reqNum(t.bounceLateralCarryFrac, "game.trajectory.bounceLateralCarryFrac", { min: 0, max: 1 }),
+      bounceCarryEase: reqNum(t.bounceCarryEase, "game.trajectory.bounceCarryEase", { min: 0.2, max: 6 }),
+      bounceSecondHopTimeFrac: reqNum(t.bounceSecondHopTimeFrac, "game.trajectory.bounceSecondHopTimeFrac", { min: 0.1, max: 1 })
     };
   }
 
@@ -387,6 +395,26 @@
     // Travel duration
     var d = Math.sqrt(Math.pow(targetX - startX, 2) + Math.pow(targetY - startY, 2));
     var travelMs = Math.max(300, (d / speed) * 16.67);
+    var bounceForwardCarryFrac = trajectoryCfg.bounceForwardCarryFrac;
+    var bounceLateralCarryFrac = trajectoryCfg.bounceLateralCarryFrac;
+    if (ballType === "dink") {
+      bounceForwardCarryFrac *= 0.7;
+      bounceLateralCarryFrac *= 0.7;
+    } else if (ballType === "lob") {
+      bounceForwardCarryFrac *= 0.8;
+      bounceLateralCarryFrac *= 0.85;
+    } else if (ballType === "fast") {
+      bounceForwardCarryFrac *= 1.15;
+      bounceLateralCarryFrac *= 1.08;
+    } else if (ballType === "skid") {
+      bounceForwardCarryFrac *= 1.45;
+      bounceLateralCarryFrac *= 1.2;
+    } else if (ballType === "heavy") {
+      bounceForwardCarryFrac *= 1.08;
+      bounceLateralCarryFrac *= 0.95;
+    }
+    var bounceCarryX = (targetX - startX) * bounceLateralCarryFrac;
+    var bounceCarryY = Math.max(0, targetY - startY) * bounceForwardCarryFrac;
 
     return {
       id: ++_nextBallId,
@@ -415,6 +443,12 @@
           : 1),
       bounceAnimMs: Math.floor(reqNum(config.canvas.bounceAnimMs, "canvas.bounceAnimMs", { min: 1 })),
       bounceSecondHopScale: reqNum(config.canvas.bounceSecondHopScale, "canvas.bounceSecondHopScale", { min: 0, max: 1 }),
+      bounceSecondHopTimeFrac: trajectoryCfg.bounceSecondHopTimeFrac,
+      bounceCarryEase: trajectoryCfg.bounceCarryEase,
+      bounceCarryX: bounceCarryX,
+      bounceCarryY: bounceCarryY,
+      groundX: targetX,
+      groundY: targetY,
       returnStartX: 0, returnStartY: 0,
       returnTargetX: 0, returnTargetY: 0,
       returnArcHeight: 0, returnTravelMs: 0,
@@ -492,11 +526,17 @@
 
     if (ball.state === BALL_STATES.BOUNCED) {
       var sinceBounce = gt - ball.bouncedAt;
-      var bounceAnim = 0;
       var primaryAnimMs = ball.bounceAnimMs || 250;
-      var secondaryAnimMs = Math.max(1, Math.round(primaryAnimMs * 0.6));
+      var secondaryAnimMs = Math.max(1, Math.round(primaryAnimMs * (Number.isFinite(ball.bounceSecondHopTimeFrac) ? ball.bounceSecondHopTimeFrac : 0.6)));
       var bounceHeight = Number.isFinite(ball.bounceHeightPx) ? ball.bounceHeightPx : 40;
       var secondHopScale = Number.isFinite(ball.bounceSecondHopScale) ? ball.bounceSecondHopScale : 0.22;
+      var totalBounceMs = primaryAnimMs + secondaryAnimMs;
+      var carryProgress = clamp(sinceBounce / totalBounceMs, 0, 1);
+      var carryEase = Number.isFinite(ball.bounceCarryEase) ? ball.bounceCarryEase : 2;
+      var carryT = 1 - Math.pow(1 - carryProgress, carryEase);
+      var groundX = ball.targetX + (ball.bounceCarryX || 0) * carryT;
+      var groundY = ball.targetY + (ball.bounceCarryY || 0) * carryT;
+      var bounceAnim = 0;
       // Primary hop
       if (sinceBounce < primaryAnimMs) {
         var bt = sinceBounce / primaryAnimMs;
@@ -510,7 +550,16 @@
       // Squash factor for renderer (0-1, 1=max squash at impact)
       var squash = 0;
       if (sinceBounce < 60) squash = 1 - (sinceBounce / 60);
-      return { x: ball.targetX, y: ball.targetY + bounceAnim, t: 1, squash: squash };
+      return {
+        x: groundX,
+        y: groundY + bounceAnim,
+        groundX: groundX,
+        groundY: groundY,
+        landX: ball.targetX,
+        landY: ball.targetY,
+        t: 1,
+        squash: squash
+      };
     }
 
     if (ball.state === BALL_STATES.HIT) {
@@ -730,7 +779,7 @@
       }
 
       // Player state
-      if (r.playerState !== "swing") {
+      if (!isSwingState(r.playerState)) {
         if (moving) {
           if (r.input.left && !r.input.right) r.playerState = "runLeft";
           else if (r.input.right && !r.input.left) r.playerState = "runRight";
@@ -742,10 +791,10 @@
         }
       }
 
-      if (r.playerState === "swing" && gameTime() > r.playerSwingUntil) {
+      if (isSwingState(r.playerState) && gameTime() > r.playerSwingUntil) {
         r.playerState = "idle";
       }
-      if (r.opponentState === "swing" && gameTime() > r.opponentSwingUntil) {
+      if (isSwingState(r.opponentState) && gameTime() > r.opponentSwingUntil) {
         r.opponentState = "idle";
       }
 
@@ -787,6 +836,8 @@
       var pos = getBallPosition(ball, gameTime());
       ball.x = pos.x;
       ball.y = pos.y;
+      ball.groundX = Number.isFinite(pos.groundX) ? pos.groundX : ball.x;
+      ball.groundY = Number.isFinite(pos.groundY) ? pos.groundY : ball.targetY;
       ball.squash = pos.squash || 0; // V3: bounce squash for renderer
 
       // ── Ball state machine ──
@@ -1075,7 +1126,7 @@
       if (r.doubleBouncePhase === 0) r.doubleBouncePhase = 1;
       r.lastTimingBonus = timingBonus;
 
-      r.playerState = "swing";
+      r.playerState = (ball.x < r.playerX) ? "swingBackhand" : "swingForehand";
       r.playerSwingUntil = gameTime() + 250;
 
       // Return trajectory
@@ -1111,7 +1162,7 @@
       var d = dist(r.playerX, r.playerY, ball.x, ball.y);
       if (d > hitRange * 1.2) {
         // Too far — whiff
-        r.playerState = "swing";
+        r.playerState = (ball.x < r.playerX) ? "swingBackhand" : "swingForehand";
         r.playerSwingUntil = gameTime() + 200;
         return;
       }
@@ -1161,7 +1212,7 @@
       }
 
       r.waitUntil = r.elapsedMs + 600;
-      r.playerState = "swing";
+      r.playerState = "swingForehand";
       r.playerSwingUntil = gameTime() + 300;
     }
 
@@ -1174,7 +1225,7 @@
 
       r.opponentX = ball.startX;
       r.opponentTargetX = ball.startX;
-      r.opponentState = "swing";
+      r.opponentState = (ball.targetX < r.opponentX) ? "swingBackhand" : "swingForehand";
       r.opponentSwingUntil = r.elapsedMs + Math.floor(reqNum(r.config?.ui?.opponentSwingMs, "ui.opponentSwingMs", { min: 1 }));
 
       if (r.totalSpawned < r.onboardingShield) {
@@ -1230,6 +1281,10 @@
         ballState = {
           id: b.id,
           x: b.x, y: b.y,
+          groundX: Number.isFinite(b.groundX) ? b.groundX : b.x,
+          groundY: Number.isFinite(b.groundY) ? b.groundY : b.targetY,
+          landX: b.targetX,
+          landY: b.targetY,
           radius: b.radius,
           inKitchen: b.inKitchen,
           ballType: b.ballType || "normal",

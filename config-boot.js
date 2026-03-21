@@ -195,6 +195,10 @@
         reqNum(trajectory.descentPower, "KR_CONFIG.game.trajectory.descentPower", { min: 0.8, max: 2 });
         reqNum(trajectory.returnArcScale, "KR_CONFIG.game.trajectory.returnArcScale", { min: 0.1, max: 2 });
         reqNum(trajectory.returnTravelScale, "KR_CONFIG.game.trajectory.returnTravelScale", { min: 0.1, max: 2 });
+        reqNum(trajectory.bounceForwardCarryFrac, "KR_CONFIG.game.trajectory.bounceForwardCarryFrac", { min: 0, max: 1 });
+        reqNum(trajectory.bounceLateralCarryFrac, "KR_CONFIG.game.trajectory.bounceLateralCarryFrac", { min: 0, max: 1 });
+        reqNum(trajectory.bounceCarryEase, "KR_CONFIG.game.trajectory.bounceCarryEase", { min: 0.2, max: 6 });
+        reqNum(trajectory.bounceSecondHopTimeFrac, "KR_CONFIG.game.trajectory.bounceSecondHopTimeFrac", { min: 0.1, max: 1 });
       }
       if (game.ballTypes != null) {
         reqObj(game.ballTypes, "KR_CONFIG.game.ballTypes");
@@ -295,6 +299,7 @@
           const view = reqObj(views[key], "KR_CONFIG.canvas.views." + key);
           reqNum(view.opponentCourtScale, "KR_CONFIG.canvas.views." + key + ".opponentCourtScale", { min: 0.1, max: 1 });
           reqNum(view.cameraPerspectivePower, "KR_CONFIG.canvas.views." + key + ".cameraPerspectivePower", { min: 1, max: 3 });
+          reqNum(view.opponentPerspectivePower, "KR_CONFIG.canvas.views." + key + ".opponentPerspectivePower", { min: 1, max: 2 });
           reqNum(view.nearSidelineInsetFrac, "KR_CONFIG.canvas.views." + key + ".nearSidelineInsetFrac", { min: 0.01, max: 0.3 });
           reqNum(view.netSidelineInsetFrac, "KR_CONFIG.canvas.views." + key + ".netSidelineInsetFrac", { min: 0.05, max: 0.4 });
           reqNum(view.farSidelineInsetFrac, "KR_CONFIG.canvas.views." + key + ".farSidelineInsetFrac", { min: 0.1, max: 0.45 });
@@ -313,8 +318,14 @@
       reqNum(canvas.actorIdleBreathePx, "KR_CONFIG.canvas.actorIdleBreathePx", { min: 0, max: 12 });
       reqNum(canvas.playerRunLeanPx, "KR_CONFIG.canvas.playerRunLeanPx", { min: 0, max: 20 });
       reqNum(canvas.playerSwingArcScale, "KR_CONFIG.canvas.playerSwingArcScale", { min: 0.5, max: 3 });
+      reqNum(canvas.playerForehandTwistPx, "KR_CONFIG.canvas.playerForehandTwistPx", { min: 0, max: 20 });
+      reqNum(canvas.playerBackhandTwistPx, "KR_CONFIG.canvas.playerBackhandTwistPx", { min: 0, max: 24 });
+      reqNum(canvas.playerStanceWidthPx, "KR_CONFIG.canvas.playerStanceWidthPx", { min: 0, max: 20 });
       reqNum(canvas.opponentReadyOffsetPx, "KR_CONFIG.canvas.opponentReadyOffsetPx", { min: 0, max: 12 });
       reqNum(canvas.opponentSwingArcScale, "KR_CONFIG.canvas.opponentSwingArcScale", { min: 0.5, max: 3 });
+      reqNum(canvas.opponentForehandTwistPx, "KR_CONFIG.canvas.opponentForehandTwistPx", { min: 0, max: 20 });
+      reqNum(canvas.opponentBackhandTwistPx, "KR_CONFIG.canvas.opponentBackhandTwistPx", { min: 0, max: 24 });
+      reqNum(canvas.opponentStanceWidthPx, "KR_CONFIG.canvas.opponentStanceWidthPx", { min: 0, max: 20 });
       reqNum(canvas.playerPaddleWidthPx, "KR_CONFIG.canvas.playerPaddleWidthPx", { min: 1, max: 32 });
       reqNum(canvas.playerPaddleHeightPx, "KR_CONFIG.canvas.playerPaddleHeightPx", { min: 1, max: 48 });
       reqNum(canvas.playerPaddleCornerPx, "KR_CONFIG.canvas.playerPaddleCornerPx", { min: 0, max: 12 });

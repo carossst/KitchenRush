@@ -139,6 +139,7 @@
       var balance = this._store("getRunsBalance") || 0;
       var counters = this._store("getCounters") || {};
       var runCompletes = counters.runCompletes || 0;
+      var isFirstLanding = runCompletes <= 0;
 
       var ctaLabel = (runCompletes > 0)
         ? escapeHtml(lw.ctaPlayAfterFirstRun || lw.ctaPlay || "")
@@ -153,7 +154,7 @@
         ? '<p class="kr-chest-hint-inline kr-muted">' + escapeHtml((w?.sprint || {}).chestHint || "") + '</p>' : "";
 
       var bestHtml = "";
-      if (best > 0) {
+      if (best > 0 && !isFirstLanding) {
         var targetSmashes = best + 1;
         var targetMsg = String(lw.bestTargetTemplate || "").trim();
         if (targetMsg) {
@@ -174,7 +175,7 @@
       }
 
       var sparkHtml = "";
-      if (cfg?.landingStats?.enabled) {
+      if (!isFirstLanding && cfg?.landingStats?.enabled) {
         var count = Number(cfg.landingStats.sparkRunsCount) || 5;
         var lastRuns = this._store("getLastRuns", count) || [];
         if (lastRuns.length > 0) {
@@ -209,7 +210,7 @@
         if (storedRuns.length > 0) recentRun = normalizeStoredRun(storedRuns[0]);
         if (storedRuns.length > 1) priorRun = normalizeStoredRun(storedRuns[1]);
       }
-      if (recentRun && best > 0 && (premium || balance > 0)) {
+      if (!isFirstLanding && recentRun && best > 0 && (premium || balance > 0)) {
         var lch = (w?.challenges) || {};
         var lcCfg = (cfg?.challenges) || {};
         var recentImprove = getRunImprovement(recentRun, priorRun, lcCfg);
@@ -233,7 +234,7 @@
         if (ulLabel) premiumLabelHtml = '<p class="kr-muted">' + escapeHtml(ulLabel) + '</p>';
       }
       var powerTeaseHtml = "";
-      if (runCompletes < 4) {
+      if (!isFirstLanding && runCompletes < 4) {
         var powerTease = String(lw.powerTease || "").trim();
         if (powerTease) powerTeaseHtml = '<p class="kr-muted kr-landing-next-power">' + escapeHtml(powerTease) + '</p>';
       }
@@ -249,7 +250,7 @@
       var nextPowerUp = getNextPowerUpUnlock(cfg, this._getPowerUpLabel.bind(this), progressionScore, progressionMeta);
       var nextPower = nextBallPower;
       if (nextPowerUp && (!nextPower || nextPowerUp.score < nextPower.score)) nextPower = nextPowerUp;
-      if (nextPower) {
+      if (!isFirstLanding && nextPower) {
         var npLabel = String(lw.nextPowerLabel || "").trim();
         var npText = fillTemplate(String(lw.nextPowerTemplate || "").trim(), { power: nextPower.label, score: nextPower.score });
         if (npLabel && npText) {
@@ -259,7 +260,7 @@
       var weeklyPowerHtml = "";
       var featuredPowerKey = String(this._getFeaturedPowerKey() || "").trim();
       var featuredPowerLabel = String(this._getPowerUpLabel(featuredPowerKey) || "").trim();
-      if (featuredPowerLabel) {
+      if (!isFirstLanding && featuredPowerLabel) {
         var weeklyLabel = String(lw.weeklyPowerLabel || "").trim();
         var weeklyText = fillTemplate(String(lw.weeklyPowerTemplate || "").trim(), { power: featuredPowerLabel });
         if (weeklyLabel && weeklyText) {
@@ -327,7 +328,7 @@
         }
       }
 
-      var primaryLandingNudgeHtml = postPaywallHtml || waitlistHtml || houseAdHtml || landingChallengeHtml || powerBallHintHtml;
+      var primaryLandingNudgeHtml = postPaywallHtml || waitlistHtml || houseAdHtml || landingChallengeHtml || (isFirstLanding ? "" : powerBallHintHtml);
       var showLandingMeta = !primaryLandingNudgeHtml;
       var landingMetaHtml = "";
       if (showLandingMeta) {
@@ -345,14 +346,14 @@
           dailyHtml += '<span class="kr-daily-badge-icon">📅</span>';
           dailyHtml += '<span class="kr-daily-badge-label">' + escapeHtml(dailyLabel) + '</span>';
           dailyHtml += '</button>';
-          if (dailyExplain) dailyHtml += '<p class="kr-daily-explain kr-muted">' + escapeHtml(dailyExplain) + '</p>';
+          if (dailyExplain && !isFirstLanding) dailyHtml += '<p class="kr-daily-explain kr-muted">' + escapeHtml(dailyExplain) + '</p>';
         }
         classicHtml = '<div class="kr-actions kr-actions--primary-zone">' +
           '<button class="kr-btn kr-btn--primary" data-action="play">' + ctaLabel + '</button>' +
         '</div>';
         if (!this._hasCompletedDailyToday()) {
           var classicHint = String(lw.classicUnlockHint || "").trim();
-          if (classicHint) classicHtml += '<p class="kr-landing-classic-hint kr-muted">' + escapeHtml(classicHint) + '</p>';
+          if (classicHint && !isFirstLanding) classicHtml += '<p class="kr-landing-classic-hint kr-muted">' + escapeHtml(classicHint) + '</p>';
         }
       } else {
         classicHtml = '<div class="kr-actions kr-actions--primary-zone">' +

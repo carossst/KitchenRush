@@ -413,7 +413,10 @@ void function () {
     var next = (current === "player") ? "broadcast" : "player";
     this._setMatchView(next);
     if (this.state === STATES.PLAYING) {
-      this._renderHUDV2(this.game.getState());
+      var state = this.game.getState();
+      this._renderCanvasV2(state);
+      this._renderHUDV2(state);
+      this._checkGameEventsV2(state);
     }
   };
 
@@ -900,6 +903,7 @@ void function () {
     if (!viewCfg || typeof viewCfg !== "object") throw new Error("canvas.views." + activeView + " missing");
     var oppScale = requiredConfigNumber(viewCfg.opponentCourtScale, "canvas.views." + activeView + ".opponentCourtScale", { min: 0.1, max: 1 });
     var cameraPerspectivePower = requiredConfigNumber(viewCfg.cameraPerspectivePower, "canvas.views." + activeView + ".cameraPerspectivePower", { min: 1, max: 3 });
+    var opponentPerspectivePower = requiredConfigNumber(viewCfg.opponentPerspectivePower, "canvas.views." + activeView + ".opponentPerspectivePower", { min: 1, max: 2 });
     var sidelineInsetFrac = requiredConfigNumber(this.config?.canvas?.sidelineInsetFrac, "canvas.sidelineInsetFrac", { min: 0.01, max: 0.3 });
     var nearSidelineInsetFrac = requiredConfigNumber(viewCfg.nearSidelineInsetFrac, "canvas.views." + activeView + ".nearSidelineInsetFrac", { min: 0.01, max: 0.3 });
     var netSidelineInsetFrac = requiredConfigNumber(viewCfg.netSidelineInsetFrac, "canvas.views." + activeView + ".netSidelineInsetFrac", { min: 0.05, max: 0.4 });
@@ -946,14 +950,13 @@ void function () {
       return a + (b - a) * t;
     }
 
-    function depthFromWorldY(worldY) {
-      return Math.max(0, Math.min(1, (worldY - worldOppBaselineYpx) / Math.max(1, worldBaselineYpx - worldOppBaselineYpx)));
-    }
-
     function projectCourtY(worldY) {
-      var depth = depthFromWorldY(worldY);
-      var projectedDepth = Math.pow(depth, cameraPerspectivePower);
-      return lerpNum(worldOppBaselineYpx, worldBaselineYpx, projectedDepth);
+      if (worldY >= worldNetYpx) {
+        var nearDepth = Math.max(0, Math.min(1, (worldY - worldNetYpx) / Math.max(1, worldBaselineYpx - worldNetYpx)));
+        return lerpNum(worldNetYpx, worldBaselineYpx, Math.pow(nearDepth, cameraPerspectivePower));
+      }
+      var farDepth = Math.max(0, Math.min(1, (worldNetYpx - worldY) / Math.max(1, worldNetYpx - worldOppBaselineYpx)));
+      return lerpNum(worldNetYpx, worldOppBaselineYpx, Math.pow(farDepth, opponentPerspectivePower));
     }
 
     function edgesAtWorldY(worldY) {
@@ -1007,7 +1010,11 @@ void function () {
     }
 
     function depthRatioAtY(worldY) {
-      return depthFromWorldY(worldY);
+      if (worldY >= worldNetYpx) {
+        return Math.max(0, Math.min(1, (worldY - worldNetYpx) / Math.max(1, worldBaselineYpx - worldNetYpx)));
+      }
+      var farDepth = Math.max(0, Math.min(1, (worldNetYpx - worldY) / Math.max(1, worldNetYpx - worldOppBaselineYpx)));
+      return 1 - (farDepth * oppScale);
     }
 
     // Screen shake
@@ -1092,7 +1099,7 @@ void function () {
     var netYpx = projectCourtY(worldNetYpx);
     var kitchenLineYpx = projectCourtY(worldKitchenLineYpx);
     var baselineYpx = projectCourtY(worldBaselineYpx);
-    var playerYpx = projectCourtY(worldPlayerYpx);
+    var playerYpx = projectCourtY(state.playerY);
     var opponentYpx = projectCourtY(worldOpponentYpx);
     var oppKitchenLineYpx = projectCourtY(worldOppKitchenLineYpx);
     var oppBaselineYpx = projectCourtY(worldOppBaselineYpx);
@@ -1175,7 +1182,7 @@ void function () {
     if (ball) {
       var BALL_STATES = this.gameApi && this.gameApi.BALL_STATES;
       renderBall = Object.assign({}, ball);
-      var groundY = ball.targetY;
+      var groundY = Number.isFinite(ball.groundY) ? ball.groundY : ball.targetY;
       if (BALL_STATES && ball.state === BALL_STATES.TRAVELING) {
         var tTravel = Math.max(0, Math.min(1, (gt - ball.spawnedAt) / Math.max(1, ball.travelMs)));
         var yTravelT = Math.pow(tTravel, Number.isFinite(ball.descentPower) ? ball.descentPower : 1);
@@ -1193,10 +1200,15 @@ void function () {
       var ballScreenScale = lerpNum(ballDepthScaleFar, ballDepthScaleNear, ballDepthRatioNear);
       var heightScreenScale = lerpNum(ballHeightScaleFar, ballHeightScaleNear, ballDepthRatioNear);
       var screenGroundY = projectCourtY(groundY);
+      var projectedGroundX = projectX(Number.isFinite(ball.groundX) ? ball.groundX : ball.targetX, groundY);
       renderBall.x = projectX(ball.x, groundY);
       renderBall.y = screenGroundY - ballHeightPx * heightScreenScale;
+      renderBall.groundX = projectedGroundX;
+      renderBall.groundY = screenGroundY;
       renderBall.targetX = projectX(ball.targetX, ball.targetY);
       renderBall.targetY = projectCourtY(ball.targetY);
+      renderBall.landX = projectX(Number.isFinite(ball.landX) ? ball.landX : ball.targetX, Number.isFinite(ball.landY) ? ball.landY : ball.targetY);
+      renderBall.landY = projectCourtY(Number.isFinite(ball.landY) ? ball.landY : ball.targetY);
       renderBall.startX = projectX(ball.startX, ball.startY);
       renderBall.startY = projectCourtY(ball.startY);
       renderBall.shadowY = screenGroundY;
@@ -1530,6 +1542,10 @@ void function () {
       perfTier < perfCfg.hideSpecialBallBadgesAtTier &&
       !(mustBounceReason === "kitchen" && b.state === BALL_STATES.TRAVELING)
     );
+    var bounceLandX = Number.isFinite(b.landX) ? b.landX : b.targetX;
+    var bounceLandY = Number.isFinite(b.landY) ? b.landY : b.targetY;
+    var bounceGroundX = Number.isFinite(b.groundX) ? b.groundX : bounceLandX;
+    var bounceGroundY = Number.isFinite(b.groundY) ? b.groundY : bounceLandY;
 
     // V3: Show "MUST BOUNCE" indicator from the explicit ball state.
     var mustBounce = !!b.mustBounce;
@@ -1558,7 +1574,7 @@ void function () {
       ctx.strokeStyle = markerColor;
       ctx.lineWidth = ((b.state === BALL_STATES.LANDED) ? 3 : 2) * markerScale;
       ctx.beginPath();
-      ctx.arc(b.targetX, b.targetY, markerRadius, 0, Math.PI * 2);
+      ctx.arc(bounceLandX, bounceLandY, markerRadius, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
@@ -1570,8 +1586,8 @@ void function () {
       var shadowAlpha = 0.12 + shadowProgress * 0.28;
       var shadowW = b.radius * (shadowMinScale + shadowProgress * (shadowMaxScale - shadowMinScale));
       var shadowX = (b.state === BALL_STATES.TRAVELING)
-        ? (b.x + (b.targetX - b.x) * 0.45)
-        : b.targetX;
+        ? (b.x + (bounceLandX - b.x) * 0.45)
+        : bounceGroundX;
       ctx.globalAlpha = shadowAlpha;
       ctx.fillStyle = colors.shadow;
       ctx.beginPath();
@@ -1756,7 +1772,7 @@ void function () {
           ctx.strokeStyle = rgbaFromTuple(colors.whiteRgb, shockAlpha);
           ctx.lineWidth = Math.max(0.5, (3 - shockT * 2) * markerScale);
           ctx.beginPath();
-          ctx.arc(b.targetX, b.targetY, b.radius + shockT * 35 * markerScale, 0, Math.PI * 2);
+          ctx.arc(bounceLandX, bounceLandY, b.radius + shockT * 35 * markerScale, 0, Math.PI * 2);
           ctx.stroke();
         }
 
@@ -1766,7 +1782,7 @@ void function () {
           ctx.globalAlpha = Math.max(0, 0.5 * (1 - impactT));
           ctx.fillStyle = b.inKitchen ? colors.kitchenLine : colors.highlightWhite;
           ctx.beginPath();
-          ctx.ellipse(b.targetX, b.targetY, b.radius * (1 + impactT * 0.5), b.radius * 0.3, 0, 0, Math.PI * 2);
+          ctx.ellipse(bounceLandX, bounceLandY, b.radius * (1 + impactT * 0.5), b.radius * 0.3, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.globalAlpha = 1;
         }
@@ -1783,7 +1799,7 @@ void function () {
               ctx.globalAlpha = Math.max(0, 0.6 * (1 - dustT));
               ctx.fillStyle = rgbaFromTuple(colors.whiteRgb, 0.5);
               ctx.beginPath();
-              ctx.arc(b.targetX + Math.cos(dAngle) * dDist, b.targetY - Math.sin(dAngle) * dDist, dSize, 0, Math.PI * 2);
+              ctx.arc(bounceLandX + Math.cos(dAngle) * dDist, bounceLandY - Math.sin(dAngle) * dDist, dSize, 0, Math.PI * 2);
               ctx.fill();
             }
           }
@@ -1830,6 +1846,21 @@ void function () {
         ctx.arc(b.x, b.y, (b.radius + 6 * markerScale) * pulseScale, 0, Math.PI * 2);
         ctx.stroke();
         ctx.globalAlpha = 1;
+
+        var skidMag = Math.hypot(bounceGroundX - bounceLandX, bounceGroundY - bounceLandY);
+        if (skidMag > Math.max(8, b.radius * 1.5)) {
+          var dirX = (bounceGroundX - bounceLandX) / skidMag;
+          var dirY = (bounceGroundY - bounceLandY) / skidMag;
+          ctx.save();
+          ctx.globalAlpha = 0.22;
+          ctx.strokeStyle = b.inKitchen ? colors.kitchenLine : (colors.returnTrail || colors.trajectoryTrail || colors.bounceRing);
+          ctx.lineWidth = Math.max(1, b.radius * 0.35);
+          ctx.beginPath();
+          ctx.moveTo(b.x - dirX * (b.radius * 0.8), b.y - dirY * (b.radius * 0.5));
+          ctx.lineTo(b.x - dirX * (b.radius * 3.2), b.y - dirY * (b.radius * 1.3));
+          ctx.stroke();
+          ctx.restore();
+        }
       }
 
       // Ball with glow
@@ -1949,6 +1980,9 @@ void function () {
     var actorIdleBreathePx = requiredConfigNumber(this.config?.canvas?.actorIdleBreathePx, "canvas.actorIdleBreathePx", { min: 0, max: 12 });
     var playerRunLeanPx = requiredConfigNumber(this.config?.canvas?.playerRunLeanPx, "canvas.playerRunLeanPx", { min: 0, max: 20 });
     var playerSwingArcScale = requiredConfigNumber(this.config?.canvas?.playerSwingArcScale, "canvas.playerSwingArcScale", { min: 0.5, max: 3 });
+    var playerForehandTwistPx = requiredConfigNumber(this.config?.canvas?.playerForehandTwistPx, "canvas.playerForehandTwistPx", { min: 0, max: 20 });
+    var playerBackhandTwistPx = requiredConfigNumber(this.config?.canvas?.playerBackhandTwistPx, "canvas.playerBackhandTwistPx", { min: 0, max: 24 });
+    var playerStanceWidthPx = requiredConfigNumber(this.config?.canvas?.playerStanceWidthPx, "canvas.playerStanceWidthPx", { min: 0, max: 20 });
     var playerPaddleWidthPx = requiredConfigNumber(this.config?.canvas?.playerPaddleWidthPx, "canvas.playerPaddleWidthPx", { min: 1, max: 32 });
     var playerPaddleHeightPx = requiredConfigNumber(this.config?.canvas?.playerPaddleHeightPx, "canvas.playerPaddleHeightPx", { min: 1, max: 48 });
     var playerPaddleCornerPx = requiredConfigNumber(this.config?.canvas?.playerPaddleCornerPx, "canvas.playerPaddleCornerPx", { min: 0, max: 12 });
@@ -1971,10 +2005,16 @@ void function () {
     var breathe = Math.sin(t * 2) * actorIdleBreathePx; // idle breathing
     var runCycle = Math.sin(t * 12) * 0.5; // running leg cycle
     var isRunning = (pState === "runLeft" || pState === "runRight");
-    var isSwinging = (pState === "swing");
+    var isSwinging = (pState === "swing" || pState === "swingForehand" || pState === "swingBackhand");
+    var isBackhand = (pState === "swingBackhand");
     var readySet = isRunning ? 0 : 1;
     var swingSide = 1;
-    if (isSwinging && ball && Number.isFinite(ball.x) && ball.x < x) swingSide = -1;
+    if (isBackhand) swingSide = -1;
+    else if (isSwinging && ball && Number.isFinite(ball.x) && ball.x < x) swingSide = -1;
+    var torsoTwist = isSwinging ? S(isBackhand ? playerBackhandTwistPx : playerForehandTwistPx) * swingSide : 0;
+    var shoulderDrop = isSwinging ? S(isBackhand ? 1.8 : 1.1) : 0;
+    var stanceWidth = S(playerStanceWidthPx);
+    var hipShift = isRunning ? runCycle * stanceWidth : 0;
 
     // Lean when running
     var lean = 0;
@@ -1988,7 +2028,7 @@ void function () {
     ctx.globalAlpha = 0.2;
     ctx.fillStyle = rgbaFromTuple(colors.shadowRgb, 1);
     ctx.beginPath();
-    ctx.ellipse(0, S(22), S(14), S(4), 0, 0, Math.PI * 2);
+    ctx.ellipse(0, S(23), S(16), S(4.6), 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
 
@@ -1996,7 +2036,7 @@ void function () {
     ctx.globalAlpha = 0.18;
     ctx.fillStyle = pGlow;
     ctx.beginPath();
-    ctx.ellipse(0, S(-4), S(15), S(24), 0, 0, Math.PI * 2);
+    ctx.ellipse(0, S(-3), S(17), S(27), 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
 
@@ -2006,27 +2046,27 @@ void function () {
     var kneeLift = isRunning ? Math.max(0, runCycle) * S(2.8) : 0;
     // Left leg
     ctx.beginPath();
-    ctx.moveTo(S(-4), S(8));
-    ctx.quadraticCurveTo(S(-5) - legSpread, S(15) - kneeLift, S(-3) - legSpread, S(20));
-    ctx.lineTo(S(-1) - legSpread, S(20));
-    ctx.quadraticCurveTo(S(-2), S(14), S(-1), S(8));
+    ctx.moveTo(S(-4) - stanceWidth - hipShift * 0.2, S(8));
+    ctx.quadraticCurveTo(S(-5) - legSpread - stanceWidth, S(15) - kneeLift, S(-3) - legSpread - stanceWidth * 0.6, S(20));
+    ctx.lineTo(S(-1) - legSpread - stanceWidth * 0.55, S(20));
+    ctx.quadraticCurveTo(S(-2) - stanceWidth * 0.2, S(14), S(-1) - stanceWidth * 0.15, S(8));
     ctx.fill();
     // Right leg
     ctx.beginPath();
-    ctx.moveTo(S(4), S(8));
-    ctx.quadraticCurveTo(S(5) + legSpread, S(15) + kneeLift, S(3) + legSpread, S(20));
-    ctx.lineTo(S(1) + legSpread, S(20));
-    ctx.quadraticCurveTo(S(2), S(14), S(1), S(8));
+    ctx.moveTo(S(4) + stanceWidth - hipShift * 0.2, S(8));
+    ctx.quadraticCurveTo(S(5) + legSpread + stanceWidth, S(15) + kneeLift, S(3) + legSpread + stanceWidth * 0.6, S(20));
+    ctx.lineTo(S(1) + legSpread + stanceWidth * 0.55, S(20));
+    ctx.quadraticCurveTo(S(2) + stanceWidth * 0.2, S(14), S(1) + stanceWidth * 0.15, S(8));
     ctx.fill();
 
     // ── Body (torso — smooth curved shape) ──
     ctx.fillStyle = pColor;
     ctx.beginPath();
-    ctx.moveTo(S(-8), S(6)); // left hip
-    ctx.quadraticCurveTo(S(-10), S(-2), S(-7), S(-12) - S(readySet)); // left side up
-    ctx.quadraticCurveTo(S(-3), S(-16) + breathe - S(readySet * 1.4), 0, S(-16) + breathe - S(readySet * 1.4)); // left shoulder to center
-    ctx.quadraticCurveTo(S(3), S(-16) + breathe - S(readySet * 1.4), S(7), S(-12) - S(readySet)); // center to right shoulder
-    ctx.quadraticCurveTo(S(10), S(-2), S(8), S(6)); // right side down
+    ctx.moveTo(S(-9), S(6));
+    ctx.quadraticCurveTo(S(-12) - torsoTwist * 0.25, S(-2), S(-8.5) - torsoTwist * 0.35, S(-13.5) - S(readySet));
+    ctx.quadraticCurveTo(S(-4.2) - torsoTwist * 0.55, S(-18.5) + breathe - S(readySet * 1.4) - shoulderDrop, 0, S(-18.2) + breathe - S(readySet * 1.4));
+    ctx.quadraticCurveTo(S(4.2) + torsoTwist * 0.55, S(-18.5) + breathe - S(readySet * 1.4) + shoulderDrop * 0.3, S(8.5) + torsoTwist * 0.35, S(-13.5) - S(readySet));
+    ctx.quadraticCurveTo(S(12) + torsoTwist * 0.25, S(-2), S(9), S(6));
     ctx.closePath();
     ctx.fill();
 
@@ -2038,7 +2078,7 @@ void function () {
     // ── Head ──
     ctx.fillStyle = pColor;
     ctx.beginPath();
-    ctx.arc(0, S(-20), S(7), 0, Math.PI * 2);
+    ctx.arc(0, S(-22.5), S(7.8), 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = pOutline;
     ctx.lineWidth = S(playerOutlineWidth);
@@ -2047,13 +2087,14 @@ void function () {
     // Head highlight
     ctx.fillStyle = rgbaFromTuple(colors.whiteRgb, 0.2);
     ctx.beginPath();
-    ctx.arc(S(-2), S(-22), S(3), 0, Math.PI * 2);
+    ctx.arc(S(-2.2), S(-24.3), S(3.2), 0, Math.PI * 2);
     ctx.fill();
 
     // ── Paddle arm ──
-    var armBaseX = S(8 * swingSide);
-    var armBaseY = S(-8);
-    var paddleAngle = isSwinging ? (-0.95 + Math.sin(n / 50) * 0.45)
+    var armBaseX = S(8 * swingSide) + torsoTwist * 0.35;
+    var armBaseY = S(-8) - shoulderDrop * 0.45;
+    var paddleAngle = isSwinging
+      ? (isBackhand ? (0.62 + Math.sin(n / 50) * 0.35) : (-0.95 + Math.sin(n / 50) * 0.45))
       : isRunning ? (pState === "runLeft" ? 0.3 : -0.3)
       : -0.1 + breathe * 0.02;
 
@@ -2066,8 +2107,8 @@ void function () {
     ctx.fillStyle = pColor;
     ctx.beginPath();
     ctx.moveTo(0, S(-2));
-    ctx.quadraticCurveTo(S(8), S(-1), S(14), S(0));
-    ctx.lineTo(S(14), S(3));
+    ctx.quadraticCurveTo(S(8), S(-1.5), S(14), isBackhand ? S(1.5) : S(0));
+    ctx.lineTo(S(14), isBackhand ? S(4.2) : S(3));
     ctx.quadraticCurveTo(S(7), S(3), 0, S(2));
     ctx.fill();
 
@@ -2100,10 +2141,10 @@ void function () {
     // ── Off-arm (left, more relaxed) ──
     ctx.fillStyle = pColor;
     ctx.beginPath();
-    ctx.moveTo(S(-8), S(-8));
-    ctx.quadraticCurveTo(S(-14), S(-4), S(-12), S(2));
-    ctx.lineTo(S(-10), S(2));
-    ctx.quadraticCurveTo(S(-11), S(-3), S(-6), S(-6));
+    ctx.moveTo(S(-9) - torsoTwist * 0.25, S(-9) + shoulderDrop * 0.15);
+    ctx.quadraticCurveTo(S(-15) - torsoTwist * 0.3, S(-4), S(-13) - torsoTwist * 0.2, S(2.5));
+    ctx.lineTo(S(-10.5) - torsoTwist * 0.1, S(2.5));
+    ctx.quadraticCurveTo(S(-12) - torsoTwist * 0.15, S(-3), S(-6.8), S(-6.5));
     ctx.fill();
 
     // ── Motion trail when running ──
@@ -2133,7 +2174,11 @@ void function () {
       ctx.save();
       if (swingSide < 0) ctx.scale(-1, 1);
       ctx.beginPath();
-      ctx.arc(S(18), S(-6), (S(10) + swingPhase * S(15)) * playerSwingArcScale, -0.62, 0.95);
+      if (isBackhand) {
+        ctx.arc(S(10), S(-5), (S(8) + swingPhase * S(13)) * playerSwingArcScale, 2.4, 4.1);
+      } else {
+        ctx.arc(S(18), S(-6), (S(10) + swingPhase * S(15)) * playerSwingArcScale, -0.62, 0.95);
+      }
       ctx.stroke();
       ctx.restore();
       ctx.globalAlpha = 1;
@@ -2146,7 +2191,8 @@ void function () {
     var depthScale = Math.max(0.38, Math.min(1.2, Number(oppScale || 0.55) + 0.2));
     var scale = (Math.min(w, h) / 500) * depthScale;
     var S = function (v) { return v * scale; };
-    var isSwinging = (oState === "swing");
+    var isSwinging = (oState === "swing" || oState === "swingForehand" || oState === "swingBackhand");
+    var isBackhand = (oState === "swingBackhand");
     var swingBeat = isSwinging ? Math.sin((n / 1000) * 16) : 0;
     var armReach = isSwinging ? S(8 + swingBeat * 2) : S(4);
     var racketReach = isSwinging ? S(14 + swingBeat * 3) : S(8);
@@ -2154,13 +2200,19 @@ void function () {
     var actorIdleBreathePx = requiredConfigNumber(this.config?.canvas?.actorIdleBreathePx, "canvas.actorIdleBreathePx", { min: 0, max: 12 });
     var opponentReadyOffsetPx = requiredConfigNumber(this.config?.canvas?.opponentReadyOffsetPx, "canvas.opponentReadyOffsetPx", { min: 0, max: 12 });
     var opponentSwingArcScale = requiredConfigNumber(this.config?.canvas?.opponentSwingArcScale, "canvas.opponentSwingArcScale", { min: 0.5, max: 3 });
+    var opponentForehandTwistPx = requiredConfigNumber(this.config?.canvas?.opponentForehandTwistPx, "canvas.opponentForehandTwistPx", { min: 0, max: 20 });
+    var opponentBackhandTwistPx = requiredConfigNumber(this.config?.canvas?.opponentBackhandTwistPx, "canvas.opponentBackhandTwistPx", { min: 0, max: 24 });
+    var opponentStanceWidthPx = requiredConfigNumber(this.config?.canvas?.opponentStanceWidthPx, "canvas.opponentStanceWidthPx", { min: 0, max: 20 });
     var opponentPaddleWidthPx = requiredConfigNumber(this.config?.canvas?.opponentPaddleWidthPx, "canvas.opponentPaddleWidthPx", { min: 1, max: 32 });
     var opponentPaddleHeightPx = requiredConfigNumber(this.config?.canvas?.opponentPaddleHeightPx, "canvas.opponentPaddleHeightPx", { min: 1, max: 48 });
     var opponentPaddleCornerPx = requiredConfigNumber(this.config?.canvas?.opponentPaddleCornerPx, "canvas.opponentPaddleCornerPx", { min: 0, max: 12 });
     var opponentPaddleReachPx = requiredConfigNumber(this.config?.canvas?.opponentPaddleReachPx, "canvas.opponentPaddleReachPx", { min: 1, max: 40 });
     var breathe = Math.sin((n / 1000) * 2) * actorIdleBreathePx;
     var racketSide = 1;
-    if (ball && Number.isFinite(ball.x) && ball.x < x) racketSide = -1;
+    if (isBackhand) racketSide = -1;
+    else if (ball && Number.isFinite(ball.x) && ball.x < x) racketSide = -1;
+    var torsoTwist = isSwinging ? S(isBackhand ? opponentBackhandTwistPx : opponentForehandTwistPx) * racketSide : 0;
+    var stanceWidth = S(opponentStanceWidthPx);
 
     ctx.save();
     ctx.translate(x, y + S(opponentReadyOffsetPx) - S(isSwinging ? 0 : 0.6));
@@ -2168,7 +2220,7 @@ void function () {
     ctx.globalAlpha = 0.22;
     ctx.fillStyle = colors.opponentShadow;
     ctx.beginPath();
-    ctx.ellipse(0, S(18), S(12), S(3.2), 0, 0, Math.PI * 2);
+    ctx.ellipse(0, S(18.5), S(13.5), S(3.6), 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
 
@@ -2177,35 +2229,35 @@ void function () {
     ctx.lineWidth = S(opponentOutlineWidth);
 
     ctx.beginPath();
-    ctx.arc(0, S(-15) + S(breathe * 0.35), S(5.2), 0, Math.PI * 2);
+    ctx.arc(0, S(-16.8) + S(breathe * 0.35), S(5.8), 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(S(-6), S(4));
-    ctx.quadraticCurveTo(S(-8), S(-5), S(-5), S(-11));
-    ctx.quadraticCurveTo(S(-2), S(-14) + S(breathe * 0.2), 0, S(-14) + S(breathe * 0.2));
-    ctx.quadraticCurveTo(S(2), S(-14) + S(breathe * 0.2), S(5), S(-11));
-    ctx.quadraticCurveTo(S(8), S(-5), S(6), S(4));
-    ctx.quadraticCurveTo(S(3), S(8), 0, S(8));
-    ctx.quadraticCurveTo(S(-3), S(8), S(-6), S(4));
+    ctx.moveTo(S(-6.8), S(4));
+    ctx.quadraticCurveTo(S(-8.8) - torsoTwist * 0.25, S(-5.6), S(-5.8) - torsoTwist * 0.35, S(-12.2));
+    ctx.quadraticCurveTo(S(-2.5) - torsoTwist * 0.55, S(-15.6) + S(breathe * 0.2), 0, S(-15.4) + S(breathe * 0.2));
+    ctx.quadraticCurveTo(S(2.5) + torsoTwist * 0.55, S(-15.6) + S(breathe * 0.2), S(5.8) + torsoTwist * 0.35, S(-12.2));
+    ctx.quadraticCurveTo(S(8.8) + torsoTwist * 0.25, S(-5.6), S(6.8), S(4));
+    ctx.quadraticCurveTo(S(3.5), S(8.5), 0, S(8.5));
+    ctx.quadraticCurveTo(S(-3.5), S(8.5), S(-6.8), S(4));
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(S(-5), S(8));
-    ctx.lineTo(S(-2), S(18));
+    ctx.moveTo(S(-5) - stanceWidth, S(8));
+    ctx.lineTo(S(-2) - stanceWidth * 0.7, S(18));
     ctx.lineTo(S(0), S(8));
-    ctx.lineTo(S(2), S(18));
-    ctx.lineTo(S(5), S(8));
+    ctx.lineTo(S(2) + stanceWidth * 0.7, S(18));
+    ctx.lineTo(S(5) + stanceWidth, S(8));
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(S(5 * -racketSide), S(-5));
-    ctx.lineTo(S(9 * -racketSide), S(1));
-    ctx.moveTo(S(5 * racketSide), S(-5));
-    ctx.lineTo(armReach * racketSide, S(-6));
+    ctx.moveTo(S(5 * -racketSide) - torsoTwist * 0.15, S(-5));
+    ctx.lineTo(S(9 * -racketSide) - torsoTwist * 0.2, S(1));
+    ctx.moveTo(S(5 * racketSide) + torsoTwist * 0.2, S(-5));
+    ctx.lineTo(armReach * racketSide + torsoTwist * 0.25, isBackhand ? S(-4.5) : S(-6));
     ctx.stroke();
 
     ctx.save();
@@ -2241,7 +2293,11 @@ void function () {
       ctx.save();
       if (racketSide < 0) ctx.scale(-1, 1);
       ctx.beginPath();
-      ctx.arc(S(10), S(-8), (S(10) + Math.max(0, swingBeat) * S(6)) * opponentSwingArcScale, -0.9, 0.5);
+      if (isBackhand) {
+        ctx.arc(S(8), S(-7), (S(9) + Math.max(0, swingBeat) * S(5)) * opponentSwingArcScale, 2.4, 4.0);
+      } else {
+        ctx.arc(S(10), S(-8), (S(10) + Math.max(0, swingBeat) * S(6)) * opponentSwingArcScale, -0.9, 0.5);
+      }
       ctx.stroke();
       ctx.restore();
       if (ball && ball.state === "TRAVELING") {
