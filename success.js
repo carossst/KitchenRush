@@ -14,6 +14,12 @@
     return w;
   }
 
+  function requireWordingDom() {
+    const api = window.KR_WORDING_DOM;
+    if (!api || typeof api.applyToDocument !== "function") throw new Error("KR success: KR_WORDING_DOM.applyToDocument missing");
+    return api;
+  }
+
   function getStoredCodeStrict(cfg) {
     const rawRe = String(cfg.premiumCodeRegex).trim();
     const re = new RegExp(rawRe);
@@ -98,30 +104,6 @@
     }
   }
 
-  function getByPath(root, path) {
-    const p = String(path).trim();
-    const parts = p.split(".");
-    let cur = root;
-    for (const key of parts) {
-      if (!cur || typeof cur !== "object") throw new Error("KR success wording path invalid: " + path);
-      cur = cur[key];
-    }
-    if (typeof cur !== "string") throw new Error("KR success wording value must be string: " + path);
-    return cur;
-  }
-
-  function applyWording(wording) {
-    document.querySelectorAll("[data-kr-wording]").forEach((el) => {
-      const key = el.getAttribute("data-kr-wording");
-      el.textContent = getByPath(wording, key);
-    });
-  }
-
-  function applyBrand(wording) {
-    const brand = String(wording.brand.creatorLine).trim();
-    document.querySelectorAll('[data-kr-brand="creatorLine"]').forEach((el) => { el.textContent = brand; });
-  }
-
   function applySuccessBranding(cfg) {
     const logoUrl = String(cfg.identity.uiLogoUrl).trim();
     const appName = String(cfg.identity.appName).trim();
@@ -132,41 +114,33 @@
     name.textContent = appName;
     link.setAttribute("aria-label", appName);
     if (!logoUrl) {
-      img.classList.add("kr-hidden-inline");
+      img.classList.add("kr-hidden");
       img.removeAttribute("src");
       img.setAttribute("alt", "");
       return;
     }
     img.src = logoUrl;
     img.setAttribute("alt", appName);
-    img.classList.remove("kr-hidden-inline");
-  }
-
-  function applyVersion(cfg, wording) {
-    const el = document.querySelector(".kr-footer-version");
-    if (el) el.textContent = `${String(wording.system.versionPrefix).trim()}${String(cfg.version).trim()}`;
+    img.classList.remove("kr-hidden");
   }
 
   function init() {
     const cfg = requireConfig();
     const wording = requireWording();
+    const wordingDom = requireWordingDom();
     const code = getStoredCodeStrict(cfg);
     if (!code) {
       const codeEl = document.getElementById("code");
       if (codeEl) codeEl.textContent = "";
-      applyWording(wording);
-      applyBrand(wording);
+      wordingDom.applyToDocument(document, wording);
       applySuccessBranding(cfg);
-      applyVersion(cfg, wording);
       return;
     }
 
     renderCode(code);
     markCodeGeneratedBestEffort(cfg);
-    applyWording(wording);
-    applyBrand(wording);
+    wordingDom.applyToDocument(document, wording);
     applySuccessBranding(cfg);
-    applyVersion(cfg, wording);
 
     const copyBtn = document.getElementById("copy-btn");
     const copyAgain = document.getElementById("copy-again");
@@ -175,10 +149,6 @@
     if (copyBtn) copyBtn.addEventListener("click", () => copyCode(cfg, wording));
     if (copyAgain) copyAgain.addEventListener("click", () => copyCode(cfg, wording));
     if (downloadBtn) downloadBtn.addEventListener("click", () => downloadCodeTxt(cfg, wording));
-
-    if (window.KR_Email && typeof window.KR_Email.initEmailLinks === "function") {
-      window.KR_Email.initEmailLinks();
-    }
   }
 
   if (document.readyState === "loading") {

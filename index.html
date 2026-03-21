@@ -125,52 +125,20 @@
 
   <!-- Scripts (defer for performance) -->
   <script defer src="./config.js"></script>
+  <script defer src="./wording.js"></script>
+  <script defer src="./wording-dom.js"></script>
+  <script defer src="./config-boot.js"></script>
   <script defer src="./storage.js"></script>
   <script defer src="./game.js"></script>
   <script defer src="./audio.js"></script>
+  <script defer src="./ui-overlays.js"></script>
+  <script defer src="./ui-modals.js"></script>
+  <script defer src="./ui-sharing.js"></script>
+  <script defer src="./ui-screens.js"></script>
   <script defer src="./ui.js"></script>
   <script defer src="./pwa.js"></script>
   <script defer src="./email.js"></script>
   <script defer src="./main.js"></script>
-
-  <script>
-    (() => {
-      function getByPath(root, path) {
-        const p = String(path || "").trim();
-        if (!p) return null;
-        const parts = p.split(".");
-        let cur = root;
-        for (const k of parts) {
-          if (!cur || typeof cur !== "object") return null;
-          cur = cur[k];
-        }
-        return (typeof cur === "string") ? cur : null;
-      }
-
-      function applyWordingToDom() {
-        const w = window.KR_WORDING;
-        if (!w || typeof w !== "object") return;
-
-        try {
-          document.querySelectorAll("[data-kr-wording]").forEach((el) => {
-            const key = el ? el.getAttribute("data-kr-wording") : "";
-            const text = getByPath(w, key);
-            if (typeof text === "string") el.textContent = text;
-          });
-        } catch (_) { }
-
-        try {
-          document.querySelectorAll("[data-kr-aria-label]").forEach((el) => {
-            const key = el ? el.getAttribute("data-kr-aria-label") : "";
-            const text = getByPath(w, key);
-            if (typeof text === "string") el.setAttribute("aria-label", text);
-          });
-        } catch (_) { }
-      }
-
-      document.addEventListener("DOMContentLoaded", applyWordingToDom);
-    })();
-  </script>
 </body>
 
 </html>

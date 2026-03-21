@@ -224,12 +224,27 @@
   }
 
   function validateModules() {
-    const required = ["KR_StorageManager", "KR_Game", "KR_UI"];
+    const required = [
+      "KR_StorageManager",
+      "KR_Game",
+      "KR_UI",
+      "KR_UI_OVERLAYS",
+      "KR_UI_MODALS",
+      "KR_UI_SHARING",
+      "KR_UI_SCREENS"
+    ];
     const missing = required.filter((name) => !window[name]);
 
-    if (missing.length > 0) {
+    const invalid = [];
+    if (window.KR_UI_OVERLAYS && typeof window.KR_UI_OVERLAYS.install !== "function") invalid.push("KR_UI_OVERLAYS.install");
+    if (window.KR_UI_MODALS && typeof window.KR_UI_MODALS.install !== "function") invalid.push("KR_UI_MODALS.install");
+    if (window.KR_UI_SHARING && typeof window.KR_UI_SHARING.install !== "function") invalid.push("KR_UI_SHARING.install");
+    if (window.KR_UI_SCREENS && typeof window.KR_UI_SCREENS.install !== "function") invalid.push("KR_UI_SCREENS.install");
+
+    if (missing.length > 0 || invalid.length > 0) {
       const w = window.KR_WORDING?.system;
-      Logger.error(`Missing modules: ${missing.join(", ")}`);
+      if (missing.length > 0) Logger.error(`Missing modules: ${missing.join(", ")}`);
+      if (invalid.length > 0) Logger.error(`Invalid module contracts: ${invalid.join(", ")}`);
       showFatal(w?.fatalModules || "");
       return false;
     }
@@ -265,6 +280,9 @@
     try {
       const config = window.KR_CONFIG;
       const wording = window.KR_WORDING;
+      const pwa = (window.KR_PWA && typeof window.KR_PWA === "object") ? window.KR_PWA : null;
+      const audio = (window.KR_Audio && typeof window.KR_Audio === "object") ? window.KR_Audio : null;
+      const gameApi = (window.KR_Game && typeof window.KR_Game === "object") ? window.KR_Game : null;
 
       // Init storage
       const storage = new window.KR_StorageManager(config);
@@ -275,11 +293,12 @@
       const game = new window.KR_Game.GameEngine();
 
       // Init UI
-      const ui = new window.KR_UI({ storage, game, config, wording });
+      const ui = new window.KR_UI({ storage, game, config, wording, pwa, audio, gameApi });
 
       // Listen for storage updates
       window.addEventListener("storage-updated", () => ui.onStorageUpdated());
-      window.addEventListener("storage-save-failed", () => {
+      window.addEventListener("storage-save-failed", (event) => {
+        Logger.warn("Storage save failed", event?.detail || {});
         if (ui && typeof ui.onStorageSaveFailed === "function") ui.onStorageSaveFailed();
       });
 
@@ -287,7 +306,11 @@
 
       // Boot optimization: auto-redeem premium code if saved by success.html
       if (ui && typeof ui.promptAutoRedeemIfReady === "function") {
-        try { ui.promptAutoRedeemIfReady(); } catch (_) { /* silent */ }
+        try {
+          ui.promptAutoRedeemIfReady();
+        } catch (error) {
+          Logger.warn("Auto-redeem check failed:", error?.message || error);
+        }
       }
 
       // Sprint (chest) orchestration
@@ -297,14 +320,18 @@
           if (ui && typeof ui.startSprintRun === "function") {
             ui.startSprintRun();
           }
-        } catch (_) {
-          // Never break gameplay for a hidden bonus hook
+        } catch (error) {
+          Logger.warn("Sprint launch failed:", error?.message || error);
         }
       });
 
       // Footer support link bridge (footer is outside #app)
       window.KR_SUPPORT_OPEN = () => {
-        try { ui.openSupportModal(); } catch (_) { /* silent */ }
+        try {
+          ui.openSupportModal();
+        } catch (error) {
+          Logger.warn("Support modal open failed:", error?.message || error);
+        }
       };
 
       // Init email links

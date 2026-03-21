@@ -97,69 +97,13 @@ void function () {
     throw new Error("KR_UI: KR_ENUMS.GAME_MODES invalid");
   }
 
-
-  // ============================================
-  // Toast system
-  // ============================================
-  let _toastTimerId = null;
-
-  function getToastTiming(cfg, key) {
-    const t = cfg?.ui?.toast;
-    if (!t || typeof t !== "object") throw new Error("KR_UI: config.ui.toast missing");
-    const bucket = (t[key] && typeof t[key] === "object") ? t[key] : t["default"];
-    if (!bucket || typeof bucket !== "object") throw new Error("KR_UI: toast timing bucket missing for " + String(key || "default"));
-    return {
-      delayMs: requiredConfigNumber(bucket.delayMs, "KR_CONFIG.ui.toast." + String(key || "default") + ".delayMs", { min: 0, integer: true }),
-      durationMs: requiredConfigNumber(bucket.durationMs, "KR_CONFIG.ui.toast." + String(key || "default") + ".durationMs", { min: 1, integer: true })
-    };
+  function todayDateParts() {
+    var d = new Date();
+    var monthNames = (window.KR_WORDING && window.KR_WORDING.system && window.KR_WORDING.system.monthsShort)
+      ? window.KR_WORDING.system.monthsShort
+      : [];
+    return { month: monthNames[d.getUTCMonth()] || "", day: d.getUTCDate(), year: d.getUTCFullYear() };
   }
-
-  function showToast(message, opts) {
-    const node = el("kr-toast");
-    if (!node || !message) return;
-    node.textContent = message;
-    node.className = "kr-toast kr-toast--visible";
-    if (opts?.variant) node.classList.add("kr-toast--" + opts.variant);
-    if (_toastTimerId) { clearTimeout(_toastTimerId); _toastTimerId = null; }
-    const dur = requiredConfigNumber(opts && opts.durationMs, "KR_UI.showToast().durationMs", { min: 1, integer: true });
-    _toastTimerId = setTimeout(function () { node.classList.remove("kr-toast--visible"); _toastTimerId = null; }, dur);
-  }
-
-  function toastNow(cfg, message, opts) {
-    const timing = getToastTiming(cfg, (opts && opts.timingKey) || "default");
-    if (timing.delayMs > 0) {
-      setTimeout(function () { showToast(message, { durationMs: timing.durationMs, variant: opts?.variant }); }, timing.delayMs);
-    } else {
-      showToast(message, { durationMs: timing.durationMs, variant: opts?.variant });
-    }
-  }
-
-
-  // ============================================
-  // Gameplay overlay (micro-feedback, run start, life lost)
-  // ============================================
-  let _gameplayOverlayTimerId = null;
-
-  function showGameplayOverlay(message, opts) {
-    const node = el("kr-gameplay-overlay");
-    if (!node || !message) return;
-    node.textContent = message;
-    node.className = "kr-gameplay-overlay kr-gameplay-overlay--visible";
-    if (opts?.variant) node.classList.add("kr-gameplay-overlay--" + opts.variant);
-    if (_gameplayOverlayTimerId) { clearTimeout(_gameplayOverlayTimerId); _gameplayOverlayTimerId = null; }
-    var dur = requiredConfigNumber(opts && opts.durationMs, "KR_UI.showGameplayOverlay().durationMs", { min: 1, integer: true });
-    _gameplayOverlayTimerId = setTimeout(function () {
-      node.classList.remove("kr-gameplay-overlay--visible");
-      _gameplayOverlayTimerId = null;
-    }, dur);
-  }
-
-  function hideGameplayOverlay() {
-    var node = el("kr-gameplay-overlay");
-    if (node) node.classList.remove("kr-gameplay-overlay--visible");
-    if (_gameplayOverlayTimerId) { clearTimeout(_gameplayOverlayTimerId); _gameplayOverlayTimerId = null; }
-  }
-
 
   // ============================================
   // UI Constructor
@@ -177,6 +121,9 @@ void function () {
     this.game = d.game;
     this.config = d.config;
     this.wording = d.wording;
+    this.pwa = (d.pwa && typeof d.pwa === "object") ? d.pwa : null;
+    this.audio = (d.audio && typeof d.audio === "object") ? d.audio : null;
+    this.gameApi = (d.gameApi && typeof d.gameApi === "object") ? d.gameApi : null;
     this.state = STATES.LANDING;
 
     this.appEl = el("app");
@@ -212,6 +159,7 @@ void function () {
         flashY: 0,
         shakeUntil: 0,
         shakeIntensity: 0,
+        sprintSuccessUntil: 0,
         milestoneGlowUntil: 0,
         firstKitchenPulseUntil: 0,
         bounceFlashBalls: {},   // ballId → until timestamp
@@ -394,7 +342,7 @@ void function () {
 
   UI.prototype.onStorageSaveFailed = function () {
     var msg = String(this.wording?.system?.storageSaveFailedToast || "").trim();
-    if (msg) toastNow(this.config, msg);
+    if (msg) this._toastNow(this.config, msg);
   };
 
 
@@ -456,7 +404,7 @@ void function () {
     // Stop game loop when leaving PLAYING
     if (prev === STATES.PLAYING && next !== STATES.PLAYING) {
       this._stopGameLoop();
-      hideGameplayOverlay();
+      this._hideGameplayOverlay();
       // Hide run start overlay
       var rso = el("kr-run-start-overlay");
       if (rso) rso.classList.remove("kr-run-start-overlay--visible");
@@ -493,7 +441,10 @@ void function () {
     // END entry hooks
     if (next === STATES.END && prev !== STATES.END) {
       // Stats sharing milestone prompt
-      try { this._maybePromptStatsSharingMilestone(); } catch (_) { }
+      try {
+        var endNudge = this._getEndNudgePriority();
+        if (endNudge.showStatsPrompt) this._maybePromptStatsSharingMilestone();
+      } catch (_) { }
 
       // Record moment (premium + RUN + newBest)
       try {
@@ -571,19 +522,21 @@ void function () {
 
   UI.prototype._hasCompletedDailyToday = function () {
     var runs = this._store("getLastRuns", 20) || [];
-    var now = new Date();
-    var y = now.getFullYear();
-    var m = now.getMonth();
-    var d = now.getDate();
+    var currentDailyKey = (this.gameApi && typeof this.gameApi.getDailyKeyUtc === "function")
+      ? String(this.gameApi.getDailyKeyUtc() || "").trim()
+      : "";
 
     for (var i = 0; i < runs.length; i += 1) {
       var run = runs[i] || {};
       var meta = (run.meta && typeof run.meta === "object") ? run.meta : {};
       if (meta.isDaily !== true) continue;
+      var storedDailyKey = String(meta.dailyKey || "").trim();
+      if (currentDailyKey && storedDailyKey && storedDailyKey === currentDailyKey) return true;
       var endedAt = Number(run.endedAt || 0);
       if (!Number.isFinite(endedAt) || endedAt <= 0) continue;
-      var rd = new Date(endedAt);
-      if (rd.getFullYear() === y && rd.getMonth() === m && rd.getDate() === d) return true;
+      if (currentDailyKey && this.gameApi && typeof this.gameApi.getDailyKeyUtc === "function") {
+        if (String(this.gameApi.getDailyKeyUtc(new Date(endedAt)) || "").trim() === currentDailyKey) return true;
+      }
     }
     return false;
   };
@@ -636,6 +589,7 @@ void function () {
     juice.flashType = "";
     juice.flashUntil = 0;
     juice.shakeUntil = 0;
+    juice.sprintSuccessUntil = 0;
     juice.milestoneGlowUntil = 0;
     juice.firstKitchenPulseUntil = 0;
     juice.bounceFlashBalls = {};
@@ -661,6 +615,11 @@ void function () {
 
     this.setState(STATES.PLAYING);
 
+    if (!this._shouldShowRunStartOverlay(mode)) {
+      this._startGameLoop();
+      return;
+    }
+
     // Show run start overlay — game loop starts on dismiss tap
     // Fail-closed: if overlay fails, start game loop immediately
     try {
@@ -669,156 +628,6 @@ void function () {
       this._startGameLoop();
     }
   };
-
-
-  // ============================================
-  // Run start overlay
-  // ============================================
-  UI.prototype._showRunStartOverlay = function (mode, runType) {
-    var cfg = this.config;
-    var w = this.wording;
-    var premium = !!(this._store("isPremium"));
-    var ms = Number(cfg?.ui?.runStartOverlayMs);
-    if (!Number.isFinite(ms) || ms <= 0) throw new Error("KR_UI._showRunStartOverlay(): invalid config.ui.runStartOverlayMs");
-
-    var line1 = "";
-    var line2 = "";
-
-    if (mode === MODES.SPRINT) {
-      var sw = w?.sprint || {};
-      line1 = sw.startOverlayLine1 || "";
-      line2 = sw.startOverlayLine2 || "";
-
-      if (!premium) {
-        var spUsed = this._store("getSprintFreeRunsUsed") || 0;
-        var spLimit = Number(cfg?.sprint?.freeRunsLimit);
-        if (!Number.isFinite(spLimit) || spLimit < 0) throw new Error("KR_UI._showRunStartOverlay(): invalid config.sprint.freeRunsLimit");
-        var spRemaining = Math.max(0, spLimit - spUsed);
-        var spLine = String(sw.startOverlayFreeRunsLimitLine || "").trim();
-        if (spLine && spLimit > 0 && spRemaining > 0) {
-          line2 = (line2 ? line2 + " " : "") + fillTemplate(spLine, { remaining: spRemaining, limit: spLimit });
-        }
-      }
-    } else {
-      var uw = w?.ui || {};
-      if (runType === "FREE") line1 = uw.startRunTypeFree || "";
-      else if (runType === "LAST_FREE") line1 = uw.startRunTypeLastFree || "";
-      else if (runType === "UNLIMITED") line1 = uw.startRunTypeUnlimited || "";
-    }
-
-    var node = el("kr-run-start-overlay");
-    if (!node) {
-      // Fail-closed: no overlay DOM → start game loop immediately
-      this._startGameLoop();
-      return;
-    }
-
-    // V3: Controls hint — detect device
-    var isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
-    var controlsHtml = "";
-    if (isTouchDevice) {
-      controlsHtml =
-        '<div class="kr-start-controls">' +
-          '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">Left half</span> <span class="kr-start-ctrl-label">Drag to move</span></div>' +
-          '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">Right half</span> <span class="kr-start-ctrl-label">Tap for timing bonus</span></div>' +
-        '</div>';
-    } else {
-      controlsHtml =
-        '<div class="kr-start-controls">' +
-          '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">\u2190\u2191\u2192\u2193</span> <span class="kr-start-ctrl-label">Move (2D)</span></div>' +
-          '<div class="kr-start-ctrl"><span class="kr-start-ctrl-key">Space</span> <span class="kr-start-ctrl-label">Timing bonus</span></div>' +
-        '</div>' +
-        '<p class="kr-run-start-hint kr-muted">Ball auto-returns when you\'re close. Time your hit for double points!</p>';
-    }
-
-    var kitchenHint = '<p class="kr-run-start-hint kr-muted">Kitchen zone \u2014 wait for bounce before hitting</p>';
-
-    // V3: Daily modifier banner
-    var dailyHtml = "";
-    if (this._runtime.currentRunIsDaily && window.KR_Game && window.KR_Game.getDailyModifier) {
-      var dm = window.KR_Game.getDailyModifier();
-      if (dm) {
-        var dmOvLabel = String(dm.label || "").trim();
-        var dmOvDesc = String(dm.desc || "").trim();
-        if (dmOvLabel) {
-          dailyHtml = '<div class="kr-start-daily">' +
-            '<span class="kr-start-daily-icon">\uD83C\uDFC6</span> ' +
-            '<strong>' + escapeHtml(dmOvLabel) + '</strong><br>' +
-            (dmOvDesc ? '<span class="kr-muted">' + escapeHtml(dmOvDesc) + '</span>' : '') +
-          '</div>';
-        }
-      }
-    }
-
-    node.innerHTML =
-      '<div class="kr-run-start-content">' +
-        dailyHtml +
-        (line1 ? '<p class="kr-run-start-line1">' + escapeHtml(line1) + '</p>' : '') +
-        (line2 ? '<p class="kr-run-start-line2">' + escapeHtml(line2) + '</p>' : '') +
-        controlsHtml +
-        kitchenHint +
-        '<p class="kr-run-start-hint kr-muted">Tap to start</p>' +
-      '</div>';
-    node.classList.add("kr-run-start-overlay--visible");
-
-    // V3: NO auto-dismiss — player MUST tap to start
-    // Clear any legacy timer
-    if (this._runtime.runStartOverlayTimerId) clearTimeout(this._runtime.runStartOverlayTimerId);
-    this._runtime.runStartOverlayTimerId = null;
-
-    // Tap anywhere to dismiss overlay AND start game loop
-    var self = this;
-    node.addEventListener("pointerdown", function dismiss() {
-      node.classList.remove("kr-run-start-overlay--visible");
-      node.removeEventListener("pointerdown", dismiss);
-      // V3: NOW start the game loop — game was frozen until this tap
-      self._startGameLoop();
-    }, { once: true });
-  };
-
-
-  // ============================================
-  // First run framing (one-shot trust line)
-  // ============================================
-  UI.prototype._showFirstRunFraming = function (callback) {
-    var fw = this.wording?.firstRun || {};
-    var trustLine = String(fw.trustLine || "").trim();
-    if (!trustLine) { callback(); return; }
-
-    var kitchenHint = String(fw.kitchenHint || "").trim();
-    var kitchenHtml = kitchenHint ? '<p class="kr-first-run-hint kr-muted">' + escapeHtml(kitchenHint) + '</p>' : "";
-
-    // Mini-tutorial: 3 visual rules
-    var tutorialHtml = "";
-    var rule1 = String(fw.rule1 || "").trim();
-    var rule2 = String(fw.rule2 || "").trim();
-    var rule3 = String(fw.rule3 || "").trim();
-    if (rule1 || rule2 || rule3) {
-      tutorialHtml = '<div class="kr-first-run-rules">';
-      if (rule1) tutorialHtml += '<div class="kr-first-run-rule"><span class="kr-rule-dot kr-rule-dot--green"></span><span>' + escapeHtml(rule1) + '</span></div>';
-      if (rule2) tutorialHtml += '<div class="kr-first-run-rule"><span class="kr-rule-dot kr-rule-dot--yellow"></span><span>' + escapeHtml(rule2) + '</span></div>';
-      if (rule3) tutorialHtml += '<div class="kr-first-run-rule"><span class="kr-rule-dot kr-rule-dot--red"></span><span>' + escapeHtml(rule3) + '</span></div>';
-      tutorialHtml += '</div>';
-    }
-
-    var html =
-      '<div class="kr-first-run">' +
-        '<p class="kr-first-run-trust">' + escapeHtml(trustLine) + '</p>' +
-        tutorialHtml +
-        kitchenHtml +
-        '<button id="kr-first-run-go" class="kr-btn kr-btn--primary">' + escapeHtml(this.wording?.landing?.ctaPlay || "") + '</button>' +
-      '</div>';
-
-    this.openModal(html);
-
-    var self = this;
-    var goBtn = el("kr-first-run-go");
-    if (goBtn) goBtn.addEventListener("click", function () { self.closeModal(); callback(); });
-  };
-
-
-
-
   // ============================================
   // Game loop (Canvas requestAnimationFrame)
   // ============================================
@@ -1004,14 +813,16 @@ void function () {
     ctx.fillText(String(_uw.controlTimingLabel || "HIT"), w * 3 / 4, ctrlMidY);
 
     // V3: Timing bonus indicator
-    if (state.lastTimingBonus > 0.5) {
+    if (state.lastTimingBonus > 0.5 && colors.smashFlashColor) {
+      var timingLabel = state.lastTimingBonus > 0.7
+        ? String((_uw && _uw.timingPerfectLabel) || "").trim()
+        : String((_uw && _uw.timingNiceLabel) || "").trim();
+      if (timingLabel) {
       var tbAlpha = Math.max(0, state.lastTimingBonus - 0.3);
-      ctx.fillStyle = "rgba(" + (colors.smashFlashColor || "6,214,160") + "," + tbAlpha.toFixed(2) + ")";
+      ctx.fillStyle = "rgba(" + colors.smashFlashColor + "," + tbAlpha.toFixed(2) + ")";
       ctx.font = "bold " + Math.round(w * 0.035) + "px system-ui, sans-serif";
-      var tbText = state.lastTimingBonus > 0.7
-        ? String((_uw && _uw.timingPerfectLabel) || "PERFECT!")
-        : String((_uw && _uw.timingNiceLabel) || "NICE!");
-      ctx.fillText(tbText, w * 3 / 4, ctrlMidY - 20);
+      ctx.fillText(timingLabel, w * 3 / 4, ctrlMidY - 20);
+      }
     }
 
     // V3: Daily modifier banner
@@ -1029,14 +840,27 @@ void function () {
     }
 
     // Juice: smash flash
-    if (juice.flashType === "smash" && juice.flashUntil > n) {
+    if (juice.flashType === "smash" && juice.flashUntil > n && colors.smashFlashColor) {
       var smashFlashDur = requiredConfigNumber(this.config?.juice?.smashFlashMs, "juice.smashFlashMs", { min: 1, integer: true });
       var flashP = 1 - (juice.flashUntil - n) / smashFlashDur;
       var flashA = Math.max(0, 0.8 * (1 - flashP));
-      ctx.fillStyle = "rgba(" + (colors.smashFlashColor || "6,214,160") + "," + flashA.toFixed(2) + ")";
+      ctx.fillStyle = "rgba(" + colors.smashFlashColor + "," + flashA.toFixed(2) + ")";
       ctx.beginPath();
       ctx.arc(juice.flashX, juice.flashY, 20 + flashP * 40, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    // Sprint-only success pulse: balance the strong penalty stack with a brief reward signal.
+    var sprintSuccessMs = Number(this.config?.juice?.sprintSuccessPulseMs);
+    if (state.mode === MODES.SPRINT && juice.sprintSuccessUntil > n && Number.isFinite(sprintSuccessMs) && sprintSuccessMs > 0 && colors.smashFlashColor) {
+      var ssElapsed = sprintSuccessMs - (juice.sprintSuccessUntil - n);
+      var ssT = Math.min(1, Math.max(0, ssElapsed / sprintSuccessMs));
+      var ssA = Math.max(0, 0.18 * (1 - ssT));
+      var sprintGrad = ctx.createRadialGradient(w / 2, h * 0.18, 0, w / 2, h * 0.18, w * 0.7);
+      sprintGrad.addColorStop(0, "rgba(" + colors.smashFlashColor + "," + ssA.toFixed(2) + ")");
+      sprintGrad.addColorStop(1, "rgba(" + colors.smashFlashColor + ",0)");
+      ctx.fillStyle = sprintGrad;
+      ctx.fillRect(0, 0, w, h);
     }
 
     // Juice: fault vignette
@@ -1054,17 +878,24 @@ void function () {
 
     // Score popups
     var scorePopupMs = requiredConfigNumber(this.config?.canvas?.scorePopupMs, "canvas.scorePopupMs", { min: 1, integer: true });
-    if (juice.scorePopups) {
+    if (juice.scorePopups && colors.scorePopup) {
       for (var sp = juice.scorePopups.length - 1; sp >= 0; sp--) {
         var popup = juice.scorePopups[sp];
         var popElapsed = n - popup.at;
         if (popElapsed > scorePopupMs) { juice.scorePopups.splice(sp, 1); continue; }
         var popT = popElapsed / scorePopupMs;
+        var popupText = String(popup.text || "").trim();
+        var popupTimingLabel = String(popup.timingLabel || "").trim();
+        if (!popupText && !popupTimingLabel) { juice.scorePopups.splice(sp, 1); continue; }
         ctx.globalAlpha = Math.max(0, 1 - popT);
         ctx.font = "bold " + Math.round(22 + (1 - popT) * 6) + "px system-ui, sans-serif";
-        ctx.fillStyle = colors.scorePopup || "#06d6a0";
+        ctx.fillStyle = colors.scorePopup;
         ctx.textAlign = "center";
-        ctx.fillText(String((_uw && _uw.scoreGainedDeltaText) || "+1"), popup.x, popup.y - popT * 50);
+        if (popupText) ctx.fillText(popupText, popup.x, popup.y - popT * 50);
+        if (popupTimingLabel) {
+          ctx.font = "bold " + Math.round(14 + (1 - popT) * 4) + "px system-ui, sans-serif";
+          ctx.fillText(popupTimingLabel, popup.x, popup.y - 18 - popT * 50);
+        }
         ctx.globalAlpha = 1;
       }
     }
@@ -1089,7 +920,8 @@ void function () {
   // V2: Ball renderer
   // ============================================
   UI.prototype._renderBallV2 = function (ctx, b, colors, w, h, gt, n, juice, rallyCount) {
-    var BALL_STATES = window.KR_Game.BALL_STATES;
+    var BALL_STATES = this.gameApi && this.gameApi.BALL_STATES;
+    if (!BALL_STATES) return;
     var _uw2 = (this.wording && this.wording.ui) || {};
 
     // V3: Show "MUST BOUNCE" indicator when double bounce rule applies
@@ -1110,7 +942,7 @@ void function () {
 
 
     // Shadow at bounce point (grows as ball approaches)
-    if (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.BOUNCED) {
+    if (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.LANDED || b.state === BALL_STATES.BOUNCED) {
       var shadowProgress = (b.state === BALL_STATES.TRAVELING) ? Math.min(1, Math.max(0, (gt - b.spawnedAt) / b.travelMs)) : 1;
       var shadowAlpha = 0.1 + shadowProgress * 0.2;
       var shadowW = b.radius * (0.4 + shadowProgress * 0.6);
@@ -1129,7 +961,7 @@ void function () {
     else if (bt === "fast" && colors.ballFast) ctx.fillStyle = colors.ballFast;
     else ctx.fillStyle = colors.ballDefault || "#ffd60a";
 
-    if (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.BOUNCED) {
+    if (b.state === BALL_STATES.TRAVELING || b.state === BALL_STATES.LANDED || b.state === BALL_STATES.BOUNCED) {
       // WAIT indicator for kitchen balls in flight
       if (b.inKitchen && b.state === BALL_STATES.TRAVELING) {
         var waitAlpha = 0.5 + 0.3 * Math.sin(gt / 200);
@@ -1502,6 +1334,8 @@ void function () {
     if (!this._runtime.inputState) {
       this._runtime.inputState = { left: false, right: false, up: false, down: false, hit: false };
     }
+    this._runtime._keyboardState = { left: false, right: false, up: false, down: false, hit: false };
+    this._runtime._mouseState = { left: false, right: false, up: false, down: false };
 
     var canvas = this._canvas;
     if (!canvas) return;
@@ -1512,7 +1346,7 @@ void function () {
 
     canvas.addEventListener("pointerdown", function (e) {
       e.preventDefault();
-      if (window.KR_Audio && typeof window.KR_Audio.unlock === "function") window.KR_Audio.unlock();
+      if (self.audio && typeof self.audio.unlock === "function") self.audio.unlock();
       var rect = canvas.getBoundingClientRect();
       var x = e.clientX - rect.left;
       var y = e.clientY - rect.top;
@@ -1563,59 +1397,103 @@ void function () {
     canvas.addEventListener("pointercancel", pointerUp);
 
     // Keyboard (V3: 2D movement)
+    var syncDesktopMovement = function () {
+      var input = self._runtime.inputState;
+      var keyboard = self._runtime._keyboardState || {};
+      var mouse = self._runtime._mouseState || {};
+      var keyboardHorizontalActive = !!keyboard.left || !!keyboard.right;
+
+      var keyboardVerticalActive = !!keyboard.up || !!keyboard.down;
+
+      input.left = keyboardHorizontalActive ? !!keyboard.left : !!mouse.left;
+      input.right = keyboardHorizontalActive ? !!keyboard.right : !!mouse.right;
+      input.up = keyboardVerticalActive ? !!keyboard.up : !!mouse.up;
+      input.down = keyboardVerticalActive ? !!keyboard.down : !!mouse.down;
+      input.hit = !!keyboard.hit || !!input.hit;
+    };
+
     this._keydownHandler = function (e) {
       if (self.state !== STATES.PLAYING) return;
-      if (e.key === "ArrowLeft" || e.key === "a") { self._runtime.inputState.left = true; e.preventDefault(); }
-      if (e.key === "ArrowRight" || e.key === "d") { self._runtime.inputState.right = true; e.preventDefault(); }
-      if (e.key === "ArrowUp" || e.key === "w") { self._runtime.inputState.up = true; e.preventDefault(); }
-      if (e.key === "ArrowDown" || e.key === "s") { self._runtime.inputState.down = true; e.preventDefault(); }
-      if (e.key === " ") { self._runtime.inputState.hit = true; e.preventDefault(); }
+      var key = String(e.key || "");
+      var lowerKey = key.toLowerCase();
+      if (key === "ArrowLeft" || lowerKey === "a") { self._runtime._keyboardState.left = true; syncDesktopMovement(); e.preventDefault(); }
+      if (key === "ArrowRight" || lowerKey === "d") { self._runtime._keyboardState.right = true; syncDesktopMovement(); e.preventDefault(); }
+      if (key === "ArrowUp" || lowerKey === "w") { self._runtime._keyboardState.up = true; syncDesktopMovement(); e.preventDefault(); }
+      if (key === "ArrowDown" || lowerKey === "s") { self._runtime._keyboardState.down = true; syncDesktopMovement(); e.preventDefault(); }
+      if (key === " ") { self._runtime._keyboardState.hit = true; self._runtime.inputState.hit = true; e.preventDefault(); }
     };
     this._keyupHandler = function (e) {
-      if (e.key === "ArrowLeft" || e.key === "a") self._runtime.inputState.left = false;
-      if (e.key === "ArrowRight" || e.key === "d") self._runtime.inputState.right = false;
-      if (e.key === "ArrowUp" || e.key === "w") self._runtime.inputState.up = false;
-      if (e.key === "ArrowDown" || e.key === "s") self._runtime.inputState.down = false;
-      if (e.key === " ") self._runtime.inputState.hit = false;
+      var key = String(e.key || "");
+      var lowerKey = key.toLowerCase();
+      if (key === "ArrowLeft" || lowerKey === "a") self._runtime._keyboardState.left = false;
+      if (key === "ArrowRight" || lowerKey === "d") self._runtime._keyboardState.right = false;
+      if (key === "ArrowUp" || lowerKey === "w") self._runtime._keyboardState.up = false;
+      if (key === "ArrowDown" || lowerKey === "s") self._runtime._keyboardState.down = false;
+      if (key === " ") { self._runtime._keyboardState.hit = false; self._runtime.inputState.hit = false; }
+      syncDesktopMovement();
+    };
+    this._blurHandler = function () {
+      self._runtime._keyboardState = { left: false, right: false, up: false, down: false, hit: false };
+      self._runtime._mouseState = { left: false, right: false, up: false, down: false };
+      self._runtime.inputState.left = false;
+      self._runtime.inputState.right = false;
+      self._runtime.inputState.up = false;
+      self._runtime.inputState.down = false;
+      self._runtime.inputState.hit = false;
     };
     document.addEventListener("keydown", this._keydownHandler);
     document.addEventListener("keyup", this._keyupHandler);
+    window.addEventListener("blur", this._blurHandler);
 
-    // Mouse control (desktop): mouse X → player follows, click → hit
+    // Mouse control (desktop): cursor position steers player in 2D, click → hit
     // Only active on non-touch devices to avoid conflict with touch zones
     var isTouchDevice = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
     if (!isTouchDevice) {
       this._runtime._mouseActive = false;
       this._runtime._mouseTargetX = -1;
-      var deadZone = 8; // pixels: don't jitter if mouse is very close to player
+      var deadZone = requiredConfigNumber(this.config?.court?.desktopMouseDeadZonePx, "KR_CONFIG.court.desktopMouseDeadZonePx", { min: 0 });
 
       this._mouseMoveHandler = function (e) {
         if (self.state !== STATES.PLAYING) return;
         var rect = canvas.getBoundingClientRect();
         var mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+        var mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
         self._runtime._mouseActive = true;
         self._runtime._mouseTargetX = mouseX;
 
-        // Convert mouse X to left/right input relative to player position
+        // Convert cursor position to directional input relative to player position
         var playerX = (self.game && self.game.run) ? self.game.run.playerX : canvas.width / 2;
+        var playerY = (self.game && self.game.run) ? self.game.run.playerY : canvas.height * 0.75;
         var diff = mouseX - playerX;
+        var diffY = mouseY - playerY;
         if (diff < -deadZone) {
-          self._runtime.inputState.left = true;
-          self._runtime.inputState.right = false;
+          self._runtime._mouseState.left = true;
+          self._runtime._mouseState.right = false;
         } else if (diff > deadZone) {
-          self._runtime.inputState.left = false;
-          self._runtime.inputState.right = true;
+          self._runtime._mouseState.left = false;
+          self._runtime._mouseState.right = true;
         } else {
-          self._runtime.inputState.left = false;
-          self._runtime.inputState.right = false;
+          self._runtime._mouseState.left = false;
+          self._runtime._mouseState.right = false;
         }
+        if (diffY < -deadZone) {
+          self._runtime._mouseState.up = true;
+          self._runtime._mouseState.down = false;
+        } else if (diffY > deadZone) {
+          self._runtime._mouseState.up = false;
+          self._runtime._mouseState.down = true;
+        } else {
+          self._runtime._mouseState.up = false;
+          self._runtime._mouseState.down = false;
+        }
+        syncDesktopMovement();
       };
       canvas.addEventListener("mousemove", this._mouseMoveHandler);
 
       this._mouseClickHandler = function (e) {
         if (self.state !== STATES.PLAYING) return;
         // Unlock audio
-        if (window.KR_Audio && typeof window.KR_Audio.unlock === "function") window.KR_Audio.unlock();
+        if (self.audio && typeof self.audio.unlock === "function") self.audio.unlock();
         self._runtime.inputState.hit = true;
         // Auto-release hit after one frame
         setTimeout(function () { self._runtime.inputState.hit = false; }, 50);
@@ -1627,10 +1505,16 @@ void function () {
   UI.prototype._teardownInputV2 = function () {
     if (this._keydownHandler) { document.removeEventListener("keydown", this._keydownHandler); this._keydownHandler = null; }
     if (this._keyupHandler) { document.removeEventListener("keyup", this._keyupHandler); this._keyupHandler = null; }
+    if (this._blurHandler) { window.removeEventListener("blur", this._blurHandler); this._blurHandler = null; }
     if (this._mouseMoveHandler && this._canvas) { this._canvas.removeEventListener("mousemove", this._mouseMoveHandler); this._mouseMoveHandler = null; }
     if (this._mouseClickHandler && this._canvas) { this._canvas.removeEventListener("click", this._mouseClickHandler); this._mouseClickHandler = null; }
     this._runtime.inputState = { left: false, right: false, up: false, down: false, hit: false };
-    if (this._runtime) { this._runtime._mouseActive = false; this._runtime._mouseTargetX = -1; }
+    if (this._runtime) {
+      this._runtime._keyboardState = { left: false, right: false, up: false, down: false, hit: false };
+      this._runtime._mouseState = { left: false, right: false, up: false, down: false };
+      this._runtime._mouseActive = false;
+      this._runtime._mouseTargetX = -1;
+    }
   };
 
 
@@ -1644,19 +1528,35 @@ void function () {
     var juice = this._runtime.juice;
     var n = performance.now();
     var lastCheck = this._runtime._lastBallState || {};
-    var BALL_STATES = window.KR_Game.BALL_STATES;
+    var BALL_STATES = this.gameApi && this.gameApi.BALL_STATES;
+    if (!BALL_STATES) return;
     var prevState = lastCheck.state || "";
     var curState = ball.state;
 
     if (curState !== prevState || (lastCheck.id && lastCheck.id !== ball.id)) {
       if (curState === BALL_STATES.HIT && prevState !== BALL_STATES.HIT) {
+        var uw = (this.wording && this.wording.ui) || {};
+        var timingBonus = Number(ball.timingBonus || 0);
+        var points = timingBonus > 0.7 ? 2 : 1;
+        var popupText = (points > 1)
+          ? String(uw.scoreGainedDoubleDeltaText || "").trim()
+          : String(uw.scoreGainedDeltaText || "").trim();
+        var popupTimingLabel = "";
+        if (timingBonus > 0.7) popupTimingLabel = String(uw.timingPerfectLabel || "").trim();
+        else if (timingBonus > 0.5) popupTimingLabel = String(uw.timingNiceLabel || "").trim();
         this._haptic("smash");
         this._playSound("smash");
         juice.flashType = "smash";
         juice.flashUntil = n + requiredConfigNumber(this.config?.juice?.smashFlashMs, "juice.smashFlashMs", { min: 1, integer: true });
         juice.flashX = ball.x; juice.flashY = ball.y;
+        if (this._runtime.runMode === MODES.SPRINT) {
+          var sprintSuccessPulseMs = Number(this.config?.juice?.sprintSuccessPulseMs);
+          if (Number.isFinite(sprintSuccessPulseMs) && sprintSuccessPulseMs > 0) {
+            juice.sprintSuccessUntil = n + sprintSuccessPulseMs;
+          }
+        }
         if (!juice.scorePopups) juice.scorePopups = [];
-        juice.scorePopups.push({ x: ball.x, y: ball.y, at: n });
+        juice.scorePopups.push({ x: ball.x, y: ball.y, at: n, text: popupText, timingLabel: popupTimingLabel });
         this._handleMicroFeedback({ smash: true, fault: false, ball: ball });
       }
       if (curState === "FAULTED" && prevState !== "FAULTED") {
@@ -1698,7 +1598,7 @@ void function () {
     if (this._store("getSoundEnabled") === false) return;
     var cfg = this.config.audio || {};
     if (!cfg.enabled) return;
-    if (!window.KR_Audio || typeof window.KR_Audio.play !== "function") return;
+    if (!this.audio || typeof this.audio.play !== "function") return;
 
     var volMap = {
       smash: cfg.smashVolume,
@@ -1719,7 +1619,7 @@ void function () {
       pitch = 1 + Math.min(streak * 0.02, 0.3);
     }
 
-    window.KR_Audio.play(type, requiredConfigNumber(volMap[type], "KR_CONFIG.audio volume for " + type, { min: 0, max: 1 }), pitch);
+    this.audio.play(type, requiredConfigNumber(volMap[type], "KR_CONFIG.audio volume for " + type, { min: 0, max: 1 }), pitch);
   };
 
 
@@ -1744,7 +1644,8 @@ void function () {
     var gameState = (this.game && typeof this.game.getState === "function") ? (this.game.getState() || {}) : {};
     var totalSmashes = gameState.smashes || 0;
     var cooldown = requiredConfigNumber(mfCfg.cooldownSmashes, "KR_CONFIG.microFeedback.cooldownSmashes", { min: 0, integer: true });
-    var timing = getToastTiming(cfg, "positive");
+    var timing = this._getToastTiming(cfg, "positive");
+    var self = this;
 
     var th = mfCfg.streakThresholds;
     if (!th || typeof th !== "object") throw new Error("KR_CONFIG.microFeedback.streakThresholds missing");
@@ -1758,7 +1659,7 @@ void function () {
       var m = String(msg || "").trim();
       if (!m) return false;
       if ((totalSmashes - mf.lastOverlayAtSmash) < cooldown) return false;
-      showGameplayOverlay(m, { durationMs: timing.durationMs, variant: String(variant || "info") });
+      self._showGameplayOverlay(m, { durationMs: timing.durationMs, variant: String(variant || "info") });
       mf.lastOverlayAtSmash = totalSmashes;
       return true;
     }
@@ -1843,7 +1744,7 @@ void function () {
         var faultDur = ((gameState.totalFaulted || 0) <= 1)
           ? requiredConfigNumber(this.config?.juice?.firstFaultOverlayMs, "KR_CONFIG.juice.firstFaultOverlayMs", { min: 1, integer: true })
           : requiredConfigNumber(this.config?.juice?.repeatFaultOverlayMs, "KR_CONFIG.juice.repeatFaultOverlayMs", { min: 1, integer: true });
-        showGameplayOverlay(tooEarlyMsg, { durationMs: faultDur, variant: "danger" });
+        this._showGameplayOverlay(tooEarlyMsg, { durationMs: faultDur, variant: "danger" });
         mf.lastOverlayAtSmash = totalSmashes;
       }
 
@@ -1852,7 +1753,7 @@ void function () {
         mf.lastLifeShown = true;
         var llMsg = String(mfw.lastLife || "").trim();
         if (llMsg) {
-          showGameplayOverlay(llMsg, { durationMs: requiredConfigNumber(cfg?.ui?.lifeLostOverlayMs, "KR_CONFIG.ui.lifeLostOverlayMs", { min: 1, integer: true }), variant: "danger" });
+          this._showGameplayOverlay(llMsg, { durationMs: requiredConfigNumber(cfg?.ui?.lifeLostOverlayMs, "KR_CONFIG.ui.lifeLostOverlayMs", { min: 1, integer: true }), variant: "danger" });
           mf.lastOverlayAtSmash = totalSmashes;
         }
         setEndHighlight(String(mfw.closeCall || "").trim(), "info", 55);
@@ -1872,7 +1773,7 @@ void function () {
 
     this._runtime.finishingRun = true;
     this._stopGameLoop();
-    hideGameplayOverlay();
+    this._hideGameplayOverlay();
 
     // Hide run start overlay if still visible
     var rso = el("kr-run-start-overlay");
@@ -1896,6 +1797,9 @@ void function () {
       var meta = {
         mode: MODES.RUN,
         isDaily: !!(this._runtime && this._runtime.currentRunIsDaily),
+        dailyKey: (this._runtime && this._runtime.currentRunIsDaily && this.gameApi && typeof this.gameApi.getDailyKeyUtc === "function")
+          ? String(this.gameApi.getDailyKeyUtc() || "").trim()
+          : "",
         endReason: result.endReason,
         endedFrom: "ui",
         totalFaulted: result.totalFaulted || 0,
@@ -2021,7 +1925,7 @@ void function () {
   UI.prototype.checkout = function (priceKey) {
     if (!isOnline()) {
       var msg = String(this.wording?.system?.offlinePayment || "").trim();
-      if (msg) toastNow(this.config, msg);
+      if (msg) this._toastNow(this.config, msg);
       return;
     }
     var cfg = this.config;
@@ -2033,359 +1937,6 @@ void function () {
     try { window.open(url, "_blank", "noopener"); } catch (_) { }
   };
 
-
-  // ============================================
-  // Share
-  // ============================================
-
-  // V2: Generate share card as canvas image
-  // V2.1: + verification hash + daily label + hashtag
-
-  // Soft anti-tamper hash: 4-char hex derived from score+mode+date+salt
-  // NOT cryptographic — just enough to prevent casual Photoshop edits
-  function shareHash(score, mode, salt) {
-    var d = new Date();
-    var str = String(score) + "|" + String(mode) + "|" + d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate() + "|" + String(salt);
-    var h = 0;
-    for (var i = 0; i < str.length; i++) {
-      h = ((h << 5) - h + str.charCodeAt(i)) | 0;
-    }
-    return ((h >>> 0) % 0xFFFF).toString(16).toUpperCase().padStart(4, "0");
-  }
-
-  function todayDateParts() {
-    var d = new Date();
-    var monthNames = (window.KR_WORDING && window.KR_WORDING.system && window.KR_WORDING.system.monthsShort)
-      ? window.KR_WORDING.system.monthsShort
-      : [];
-    return { month: monthNames[d.getMonth()] || "", day: d.getDate(), year: d.getFullYear() };
-  }
-
-  UI.prototype._generateShareCard = function () {
-    var last = (this._runtime && this._runtime.lastRun) ? this._runtime.lastRun : {};
-    var w = (this.wording && this.wording.share) ? this.wording.share : {};
-    var appName = String(this.config?.identity?.appName || "").trim();
-    var score = last.smashes || 0;
-    var best = last.bestSmashes || 0;
-    var isSprint = (last.mode === MODES.SPRINT);
-    var isDaily = !!(last && last.isDaily === true);
-    var colors = this.config?.canvas?.colors;
-    if (!colors) return null;
-
-    var salt = String(this.config?.share?.verificationSalt || "").trim();
-    var hash = salt ? shareHash(score, last.mode || MODES.RUN, salt) : "";
-
-    var cardW = 600;
-    var cardH = 340;
-
-    var canvas = document.createElement("canvas");
-    canvas.width = cardW;
-    canvas.height = cardH;
-    var ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-
-    // Background (court color)
-    ctx.fillStyle = colors.courtBg;
-    ctx.fillRect(0, 0, cardW, cardH);
-
-    // Kitchen zone (bottom third)
-    var kitchenY = cardH * 0.65;
-    ctx.fillStyle = colors.kitchenBg;
-    ctx.fillRect(0, kitchenY, cardW, cardH - kitchenY);
-
-    // Kitchen line
-    ctx.strokeStyle = colors.kitchenLine;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([8, 6]);
-    ctx.beginPath();
-    ctx.moveTo(0, kitchenY);
-    ctx.lineTo(cardW, kitchenY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // App name
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 24px system-ui, -apple-system, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    ctx.fillText(appName, cardW / 2, 24);
-
-    // Mode / Daily label
-    var modeLabel = "";
-    if (isDaily) {
-      modeLabel = String(w.cardDailyLabel || "").trim();
-      // Add date
-      var dp = todayDateParts();
-      var dateFmt = String(w.cardDateFormat || "").trim();
-      if (dateFmt && modeLabel) {
-        modeLabel += " — " + fillTemplate(dateFmt, dp);
-      }
-    } else if (isSprint) {
-      modeLabel = String(w.cardSprintLabel || "").trim();
-    }
-    if (modeLabel) {
-      ctx.font = "16px system-ui, -apple-system, sans-serif";
-      ctx.globalAlpha = 0.7;
-      ctx.fillText(modeLabel, cardW / 2, 56);
-      ctx.globalAlpha = 1;
-    }
-
-    // Score (big)
-    ctx.font = "bold 96px system-ui, -apple-system, sans-serif";
-    ctx.textBaseline = "middle";
-    ctx.fillText(String(score), cardW / 2, cardH * 0.42);
-
-    // "Smashes" label
-    var smashLabel = String(w.cardSmashesLabel || "").trim();
-    if (smashLabel) {
-      ctx.font = "20px system-ui, -apple-system, sans-serif";
-      ctx.globalAlpha = 0.8;
-      ctx.fillText(smashLabel, cardW / 2, cardH * 0.58);
-      ctx.globalAlpha = 1;
-    }
-
-    // Best score line
-    if (best > 0 && !isSprint) {
-      var bestLabel = String(w.cardBestLabel || "").trim();
-      if (bestLabel) {
-        ctx.font = "16px system-ui, -apple-system, sans-serif";
-        ctx.globalAlpha = 0.6;
-        ctx.fillText(fillTemplate(bestLabel, { best: best }), cardW / 2, cardH * 0.68);
-        ctx.globalAlpha = 1;
-      }
-    }
-
-    // Verification hash (bottom-right corner, small)
-    if (hash) {
-      ctx.font = "11px monospace";
-      ctx.textAlign = "right";
-      ctx.globalAlpha = 0.35;
-      ctx.fillText("#" + hash, cardW - 12, cardH - 10);
-      ctx.globalAlpha = 1;
-      ctx.textAlign = "center";
-    }
-
-    // Tagline at bottom-center
-    var tagline = String(w.cardTagline || "").trim();
-    if (tagline) {
-      ctx.font = "14px system-ui, -apple-system, sans-serif";
-      ctx.globalAlpha = 0.5;
-      ctx.fillText(tagline, cardW / 2, cardH - 20);
-      ctx.globalAlpha = 1;
-    }
-
-    return canvas;
-  };
-
-  UI.prototype._getShareText = function () {
-    var w = (this.wording && this.wording.share) ? this.wording.share : {};
-    var last = (this._runtime && this._runtime.lastRun) ? this._runtime.lastRun : {};
-    var url = String(this.config?.identity?.appUrl || "").trim();
-    var isDaily = !!(last && last.isDaily === true);
-
-    // Dynamic hashtag: #KitchenRush{score}
-    var hashtagPrefix = String(w.hashtagPrefix || "").trim();
-    var hashtag = hashtagPrefix ? hashtagPrefix + (last.smashes || 0) : "";
-
-    // Date string for daily
-    var dp = todayDateParts();
-    var dateStr = dp.month + " " + dp.day;
-
-    // V3: Daily modifier info for share
-    var modLabel = "";
-    var modDesc = "";
-    var objMet = false;
-    if (last.dailyModifier) {
-      modLabel = last.dailyModifier.label || "";
-      modDesc = last.dailyModifier.desc || "";
-    }
-    if (last.dailyObjectiveMet) objMet = true;
-    var modLine = modLabel ? (modLabel + (objMet ? " \u2705" : " \u274C")) : "";
-
-    var tpl = "";
-    if (isDaily) tpl = w.templateDaily || w.templateDefault || "";
-    else if (last.mode === MODES.SPRINT) tpl = w.templateSprint || "";
-    else if (last.newBest) tpl = w.templateNewBest || "";
-    else if (last.totalFaulted > 0) tpl = w.templateFault || "";
-    else tpl = w.templateDefault || "";
-
-    var raw = fillTemplate(tpl, {
-      score: last.smashes || 0,
-      best: last.bestSmashes || 0,
-      url: url,
-      hashtag: hashtag,
-      date: dateStr,
-      modifier: modLine,
-      modifierName: modLabel,
-      modifierDesc: modDesc,
-      objective: objMet ? "\u2705" : "\u274C",
-      streak: last.bestStreak || 0
-    });
-    return raw.split("\n").map(function (l) { return l.trimEnd(); }).join("\n");
-  };
-
-  UI.prototype.copyShareText = async function () {
-    var text = this._getShareText();
-    if (!text) return;
-    this._store("markShareClicked");
-
-    // V2: Try Web Share API with image card first
-    var card = this._generateShareCard();
-    if (card && navigator.share && navigator.canShare) {
-      try {
-        var blob = await new Promise(function (resolve) { card.toBlob(resolve, "image/png"); });
-        if (blob) {
-          var file = new File([blob], "kitchen-rush-score.png", { type: "image/png" });
-          var shareData = { text: text, files: [file] };
-          if (navigator.canShare(shareData)) {
-            await navigator.share(shareData);
-            return;
-          }
-        }
-      } catch (e) {
-        // User cancelled or API not available — fall through to text
-        if (e && e.name === "AbortError") return;
-      }
-    }
-
-    // Fallback: text-only share
-    if (navigator.share) {
-      try { await navigator.share({ text: text }); return; } catch (_) { }
-    }
-
-    // Fallback: clipboard
-    try { await navigator.clipboard.writeText(text); }
-    catch (_) {
-      try {
-        var ta = document.createElement("textarea"); ta.value = text;
-        document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
-      } catch (_) { return; }
-    }
-    var msg = String(this.wording?.share?.toastCopied || "").trim();
-    if (msg) toastNow(this.config, msg, { timingKey: "positive" });
-  };
-
-  UI.prototype.sendShareViaEmail = function () {
-    var text = this._getShareText();
-    if (!text) return;
-    this._store("markShareClicked");
-    var subject = String(this.config?.identity?.appName || "").trim();
-    var url = "mailto:?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(text);
-    try { window.open(url, "_self"); } catch (_) { }
-  };
-
-  // Reco 3: Share card modal — full-screen preview of the share image
-  UI.prototype._showShareCardModal = function () {
-    if (this.state !== STATES.END) return;
-    var card = this._generateShareCard();
-    if (!card) return;
-
-    var sw = (this.wording && this.wording.share) ? this.wording.share : {};
-    var shareTitle = String(sw.cardModalTitle || "").trim();
-    var shareCta = String(sw.ctaLabel || "").trim();
-
-    var dataUrl = "";
-    try { dataUrl = card.toDataURL("image/png"); } catch (_) { return; }
-
-    var html = '<div class="kr-share-card-modal">';
-    if (shareTitle) html += '<p class="kr-share-card-title">' + escapeHtml(shareTitle) + '</p>';
-    html += '<img src="' + dataUrl + '" class="kr-share-card-img" alt="Score card" />';
-    html += '<div class="kr-actions">';
-    if (shareCta) html += '<button id="kr-share-card-btn" class="kr-btn kr-btn--primary">' + escapeHtml(shareCta) + '</button>';
-    html += '</div></div>';
-
-    this.openModal(html);
-
-    var self = this;
-    var btn = el("kr-share-card-btn");
-    if (btn) btn.addEventListener("click", function () {
-      self.closeModal();
-      self.copyShareText();
-    });
-  };
-
-
-  // ============================================
-  // Modal system
-  // ============================================
-  UI.prototype.openModal = function (html) {
-    var overlay = el("kr-modal-overlay");
-    var content = el("kr-modal-content");
-    if (!overlay || !content) return;
-    content.innerHTML = html;
-    overlay.classList.add("kr-modal--visible");
-    overlay.setAttribute("aria-hidden", "false");
-
-    var focusable = content.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
-    if (focusable.length) focusable[0].focus();
-
-    var self = this;
-    overlay.addEventListener("click", function (e) { if (e.target === overlay) self.closeModal(); }, { once: true });
-  };
-
-  UI.prototype.closeModal = function () {
-    var overlay = el("kr-modal-overlay");
-    if (overlay) { overlay.classList.remove("kr-modal--visible"); overlay.setAttribute("aria-hidden", "true"); }
-  };
-
-
-  // ============================================
-  // HowTo modal
-  // ============================================
-  UI.prototype.openHowToModal = function () {
-    var w = this.wording?.howto || {};
-    var premium = !!(this._store("isPremium"));
-
-    var h = '<h2 class="kr-h2">' + escapeHtml(w.title || "") + '</h2>';
-    h += '<p>' + escapeHtml(w.line1 || "") + '</p>';
-    h += '<p>' + escapeHtml(w.line2 || "") + '</p>';
-    h += '<p>' + escapeHtml(w.line3 || "") + '</p>';
-    if (w.ruleTitle) h += '<h3 class="kr-h3">' + escapeHtml(w.ruleTitle) + '</h3>';
-    if (w.ruleSentence) h += '<p class="kr-muted">' + escapeHtml(w.ruleSentence) + '</p>';
-
-    if (!premium) {
-      h += '<div class="kr-divider"></div>';
-      h += '<h3 class="kr-h3">' + escapeHtml(w.premiumTitle || "") + '</h3>';
-      h += '<h4>' + escapeHtml(w.activateTitle || "") + '</h4>';
-      h += '<div class="kr-redeem-inline">';
-      h += '<input id="kr-howto-code" type="text" class="kr-input" placeholder="' + escapeHtml(w.activationCodePlaceholder || "") + '" maxlength="16" autocomplete="off" />';
-      h += '<button id="kr-howto-redeem" class="kr-btn kr-btn--secondary">' + escapeHtml(w.redeemCta || "") + '</button>';
-      h += '</div>';
-    }
-    h += '<div class="kr-actions"><button data-action="close-modal" class="kr-btn kr-btn--secondary">' + escapeHtml(this.wording?.system?.close || "") + '</button></div>';
-
-    this.openModal(h);
-
-    var self = this;
-    var redeemBtn = el("kr-howto-redeem");
-    if (redeemBtn) redeemBtn.addEventListener("click", function () {
-      var input = el("kr-howto-code");
-      if (input) self._redeemCode(String(input.value || "").trim());
-    });
-  };
-
-
-  // ============================================
-  // Redeem / Premium code
-  // ============================================
-  UI.prototype.openRedeemModal = function () {
-    var w = this.wording?.howto || {};
-    var h = '<h2 class="kr-h2">' + escapeHtml(w.activateTitle || "") + '</h2>';
-    h += '<div class="kr-redeem-inline">';
-    h += '<input id="kr-redeem-code" type="text" class="kr-input" placeholder="' + escapeHtml(w.activationCodePlaceholder || "") + '" maxlength="16" autocomplete="off" />';
-    h += '<button id="kr-redeem-confirm" class="kr-btn kr-btn--primary">' + escapeHtml(w.redeemCta || "") + '</button>';
-    h += '</div>';
-    h += '<div class="kr-actions"><button data-action="close-modal" class="kr-btn kr-btn--secondary">' + escapeHtml(this.wording?.system?.close || "") + '</button></div>';
-    this.openModal(h);
-
-    var self = this;
-    var btn = el("kr-redeem-confirm");
-    if (btn) btn.addEventListener("click", function () {
-      var input = el("kr-redeem-code");
-      if (input) self._redeemCode(String(input.value || "").trim());
-    });
-  };
-
   UI.prototype._redeemCode = function (code) {
     if (!code) return;
     var result = this.storage
@@ -2393,7 +1944,7 @@ void function () {
     if (result && result.ok) {
       this.closeModal();
       var msg = String(this.wording?.system?.premiumUnlockedToast || "").trim();
-      if (msg) toastNow(this.config, msg, { timingKey: "positive" });
+      if (msg) this._toastNow(this.config, msg, { timingKey: "positive" });
       this.render();
     }
   };
@@ -2407,51 +1958,9 @@ void function () {
       ? this.storage.tryRedeemPremiumCode(code) : null;
     if (result && result.ok) {
       var msg = String(this.wording?.system?.premiumUnlockedToast || "").trim();
-      if (msg) toastNow(this.config, msg, { timingKey: "positive" });
+      if (msg) this._toastNow(this.config, msg, { timingKey: "positive" });
       this.render();
     }
-  };
-
-  UI.prototype.openAutoRedeemModal = function () {
-    var code = String(this._store("getVanityCode") || "").trim();
-    if (!code) return;
-    if (!code) return;
-
-    var w = this.wording?.howto || {};
-    var h = '<h2 class="kr-h2">' + escapeHtml(w.autoActivateTitle || w.activateTitle || "") + '</h2>';
-    h += '<p>' + escapeHtml(w.autoActivateBody || "") + '</p>';
-    h += '<div class="kr-redeem-inline">';
-    h += '<input id="kr-redeem-code" type="text" class="kr-input" value="' + escapeHtml(code) + '" readonly />';
-    h += '<button id="kr-redeem-confirm" class="kr-btn kr-btn--primary">' + escapeHtml(w.redeemCta || "") + '</button>';
-    h += '</div>';
-    h += '<div class="kr-actions"><button data-action="close-modal" class="kr-btn kr-btn--secondary">' + escapeHtml(this.wording?.system?.close || "") + '</button></div>';
-    this.openModal(h);
-
-    var self = this;
-    var btn = el("kr-redeem-confirm");
-    if (btn) btn.addEventListener("click", function () { self._redeemCode(code); });
-  };
-
-
-  // ============================================
-  // Support modal
-  // ============================================
-  UI.prototype.openSupportModal = function () {
-    var w = this.wording?.support || {};
-    if (!this._runtime.supportEmail) {
-      try {
-        if (window.KR_Email && typeof window.KR_Email.getSupportEmailDecoded === "function")
-          this._runtime.supportEmail = window.KR_Email.getSupportEmailDecoded() || "";
-      } catch (_) { }
-    }
-    var h = '<h2 class="kr-h2">' + escapeHtml(w.modalTitle || "") + '</h2>';
-    h += '<p>' + escapeHtml(w.modalBodyLine1 || "") + '</p>';
-    h += '<div class="kr-actions kr-actions--stack">';
-    h += '<button data-action="open-support-email" class="kr-btn kr-btn--primary">' + escapeHtml(w.ctaOpen || "") + '</button>';
-    h += '<button data-action="copy-support-email" class="kr-btn kr-btn--secondary">' + escapeHtml(w.ctaCopy || "") + '</button>';
-    h += '<button data-action="close-modal" class="kr-btn kr-btn--secondary">' + escapeHtml(this.wording?.system?.close || "") + '</button>';
-    h += '</div>';
-    this.openModal(h);
   };
 
   UI.prototype.copySupportEmail = async function () {
@@ -2459,7 +1968,7 @@ void function () {
     if (!email) return;
     try { await navigator.clipboard.writeText(email); } catch (_) { return; }
     var msg = String(this.wording?.system?.copied || "").trim();
-    if (msg) toastNow(this.config, msg, { timingKey: "positive" });
+    if (msg) this._toastNow(this.config, msg, { timingKey: "positive" });
   };
 
   UI.prototype.openSupportEmailApp = function () {
@@ -2510,32 +2019,6 @@ void function () {
     }
   };
 
-  UI.prototype._showSprintWelcomeModal = function () {
-    var w = this.wording?.sprint || {};
-    var h = '<h2 class="kr-h2">' + escapeHtml(w.modalTitle || "") + '</h2>';
-    h += '<p>' + escapeHtml(w.modalBody || "") + '</p>';
-    h += '<div class="kr-actions"><button id="kr-sprint-modal-cta" class="kr-btn kr-btn--primary">' + escapeHtml(w.modalCta || "") + '</button></div>';
-    this.openModal(h);
-    var cta = el("kr-sprint-modal-cta");
-    if (cta) cta.addEventListener("click", function () {
-      var overlay = el("kr-modal-overlay");
-      if (overlay) { overlay.classList.remove("kr-modal--visible"); overlay.setAttribute("aria-hidden", "true"); }
-      window.dispatchEvent(new CustomEvent("kr-sprint-requested"));
-    });
-  };
-
-  UI.prototype._showSprintFreeLimitReached = function () {
-    var w = this.wording?.sprint || {};
-    var limit = requiredConfigNumber(this.config?.sprint?.freeRunsLimit, "KR_CONFIG.sprint.freeRunsLimit", { min: 0, integer: true });
-    var h = '<h2 class="kr-h2">' + escapeHtml(w.freeLimitReachedTitle || "") + '</h2>';
-    h += '<p>' + escapeHtml(fillTemplate(w.freeLimitReachedBody || "", { limit: limit })) + '</p>';
-    h += '<div class="kr-actions kr-actions--stack">';
-    h += '<button data-action="show-paywall" class="kr-btn kr-btn--primary">' + escapeHtml(w.freeLimitReachedCta || "") + '</button>';
-    h += '<button data-action="close-modal" class="kr-btn kr-btn--secondary">' + escapeHtml(w.freeLimitReachedClose || "") + '</button>';
-    h += '</div>';
-    this.openModal(h);
-  };
-
   UI.prototype._canShowChest = function (screen) {
     var cfg = this.config;
     if (!cfg?.sprint?.enabled) return false;
@@ -2565,140 +2048,12 @@ void function () {
   };
 
 
-  // ============================================
-  // Waitlist
-  // ============================================
-  UI.prototype.openWaitlistModal = function () {
-    var w = this.wording?.waitlist || {};
-    var h = '<h2 class="kr-h2">' + escapeHtml(w.title || "") + '</h2>';
-    h += '<p>' + escapeHtml(w.bodyLine1 || "") + '</p>';
-    h += '<textarea id="kr-waitlist-idea" class="kr-input" rows="3" placeholder="' + escapeHtml(w.inputPlaceholder || "") + '"></textarea>';
-    h += '<div class="kr-actions kr-actions--stack">';
-    h += '<button id="kr-waitlist-send" class="kr-btn kr-btn--primary">' + escapeHtml(w.cta || "") + '</button>';
-    h += '<button data-action="close-modal" class="kr-btn kr-btn--secondary">' + escapeHtml(this.wording?.system?.close || "") + '</button>';
-    h += '</div>';
-    this.openModal(h);
-
-    var ta = el("kr-waitlist-idea");
-    if (ta) {
-      var draft = this._store("getWaitlistDraftIdea") || "";
-      if (draft) ta.value = draft;
-      var self = this;
-      ta.addEventListener("input", function () {
-        if (self.storage && typeof self.storage.setWaitlistDraftIdea === "function") self.storage.setWaitlistDraftIdea(ta.value);
-      });
-    }
-    var sendBtn = el("kr-waitlist-send");
-    var self2 = this;
-    if (sendBtn) sendBtn.addEventListener("click", function () { self2.sendWaitlistViaEmail(); });
-  };
-
-  UI.prototype.sendWaitlistViaEmail = function () {
-    var idea = (el("kr-waitlist-idea") || {}).value || "";
-    if (window.KR_Email && typeof window.KR_Email.buildMailto === "function") {
-      var mailto = window.KR_Email.buildMailto(this.config, idea);
-      if (mailto) try { window.open(mailto, "_self"); } catch (_) { }
-    }
-    this._store("setWaitlistStatus","joined");
-    this.closeModal();
-  };
-
-
-  // ============================================
-  // Stats Sharing
-  // ============================================
-  UI.prototype.openStatsSharingModal = function () {
-    var w = this.wording?.statsSharing || {};
-    var payload = this._store("getAnonymousStatsPayload") || null;
-    if (!payload) return;
-
-    var preview = JSON.stringify(payload, null, 2);
-    var h = '<h2 class="kr-h2">' + escapeHtml(w.modalTitle || "") + '</h2>';
-    h += '<p class="kr-muted">' + escapeHtml(w.modalDescription || "") + '</p>';
-    h += '<pre class="kr-stats-preview">' + escapeHtml(preview) + '</pre>';
-    h += '<div class="kr-actions kr-actions--stack">';
-    h += '<button id="kr-stats-send" class="kr-btn kr-btn--primary">' + escapeHtml(w.ctaSend || "") + '</button>';
-    h += '<button id="kr-stats-copy" class="kr-btn kr-btn--secondary">' + escapeHtml(w.ctaCopy || "") + '</button>';
-    h += '<button data-action="close-modal" class="kr-btn kr-btn--secondary">' + escapeHtml(this.wording?.system?.close || "") + '</button>';
-    h += '</div>';
-    this.openModal(h);
-
-    var self = this;
-    var sendBtn = el("kr-stats-send");
-    if (sendBtn) sendBtn.addEventListener("click", function () { self.sendStatsViaEmail(); });
-    var copyBtn = el("kr-stats-copy");
-    if (copyBtn) copyBtn.addEventListener("click", function () { self.copyStatsToClipboard(); });
-  };
-
-  UI.prototype.sendStatsViaEmail = function () {
-    var payload = this._store("getAnonymousStatsPayload") || null;
-    if (!payload) return;
-    var subject = String(this.config?.statsSharing?.emailSubject || "").trim();
-    var body = JSON.stringify(payload, null, 2);
-    var email = (window.KR_Email && typeof window.KR_Email.getSupportEmailDecoded === "function") ? window.KR_Email.getSupportEmailDecoded() : "";
-    var q = [];
-    if (subject) q.push("subject=" + encodeURIComponent(subject));
-    if (body) q.push("body=" + encodeURIComponent(body));
-    try { window.open("mailto:" + email + (q.length ? "?" + q.join("&") : ""), "_self"); } catch (_) { }
-    var msg = String(this.wording?.statsSharing?.successToast || "").trim();
-    if (msg) toastNow(this.config, msg, { timingKey: "positive" });
-    this.closeModal();
-  };
-
-  UI.prototype.copyStatsToClipboard = async function () {
-    var payload = this._store("getAnonymousStatsPayload") || null;
-    if (!payload) return;
-    try { await navigator.clipboard.writeText(JSON.stringify(payload, null, 2)); } catch (_) { return; }
-    var msg = String(this.wording?.statsSharing?.copyToast || "").trim();
-    if (msg) toastNow(this.config, msg, { timingKey: "positive" });
-  };
-
-  UI.prototype._maybePromptStatsSharingMilestone = function () {
-    var cfg = this.config?.statsSharing;
-    if (!cfg || !cfg.enabled) return;
-    var rc = ((this._store("getCounters") || {}).runCompletes || 0);
-    var milestones = cfg.promptAfterRunCompletes || [];
-
-    var shouldPrompt = false;
-    for (var i = 0; i < milestones.length; i++) { if (rc === milestones[i]) { shouldPrompt = true; break; } }
-
-    if (!shouldPrompt && cfg.promptOnFreeRunsExhausted) {
-      var balance = this._store("getRunsBalance") || 0;
-      var premium = !!(this._store("isPremium"));
-      if (balance <= 0 && !premium) shouldPrompt = true;
-    }
-
-    var snooze = this.storage
-      ? (this.storage.getStatsSharingSnoozeUntilRunCompletes() || 0) : 0;
-    if (rc < snooze) shouldPrompt = false;
-    if (!shouldPrompt) return;
-
-    var w = this.wording?.statsSharing || {};
-    var body = fillTemplate(w.promptBodyTemplate || "", { runCompletes: rc });
-    var h = '<h2 class="kr-h2">' + escapeHtml(w.promptTitle || "") + '</h2>';
-    h += '<p>' + escapeHtml(body) + '</p>';
-    h += '<div class="kr-actions kr-actions--stack">';
-    h += '<button id="kr-stats-prompt-yes" class="kr-btn kr-btn--primary">' + escapeHtml(w.promptCtaPrimary || "") + '</button>';
-    h += '<button id="kr-stats-prompt-no" class="kr-btn kr-btn--secondary">' + escapeHtml(w.promptCtaSecondary || "") + '</button>';
-    h += '</div>';
-    this.openModal(h);
-
-    var self = this;
-    var yesBtn = el("kr-stats-prompt-yes");
-    if (yesBtn) yesBtn.addEventListener("click", function () { self.closeModal(); self.openStatsSharingModal(); });
-    var noBtn = el("kr-stats-prompt-no");
-    if (noBtn) noBtn.addEventListener("click", function () {
-      if (self.storage && typeof self.storage.snoozeStatsSharingPromptNextEnd === "function") self.storage.snoozeStatsSharingPromptNextEnd();
-      self.closeModal();
-    });
-  };
-
 
   // ============================================
   // Install prompt
   // ============================================
   UI.prototype.promptInstall = function () {
-    if (window.KR_PWA && typeof window.KR_PWA.promptInstall === "function") window.KR_PWA.promptInstall(this.storage);
+    if (this.pwa && typeof this.pwa.promptInstall === "function") this.pwa.promptInstall(this.storage);
   };
 
   UI.prototype.dismissUpdateToast = function () {
@@ -2706,231 +2061,6 @@ void function () {
     if (node) node.classList.remove("kr-toast--visible");
     if (window.__KR_SW_UPDATE_READY__) try { location.reload(); } catch (_) { }
   };
-
-
-  // ============================================
-  // Render (main dispatch)
-  // ============================================
-  UI.prototype.render = function () {
-    switch (this.state) {
-      case STATES.LANDING: this._renderLanding(); break;
-      case STATES.PLAYING: this._renderPlaying(); break;
-      case STATES.END:     this._renderEnd(); break;
-      case STATES.PAYWALL: this._renderPaywall(); break;
-    }
-  };
-
-
-  // ============================================
-  // LANDING
-  // ============================================
-  UI.prototype._renderLanding = function () {
-    var cfg = this.config;
-    var w = this.wording;
-    var lw = (w && w.landing) ? w.landing : {};
-    var premium = !!(this._store("isPremium"));
-    var pb = this._store("getPersonalBest") || {};
-    var best = pb.bestSmashes || 0;
-    var balance = this._store("getRunsBalance") || 0;
-    var counters = this._store("getCounters") || {};
-    var runCompletes = counters.runCompletes || 0;
-
-    var ctaLabel = (runCompletes > 0)
-      ? escapeHtml(lw.ctaPlayAfterFirstRun || lw.ctaPlay || "")
-      : escapeHtml(lw.ctaPlay || "");
-
-    // Chest
-    var showChest = this._canShowChest(STATES.LANDING);
-    var solved = !!(this._store("hasSprintChestHintSolved"));
-    var chestHtml = showChest
-      ? '<button class="kr-btn-icon' + (solved ? "" : " kr-btn-icon--tease") + '" data-kr-secret="chest" aria-label="' + escapeHtml((w?.sprint || {}).chestAria || "") + '">\uD83C\uDF81</button>' : "";
-
-    var chestHintHtml = (showChest && !solved)
-      ? '<p class="kr-chest-hint-inline kr-muted">' + escapeHtml((w?.sprint || {}).chestHint || "") + '</p>' : "";
-
-    // Best score — salience nudge (§4.2: make next target visible)
-    var bestHtml = "";
-    if (best > 0) {
-      var targetSmashes = best + 1;
-      var targetMsg = String(lw.bestTargetTemplate || "").trim();
-      if (targetMsg) {
-        bestHtml = '<div class="kr-landing-best">';
-        bestHtml += '<p class="kr-landing-best-score">' + escapeHtml(lw.bestLabel || "") + ': ' + best + '</p>';
-        bestHtml += '<p class="kr-landing-best-target">' + escapeHtml(fillTemplate(targetMsg, { target: targetSmashes })) + '</p>';
-        bestHtml += '</div>';
-      } else {
-        bestHtml = '<p class="kr-landing-best-score">' + escapeHtml(lw.bestLabel || "") + ': ' + best + '</p>';
-      }
-    }
-
-    // Lifetime smashes counter (Eyal Hook — cumulative investment)
-    var lifetimeHtml = "";
-    var lifetimeTotal = counters.totalLifetimeSmashes || 0;
-    if (lifetimeTotal > 0) {
-      var ltTpl = String(lw.lifetimeTemplate || "").trim();
-      if (ltTpl) lifetimeHtml = '<p class="kr-muted kr-landing-lifetime">' + escapeHtml(fillTemplate(ltTpl, { total: lifetimeTotal })) + '</p>';
-    }
-
-    // Spark bars
-    var sparkHtml = "";
-    if (cfg?.landingStats?.enabled) {
-      var count = Number(cfg.landingStats.sparkRunsCount) || 5;
-      var lastRuns = this._store("getLastRuns", count) || [];
-      if (lastRuns.length > 0) {
-        var maxS = 1;
-        for (var i = 0; i < lastRuns.length; i++) { if ((lastRuns[i].smashes || 0) > maxS) maxS = lastRuns[i].smashes; }
-        var barsHtml = "";
-        for (var i = 0; i < lastRuns.length; i++) {
-          var pct = Math.round(((lastRuns[i].smashes || 0) / maxS) * 100);
-          barsHtml += '<div class="kr-spark-bar" style="height:' + pct + '%" title="' + (lastRuns[i].smashes || 0) + ' Smashes"></div>';
-        }
-        sparkHtml = '<div class="kr-spark-bars">' + barsHtml + '</div>';
-      }
-    }
-
-    // Early price ticker
-    var earlyTickerHtml = "";
-    try {
-      var ep = this._store("getEarlyPriceState") || null;
-      if (ep && ep.phase === "EARLY" && Number(ep.remainingMs) > 0) {
-        var tl = String((w?.paywall || {}).timerLabel || "").trim();
-        if (tl) earlyTickerHtml = '<p class="kr-muted kr-early-timer">' + escapeHtml(tl) + " " + mmss(ep.remainingMs) + '</p>';
-      }
-    } catch (_) { }
-
-    // Court Challenge on LANDING — based on previous run (runtime OR stored history)
-    var landingChallengeHtml = "";
-    var prevRun = (this._runtime && this._runtime.lastRun && this._runtime.lastRun.totalSpawned > 0)
-      ? this._runtime.lastRun : null;
-    // Fallback: read from stored history if runtime is empty (app restart)
-    if (!prevRun) {
-      var storedRuns = this._store("getLastRuns", 1) || [];
-      if (storedRuns.length > 0 && storedRuns[0].meta) {
-        var sm = storedRuns[0].meta;
-        if ((sm.totalSpawned || 0) > 0) {
-          prevRun = {
-            smashes: storedRuns[0].smashes || 0,
-            totalFaulted: sm.totalFaulted || 0,
-            bestStreak: sm.bestStreak || 0,
-            totalSpawned: sm.totalSpawned || 0,
-            newBest: false
-          };
-        }
-      }
-    }
-    if (prevRun && best > 0 && (premium || balance > 0)) {
-      var lch = (w?.challenges) || {};
-      var lcCfg = (cfg?.challenges) || {};
-      var pF = prevRun.totalFaulted || 0;
-      var pS = prevRun.bestStreak || 0;
-      var pG = (!prevRun.newBest && prevRun.smashes > 0) ? (best - prevRun.smashes) : 0;
-
-      landingChallengeHtml = pickChallenge([
-        { test: pG > 0 && pG <= (Number(lcCfg.nearBestGap) || 5), key: "landingNearBest", vars: { gap: pG } },
-        { test: pF >= (Number(lcCfg.faultThreshold) || 2),        key: "landingComeback",  vars: { faults: pF } },
-        { test: pS >= (Number(lcCfg.streakThreshold) || 8),       key: "landingStreakPush", vars: { streak: pS } }
-      ], lch);
-    }
-
-    // Premium label
-    var premiumLabelHtml = "";
-    if (premium) {
-      var ulLabel = String(lw.premiumLabel || "").trim();
-      if (ulLabel) premiumLabelHtml = '<p class="kr-muted">' + escapeHtml(ulLabel) + '</p>';
-    }
-
-    // Post-paywall block (free runs exhausted, not premium)
-    var postPaywallHtml = "";
-    if (!premium && balance <= 0 && runCompletes > 0) {
-      postPaywallHtml = '<div class="kr-box kr-box--tinted">';
-
-      // Secret bonus redirect: if chest visible + 0 sprints played → "Before you decide..."
-      var sprintUsed = this._store("getSprintFreeRunsUsed") || 0;
-      if (showChest && sprintUsed === 0 && String(lw.postPaywallSbTitle || "").trim()) {
-        postPaywallHtml += '<p><strong>' + escapeHtml(lw.postPaywallSbTitle || "") + '</strong></p>';
-        postPaywallHtml += '<p class="kr-muted">' + escapeHtml(lw.postPaywallSbBody || "") + '</p>';
-      } else {
-        postPaywallHtml += '<p>' + escapeHtml(lw.postPaywallTitle || "") + '</p>';
-        postPaywallHtml += '<p class="kr-muted">' + escapeHtml(lw.postPaywallBody || "") + '</p>';
-        postPaywallHtml += '<button class="kr-btn kr-btn--secondary" data-action="show-paywall">' + escapeHtml(lw.postPaywallCta || "") + '</button>';
-      }
-      postPaywallHtml += '</div>';
-    }
-
-    // House Ad
-    var houseAdHtml = "";
-    if (this._store("shouldShowHouseAdNow",{ inRun: false })) {
-      var ha = (w && w.houseAd) ? w.houseAd : {};
-      this._store("markHouseAdShown");
-      houseAdHtml = '<div class="kr-box">';
-      houseAdHtml += '<p>' + escapeHtml(ha.bodyLine1 || "") + '</p>';
-      houseAdHtml += '<p class="kr-muted">' + escapeHtml(ha.bodyLine2 || "") + '</p>';
-      houseAdHtml += '<div class="kr-actions">';
-      houseAdHtml += '<button class="kr-btn kr-btn--secondary" data-action="house-ad-open">' + escapeHtml(ha.ctaPrimary || "") + '</button>';
-      houseAdHtml += '<button class="kr-btn kr-btn--secondary" data-action="house-ad-later">' + escapeHtml(ha.ctaRemindLater || "") + '</button>';
-      houseAdHtml += '</div></div>';
-    }
-
-    // Daily challenge primary CTA / Classic unlock after Daily
-    var dailyHtml = "";
-    var classicHtml = "";
-    if (this.config?.daily?.enabled) {
-      var dailyLabel = String(lw.dailyBadge || "").trim();
-      if (dailyLabel) {
-        var dp = todayDateParts();
-        var dateTpl = String(lw.dailyDateTemplate || "").trim();
-        var dateStr = dateTpl ? fillTemplate(dateTpl, dp) : "";
-        var dailyExplain = String(lw.dailyExplain || "").trim();
-        var dailyCta = String(lw.ctaPlayDaily || "").trim() || dailyLabel;
-        dailyHtml = '<button class="kr-daily-badge kr-daily-badge--cta" data-action="play-daily" aria-label="' + escapeHtml(dailyCta) + '">';
-        dailyHtml += '<span class="kr-daily-badge-icon">📅</span>';
-        dailyHtml += '<span class="kr-daily-badge-label">' + escapeHtml(dailyLabel) + '</span>';
-        if (dateStr) dailyHtml += '<span class="kr-daily-badge-date">' + escapeHtml(dateStr) + '</span>';
-        dailyHtml += '</button>';
-        if (dailyExplain) {
-          dailyHtml += '<p class="kr-daily-explain kr-muted">' + escapeHtml(dailyExplain) + '</p>';
-        }
-      }
-      if (this._hasCompletedDailyToday()) {
-        classicHtml = '<div class="kr-actions">' +
-          '<button class="kr-btn kr-btn--primary" data-action="play">' + ctaLabel + '</button>' +
-        '</div>';
-      } else {
-        var classicHint = String(lw.classicUnlockHint || "").trim();
-        if (classicHint) classicHtml = '<p class="kr-landing-classic-hint kr-muted">' + escapeHtml(classicHint) + '</p>';
-      }
-    } else {
-      classicHtml = '<div class="kr-actions">' +
-        '<button class="kr-btn kr-btn--primary" data-action="play">' + ctaLabel + '</button>' +
-      '</div>';
-    }
-
-    this.appEl.innerHTML =
-      '<div class="kr-screen kr-screen--landing">' +
-        '<div class="kr-landing-header"><div class="kr-landing-header-row">' +
-          '<button class="kr-btn-icon" data-action="howto" aria-label="' + escapeHtml((w?.system || {}).more || "") + '">?</button>' +
-          chestHtml +
-        '</div></div>' +
-        '<div class="kr-landing-body">' +
-          '<h1 class="kr-h1">' + escapeHtml(lw.tagline || "") + '</h1>' +
-          '<p class="kr-subtitle">' + escapeHtml(lw.subtitle || "") + '</p>' +
-          dailyHtml +
-          classicHtml +
-          bestHtml +
-          landingChallengeHtml +
-          premiumLabelHtml +
-          sparkHtml +
-          lifetimeHtml +
-          chestHintHtml +
-          earlyTickerHtml +
-          postPaywallHtml +
-          houseAdHtml +
-        '</div>' +
-      '</div>';
-
-    this._reattachFooter();
-  };
-
 
   // ============================================
   // PLAYING
@@ -3000,300 +2130,6 @@ void function () {
     // this._startGameLoop(); // REMOVED — started on overlay dismiss
   };
 
-
-  // ============================================
-  // END
-  // ============================================
-  UI.prototype._renderEnd = function () {
-    var cfg = this.config;
-    var w = this.wording;
-    var ew = (w && w.end) ? w.end : {};
-    var sw = (w && w.sprint) ? w.sprint : {};
-    var last = (this._runtime && this._runtime.lastRun) ? this._runtime.lastRun : {};
-    var isSprint = (last.mode === MODES.SPRINT);
-    var premium = !!(this._store("isPremium"));
-    var balance = this._store("getRunsBalance") || 0;
-
-    // Title & score
-    var title = isSprint ? escapeHtml(sw.endTitle || "") : escapeHtml(ew.title || "");
-    var scoreLine = isSprint
-      ? escapeHtml(fillTemplate(sw.scoreLine || "", { score: last.smashes }))
-      : escapeHtml(fillTemplate(ew.scoreLine || "", { score: last.smashes }));
-
-    // Best
-    var bestSmashes = isSprint
-      ? ((this._store("getSprintBest") || {}).bestSmashes || 0)
-      : (last.bestSmashes || 0);
-    var bestLine = isSprint
-      ? escapeHtml(fillTemplate(sw.bestLine || "", { best: bestSmashes }))
-      : escapeHtml(fillTemplate(ew.personalBestLine || "", { best: bestSmashes }));
-
-    // New best badge
-    var newBest = last.newBest;
-    var newBestLabel = isSprint ? (sw.newBest || "") : (ew.newBest || "");
-    var newBestHtml = newBest ? '<p class="kr-new-best">' + escapeHtml(newBestLabel) + '</p>' : "";
-
-    // Record moment: temporarily show newBest copy instead of regular score
-    var recordMomentActive = (this._runtime && this._runtime.endRecordMomentUntil > Date.now());
-
-    // End highlight from microFeedback
-    var endHighlight = (this._runtime && this._runtime.microFeedback) ? (this._runtime.microFeedback.endHighlight || "") : "";
-    var highlightHtml = endHighlight ? '<p class="kr-end-highlight kr-muted">' + escapeHtml(endHighlight) + '</p>' : "";
-
-    // Best streak
-    var bestStreak = last.bestStreak || 0;
-    var streakHtml = (bestStreak >= 3 && !isSprint)
-      ? '<p class="kr-muted">' + escapeHtml(fillTemplate(ew.bestStreakLine || "", { streak: bestStreak })) + '</p>' : "";
-
-    // Debrief: accuracy + faults + duration + delta vs best (cognitive feedback)
-    var debriefHtml = "";
-    if (last.totalSpawned > 0) {
-      var accuracy = Math.round((last.smashes / last.totalSpawned) * 100);
-      var faults = last.totalFaulted || 0;
-      var misses = last.totalMissed || 0;
-      var durationSec = Math.round((last.elapsedMs || 0) / 1000);
-
-      // Delta vs personal best (progression signal — Deci/Ryan §2.1)
-      var deltaHtml = "";
-      if (bestSmashes > 0 && !newBest && last.smashes > 0) {
-        var gap = bestSmashes - last.smashes;
-        if (gap > 0 && gap <= 10) {
-          var dw = isSprint ? (w?.sprint || {}) : (w?.end || {});
-          var almostMsg = String(dw.almostBest || (w?.end || {}).almostBest || "").trim();
-          if (almostMsg) deltaHtml = '<p class="kr-end-delta">' + escapeHtml(fillTemplate(almostMsg, { gap: gap })) + '</p>';
-        }
-      }
-
-      var dl = (w?.end || {});
-      var lines = [];
-      if (!isSprint) {
-        var accLine = String(dl.debriefAccuracy || "").trim();
-        if (accLine) lines.push(escapeHtml(fillTemplate(accLine, { accuracy: accuracy })));
-        if (faults > 0) {
-          var fLine = String(dl.debriefFaults || "").trim();
-          if (fLine) lines.push(escapeHtml(fillTemplate(fLine, { faults: faults })));
-        }
-        if (misses > 0) {
-          var mLine = String(dl.debriefMisses || "").trim();
-          if (mLine) lines.push(escapeHtml(fillTemplate(mLine, { misses: misses })));
-        }
-        var durLine = String(dl.debriefDuration || "").trim();
-        if (durLine) lines.push(escapeHtml(fillTemplate(durLine, { seconds: durationSec })));
-      }
-
-      if (lines.length > 0 || deltaHtml) {
-        debriefHtml = '<div class="kr-end-debrief kr-muted">';
-        debriefHtml += deltaHtml;
-        if (lines.length > 0) debriefHtml += '<p>' + lines.join(' \u00b7 ') + '</p>';
-        debriefHtml += '</div>';
-      }
-    }
-
-    // Free runs left
-    var freeRunHtml = "";
-    if (!premium && !isSprint && balance > 0) {
-      var totalFree = requiredConfigNumber(cfg?.limits?.freeRuns, "KR_CONFIG.limits.freeRuns", { min: 0, integer: true });
-      freeRunHtml = '<p class="kr-muted">' + escapeHtml(fillTemplate(ew.freeRunLeft || "", { remaining: balance, total: totalFree })) + '</p>';
-    }
-
-    // Court Challenge — ONE contextual micro-objective per run (priority-ordered)
-    // Only show when player can act (premium or has runs left) — Deci/Ryan autonomy
-    var challengeHtml = "";
-    var canPlayAgain = premium || balance > 0 || isSprint;
-    var ch = (w?.challenges) || {};
-    var chCfg = (cfg?.challenges) || {};
-    if (last.totalSpawned > 0 && canPlayAgain) {
-      var cF = last.totalFaulted || 0;
-      var cA = Math.round((last.smashes / last.totalSpawned) * 100);
-      var cS = last.bestStreak || 0;
-      var sT = requiredConfigNumber(chCfg.streakThreshold, "KR_CONFIG.challenges.streakThreshold", { min: 1, integer: true });
-      var sB = requiredConfigNumber(chCfg.streakTargetBonus, "KR_CONFIG.challenges.streakTargetBonus", { min: 1, integer: true });
-      var fT = requiredConfigNumber(chCfg.faultThreshold, "KR_CONFIG.challenges.faultThreshold", { min: 0, integer: true });
-      var aP = requiredConfigNumber(chCfg.lowAccuracyPct, "KR_CONFIG.challenges.lowAccuracyPct", { min: 0, max: 100, integer: true });
-      var aM = requiredConfigNumber(chCfg.lowAccuracyMinSmashes, "KR_CONFIG.challenges.lowAccuracyMinSmashes", { min: 1, integer: true });
-      var cM = requiredConfigNumber(chCfg.cleanRunMinSmashes, "KR_CONFIG.challenges.cleanRunMinSmashes", { min: 1, integer: true });
-
-      challengeHtml = isSprint
-        ? pickChallenge([
-            { test: last.smashes > 0, key: "sprintChallenge", vars: { score: last.smashes, target: last.smashes + (last.smashes < 5 ? 2 : 1) } }
-          ], ch)
-        : pickChallenge([
-            { test: newBest && last.smashes > 0,     key: "newBestChallenge", vars: { score: last.smashes, target: last.smashes + 1 } },
-            { test: cF === 0 && last.smashes >= cM,  key: "cleanRun",         vars: null },
-            { test: cS >= sT,                        key: "streakChallenge",  vars: { streak: cS, target: cS + sB } },
-            { test: cF >= fT,                        key: "faultHeavy",       vars: { faults: cF } },
-            { test: cA < aP && last.smashes >= aM,   key: "lowAccuracy",      vars: { accuracy: cA } }
-          ], ch);
-    }
-
-    // Sprint free runs left
-    var sprintFreeHtml = "";
-    if (isSprint && !premium) {
-      var used = this._store("getSprintFreeRunsUsed") || 0;
-      var limit = requiredConfigNumber(cfg?.sprint?.freeRunsLimit, "KR_CONFIG.sprint.freeRunsLimit", { min: 0, integer: true });
-      if (limit > 0 && used < limit) {
-        sprintFreeHtml = '<p class="kr-muted">' + escapeHtml(fillTemplate(sw.freeRunsLeftLine || "", { remaining: limit - used, limit: limit })) + '</p>';
-      }
-    }
-
-    // Chest
-    var showChest = this._canShowChest(STATES.END);
-    var solvedChest = !!(this._store("hasSprintChestHintSolved"));
-    var chestHtml = showChest
-      ? '<button class="kr-btn-icon' + (solvedChest ? "" : " kr-btn-icon--tease") + '" data-kr-secret="chest" aria-label="' + escapeHtml(sw.chestAria || "") + '">\uD83C\uDF81</button>' : "";
-
-    // CTAs
-    var ctasHtml = "";
-    if (isSprint) {
-      ctasHtml =
-        '<button class="kr-btn kr-btn--primary" data-action="sprint-again">' + escapeHtml(sw.playAgain || "") + '</button>' +
-        '<button class="kr-btn kr-btn--secondary" data-action="back-to-runs">' + escapeHtml(sw.backToRuns || "") + '</button>';
-    } else if (!premium && balance <= 0) {
-      ctasHtml = '<button class="kr-btn kr-btn--primary" data-action="show-paywall">' + escapeHtml((w?.paywall || {}).cta || "") + '</button>';
-    } else {
-      // §3.1 Fogg: motivational CTA when near best (increases perceived ability)
-      var ctaText = ew.playAgain || "";
-      if (newBest) {
-        ctaText = ew.playAgainAfterBest || ew.playAgain || "";
-      } else if (bestSmashes > 0 && last.smashes > 0) {
-        var nearGap = bestSmashes - last.smashes;
-        if (nearGap > 0 && nearGap <= 5) {
-          ctaText = ew.playAgainNearBest || ew.playAgain || "";
-        }
-      }
-      ctasHtml = '<button class="kr-btn kr-btn--primary" data-action="play-again">' + escapeHtml(ctaText) + '</button>';
-    }
-
-    // Share
-    var shareHtml = "";
-    var isDaily = !!(last && last.isDaily === true);
-    if (cfg?.share?.enabled) {
-      // Make share button primary for daily challenge (viral loop)
-      var shareBtnClass = isDaily ? "kr-btn kr-btn--primary" : "kr-btn kr-btn--secondary";
-      var shareLabel = isDaily
-        ? ("Share daily score")
-        : escapeHtml((w?.share || {}).ctaLabel || "");
-      shareHtml = '<div class="kr-share-row">' +
-        '<button class="' + shareBtnClass + '" data-action="share">' + shareLabel + '</button>' +
-        '<button class="kr-btn kr-btn--secondary" data-action="share-email" aria-label="' + escapeHtml((w?.share || {}).emailAria || "") + '">\u2709</button>' +
-      '</div>';
-    }
-
-    // Auto-show share card after new best OR after any daily run with decent score
-    if (cfg?.share?.enabled) {
-      var autoShareScore = newBest ? 5 : (isDaily ? 3 : 999999);
-      if (last.smashes >= autoShareScore) {
-        var self = this;
-        setTimeout(function () { self._showShareCardModal(); }, 1200);
-      }
-    }
-
-    this.appEl.innerHTML =
-      '<div class="kr-screen kr-screen--end">' +
-        '<div class="kr-end-header"><div class="kr-end-header-row">' +
-          '<button class="kr-btn-icon" data-action="home" aria-label="' + escapeHtml((w?.system || {}).home || "") + '">\u2190</button>' +
-          chestHtml +
-        '</div></div>' +
-        '<div class="kr-end-body">' +
-          '<h2 class="kr-h2">' + title + '</h2>' +
-          '<p class="kr-end-score' + (newBest ? " kr-end-score--celebrate" : "") + '">' + scoreLine + '</p>' +
-          newBestHtml +
-          '<p class="kr-muted">' + bestLine + '</p>' +
-          streakHtml +
-          highlightHtml +
-          debriefHtml +
-          challengeHtml +
-          freeRunHtml +
-          sprintFreeHtml +
-          '<div class="kr-actions kr-actions--stack">' + ctasHtml + shareHtml + '</div>' +
-        '</div>' +
-      '</div>';
-
-    this._reattachFooter();
-  };
-
-
-  // ============================================
-  // PAYWALL
-  // ============================================
-  UI.prototype._renderPaywall = function () {
-    var cfg = this.config;
-    var w = this.wording;
-    var pw = (w && w.paywall) ? w.paywall : {};
-
-    if (this._store("isPremium")) {
-      this.setState(STATES.LANDING);
-      return;
-    }
-
-    var ep = null;
-    try { ep = this._store("getEarlyPriceState") || null; } catch (_) { }
-    var isEarly = !!(ep && ep.phase === "EARLY" && Number(ep.remainingMs) > 0);
-
-    var earlyPrice = formatCents(cfg.earlyPriceCents, cfg.currency);
-    var standardPrice = formatCents(cfg.standardPriceCents, cfg.currency);
-
-    var balance = this._store("getRunsBalance") || 0;
-    var headline = (balance <= 0) ? escapeHtml(pw.headlineLastFree || pw.headline || "") : escapeHtml(pw.headline || "");
-
-    // Savings line
-    var savingsHtml = "";
-    if (isEarly && earlyPrice && standardPrice) {
-      var saveAmount = formatCents(cfg.standardPriceCents - cfg.earlyPriceCents, cfg.currency);
-      if (saveAmount) savingsHtml = '<p class="kr-paywall-savings">' + escapeHtml(fillTemplate(pw.savingsLineTemplate || "", { saveAmount: saveAmount })) + '</p>';
-    }
-
-    var bulletHtml = "";
-    if (Array.isArray(pw.valueBullets)) {
-      for (var i = 0; i < pw.valueBullets.length; i++) bulletHtml += '<li>' + escapeHtml(pw.valueBullets[i]) + '</li>';
-    }
-    var trustBulletHtml = "";
-    if (Array.isArray(pw.trustBullets)) {
-      for (var i = 0; i < pw.trustBullets.length; i++) trustBulletHtml += '<li>' + escapeHtml(pw.trustBullets[i]) + '</li>';
-    }
-
-    var priceCtas = "";
-    if (isEarly) {
-      var tl = String(pw.timerLabel || "").trim();
-      var timerHtml = tl ? '<p class="kr-paywall-timer">' + escapeHtml(tl) + " " + mmss(ep.remainingMs) + '</p>' : "";
-      priceCtas = timerHtml + savingsHtml + '<button class="kr-btn kr-btn--primary" data-action="checkout-early">' + escapeHtml(pw.ctaEarly || "") + '</button>';
-    } else {
-      var postEarly1 = String(pw.postEarlyLine1 || "").trim();
-      var postEarly2 = fillTemplate(pw.postEarlyLine2 || "", { standardPrice: standardPrice });
-      var postHtml = postEarly1 ? '<p class="kr-muted">' + escapeHtml(postEarly1) + '</p><p class="kr-muted">' + escapeHtml(postEarly2) + '</p>' : "";
-      priceCtas = postHtml + '<button class="kr-btn kr-btn--primary" data-action="checkout-standard">' + escapeHtml(pw.ctaStandard || "") + '</button>';
-    }
-
-    // Personal progress anchor (loss aversion — Kahneman: people value what they already have)
-    var progressHtml = "";
-    var pb = this._store("getPersonalBest") || {};
-    var bestScore = pb.bestSmashes || 0;
-    if (bestScore > 0) {
-      var progTpl = String(pw.progressLineTemplate || "").trim();
-      if (progTpl) progressHtml = '<p class="kr-paywall-progress">' + escapeHtml(fillTemplate(progTpl, { best: bestScore })) + '</p>';
-    }
-
-    var redeemHtml = '<p class="kr-muted"><a href="#" data-action="redeem">' + escapeHtml(pw.alreadyHaveCode || "") + '</a></p>';
-
-    this.appEl.innerHTML =
-      '<div class="kr-screen kr-screen--paywall">' +
-        '<div class="kr-paywall-header">' +
-          '<button class="kr-btn-icon" data-action="paywall-not-now" aria-label="' + escapeHtml((w?.system || {}).close || "") + '">\u2715</button>' +
-        '</div>' +
-        '<div class="kr-paywall-body">' +
-          '<h2 class="kr-h2">' + headline + '</h2>' +
-          progressHtml +
-          '<div class="kr-box"><h3 class="kr-h3">' + escapeHtml(pw.valueTitle || "") + '</h3><ul class="kr-paywall-list">' + bulletHtml + '</ul></div>' +
-          '<div class="kr-box"><h3 class="kr-h3">' + escapeHtml(pw.trustTitle || "") + '</h3><ul class="kr-paywall-list">' + trustBulletHtml + '</ul></div>' +
-          '<p class="kr-muted">' + escapeHtml(pw.deviceNote || "") + '</p>' +
-          '<div class="kr-actions kr-actions--stack">' + priceCtas + '</div>' +
-          '<p class="kr-muted">' + escapeHtml(pw.checkoutNote || "") + '</p>' +
-          redeemHtml +
-        '</div>' +
-      '</div>';
-  };
-
-
   // ============================================
   // Footer preservation
   // ============================================
@@ -3307,6 +2143,53 @@ void function () {
   UI.prototype.updateFooter = function () {
     if (window.KR_Email && typeof window.KR_Email.initEmailLinks === "function") window.KR_Email.initEmailLinks();
   };
+
+  if (!window.KR_UI_OVERLAYS || typeof window.KR_UI_OVERLAYS.install !== "function") {
+    throw new Error("KR_UI: KR_UI_OVERLAYS.install missing");
+  }
+  window.KR_UI_OVERLAYS.install(UI, {
+    el: el,
+    escapeHtml: escapeHtml,
+    fillTemplate: fillTemplate,
+    requiredConfigNumber: requiredConfigNumber,
+    MODES: MODES
+  });
+
+  if (!window.KR_UI_MODALS || typeof window.KR_UI_MODALS.install !== "function") {
+    throw new Error("KR_UI: KR_UI_MODALS.install missing");
+  }
+  window.KR_UI_MODALS.install(UI, {
+    el: el,
+    escapeHtml: escapeHtml,
+    toastNow: window.KR_UI_OVERLAYS.toastNow,
+    fillTemplate: fillTemplate,
+    requiredConfigNumber: requiredConfigNumber,
+    getEmailApi: function () { return window.KR_Email || null; }
+  });
+
+  if (!window.KR_UI_SHARING || typeof window.KR_UI_SHARING.install !== "function") {
+    throw new Error("KR_UI: KR_UI_SHARING.install missing");
+  }
+  window.KR_UI_SHARING.install(UI, {
+    el: el,
+    escapeHtml: escapeHtml,
+    fillTemplate: fillTemplate,
+    MODES: MODES
+  });
+
+  if (!window.KR_UI_SCREENS || typeof window.KR_UI_SCREENS.install !== "function") {
+    throw new Error("KR_UI: KR_UI_SCREENS.install missing");
+  }
+  window.KR_UI_SCREENS.install(UI, {
+    escapeHtml: escapeHtml,
+    fillTemplate: fillTemplate,
+    pickChallenge: pickChallenge,
+    mmss: mmss,
+    formatCents: formatCents,
+    requiredConfigNumber: requiredConfigNumber,
+    STATES: STATES,
+    MODES: MODES
+  });
 
 
   // ============================================

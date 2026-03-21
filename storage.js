@@ -414,7 +414,14 @@
 
         if (this._saveFailedOnce !== true) {
           this._saveFailedOnce = true;
-          try { window.dispatchEvent(new CustomEvent(EVT_SAVE_FAILED)); } catch (_) { /* silent */ }
+          try {
+            window.dispatchEvent(new CustomEvent(EVT_SAVE_FAILED, {
+              detail: {
+                name: String(err?.name || ""),
+                message: String(err?.message || "")
+              }
+            }));
+          } catch (_) { /* silent */ }
         }
         return;
       }

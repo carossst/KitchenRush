@@ -16,42 +16,64 @@ const SW_VERSION = (() => {
 const CACHE_PREFIX = "kr";
 const CACHE_NAME = `${CACHE_PREFIX}-cache-${SW_VERSION}`;
 
-const ASSETS_TO_CACHE = [
-  "./",
-  "./index.html",
-  "./success.html",
-  "./404.html",
-  "./privacy.html",
-  "./terms.html",
-  "./style.css",
-  "./config.js",
-  "./storage.js",
-  "./game.js",
-  "./audio.js",
-  "./ui.js",
-  "./pwa.js",
-  "./email.js",
-  "./footer.js",
-  "./main.js",
-  "./manifest.json",
-  "./icons/kr-icon-192x192.png",
-  "./icons/kr-icon-192x192-maskable.png",
-  "./icons/kr-icon-512x512.png",
-  "./icons/kr-icon-512x512-maskable.png",
-  "./icons/kr-icon-512x512-rond.png"
-];
+const ASSET_GROUPS = {
+  shell: [
+    "./",
+    "./index.html",
+    "./style.css",
+    "./manifest.json"
+  ],
+  appScripts: [
+    "./config.js",
+    "./wording.js",
+    "./config-boot.js",
+    "./storage.js",
+    "./game.js",
+    "./audio.js",
+    "./ui-overlays.js",
+    "./ui-modals.js",
+    "./ui-sharing.js",
+    "./ui-screens.js",
+    "./ui.js",
+    "./pwa.js",
+    "./email.js",
+    "./main.js"
+  ],
+  sharedPages: [
+    "./success.html",
+    "./404.html",
+    "./press.html",
+    "./privacy.html",
+    "./terms.html",
+    "./footer.js",
+    "./success.js",
+    "./page-404.js"
+  ],
+  icons: [
+    "./icons/kr-favicon.svg",
+    "./icons/kr-favicon.ico",
+    "./icons/kr-icon-32x32.png",
+    "./icons/kr-icon-152x152.png",
+    "./icons/kr-icon-180x180.png",
+    "./icons/kr-icon-192x192.png",
+    "./icons/kr-icon-192x192-maskable.png",
+    "./icons/kr-icon-512x512.png",
+    "./icons/kr-icon-512x512-maskable.png",
+    "./icons/kr-icon-512x512-rond.png"
+  ]
+};
 
-const CRITICAL_ASSETS = [
-  "./",
-  "./index.html",
-  "./style.css",
-  "./config.js",
-  "./storage.js",
-  "./game.js",
-  "./audio.js",
-  "./ui.js",
-  "./main.js"
-];
+const ASSETS_TO_CACHE = Array.from(
+  new Set([]
+    .concat(ASSET_GROUPS.shell)
+    .concat(ASSET_GROUPS.appScripts)
+    .concat(ASSET_GROUPS.sharedPages)
+    .concat(ASSET_GROUPS.icons))
+);
+
+const CRITICAL_ASSETS = []
+  .concat(ASSET_GROUPS.shell)
+  .concat(ASSET_GROUPS.appScripts);
 
 // Install: cache app shell
 self.addEventListener("install", (event) => {

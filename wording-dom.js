@@ -14,24 +14,36 @@
     return cur;
   }
 
-  function applyWordingToDom() {
-    const w = window.KR_WORDING;
+  function applyToDocument(root, wording) {
+    const scope = (root && typeof root.querySelectorAll === "function") ? root : document;
+    const w = wording || window.KR_WORDING;
     if (!w || typeof w !== "object") throw new Error("KR_WORDING missing");
 
-    document.querySelectorAll("[data-kr-wording]").forEach((el) => {
+    scope.querySelectorAll("[data-kr-wording]").forEach((el) => {
       const key = el.getAttribute("data-kr-wording");
       el.textContent = getByPath(w, key);
     });
 
-    document.querySelectorAll("[data-kr-aria-label]").forEach((el) => {
+    scope.querySelectorAll("[data-kr-aria-label]").forEach((el) => {
       const key = el.getAttribute("data-kr-aria-label");
       el.setAttribute("aria-label", getByPath(w, key));
     });
   }
 
+  window.KR_WORDING_DOM = {
+    getByPath,
+    applyToDocument
+  };
+
+  function tryAutoApply() {
+    try {
+      applyToDocument(document);
+    } catch (_) { }
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", applyWordingToDom);
+    document.addEventListener("DOMContentLoaded", tryAutoApply);
   } else {
-    applyWordingToDom();
+    tryAutoApply();
   }
 })();

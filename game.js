@@ -31,6 +31,7 @@
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function lerp(a, b, t) { return a + (b - a) * t; }
   function dist(x1, y1, x2, y2) { return Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
+  function centeredRand(rand) { return (rand() + rand()) / 2; }
 
   // Seeded PRNG (mulberry32) for daily challenge
   function mulberry32(seed) {
@@ -43,9 +44,25 @@
     };
   }
 
-  function dateSeed() {
-    var d = new Date();
-    var str = d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+  function getUtcDateParts(date) {
+    var d = (date instanceof Date) ? date : new Date();
+    return {
+      year: d.getUTCFullYear(),
+      month: d.getUTCMonth() + 1,
+      day: d.getUTCDate()
+    };
+  }
+
+  function pad2(n) {
+    return String(n).padStart(2, "0");
+  }
+
+  function getDailyKeyUtc(date) {
+    var parts = getUtcDateParts(date);
+    return parts.year + "-" + pad2(parts.month) + "-" + pad2(parts.day);
+  }
+
+  function hashString32(str) {
     var h = 0;
     for (var i = 0; i < str.length; i++) {
       h = ((h << 5) - h + str.charCodeAt(i)) | 0;
@@ -53,12 +70,13 @@
     return h;
   }
 
-  // Day-of-year for daily modifier rotation
-  function dayOfYear() {
-    var now = new Date();
-    var start = new Date(now.getFullYear(), 0, 0);
-    var diff = now - start;
-    return Math.floor(diff / 86400000);
+  function dateSeed() {
+    return hashString32(getDailyKeyUtc());
+  }
+
+  function utcDaySerial(date) {
+    var parts = getUtcDateParts(date);
+    return Math.floor(Date.UTC(parts.year, parts.month - 1, parts.day) / 86400000);
   }
 
   // Game-time clock
@@ -71,6 +89,7 @@
   // ============================================
   var BALL_STATES = {
     TRAVELING: "TRAVELING",
+    LANDED: "LANDED",
     BOUNCED: "BOUNCED",
     HIT: "HIT",
     MISSED: "MISSED",
@@ -99,8 +118,8 @@
   ];
 
   function getDailyModifier() {
-    var day = dayOfYear();
-    return DAILY_MODIFIERS[day % DAILY_MODIFIERS.length];
+    var day = utcDaySerial();
+    return DAILY_MODIFIERS[((day % DAILY_MODIFIERS.length) + DAILY_MODIFIERS.length) % DAILY_MODIFIERS.length];
   }
 
 
@@ -119,6 +138,32 @@
     };
   }
 
+  function getTrajectoryConfig(config) {
+    var t = (config.game && config.game.trajectory) || {};
+    return {
+      lateralSpreadFrac: Number.isFinite(Number(t.lateralSpreadFrac)) ? Number(t.lateralSpreadFrac) : 0.28,
+      edgeMarginFrac: Number.isFinite(Number(t.edgeMarginFrac)) ? Number(t.edgeMarginFrac) : 0.1,
+      arcMinFrac: Number.isFinite(Number(t.arcMinFrac)) ? Number(t.arcMinFrac) : 0.028,
+      arcMaxFrac: Number.isFinite(Number(t.arcMaxFrac)) ? Number(t.arcMaxFrac) : 0.14,
+      arcDepthWeight: Number.isFinite(Number(t.arcDepthWeight)) ? Number(t.arcDepthWeight) : 0.45,
+      returnArcScale: Number.isFinite(Number(t.returnArcScale)) ? Number(t.returnArcScale) : 0.75,
+      returnTravelScale: Number.isFinite(Number(t.returnTravelScale)) ? Number(t.returnTravelScale) : 0.82
+    };
+  }
+
+  function getFlightArcHeight(startX, startY, targetX, targetY, canvasH, trajectory, ballType) {
+    var flightDist = dist(startX, startY, targetX, targetY);
+    var distanceRatio = clamp(flightDist / (canvasH * 0.95), 0, 1);
+    var depthRatio = clamp((targetY - startY) / (canvasH * 0.8), 0, 1);
+    var arcMix = lerp(distanceRatio, depthRatio, trajectory.arcDepthWeight);
+    var arcHeight = lerp(canvasH * trajectory.arcMinFrac, canvasH * trajectory.arcMaxFrac, arcMix);
+
+    if (ballType === "lob") return arcHeight * 1.35;
+    if (ballType === "dink") return arcHeight * 0.78;
+    if (ballType === "fast") return arcHeight * 0.88;
+    return arcHeight;
+  }
+
 
   // ============================================
   // Ball factory
@@ -128,6 +173,7 @@
   function createBallFromOpponent(config, elapsedSec, canvasW, canvasH, court, playerX, playerY, rng, modifier) {
     var rand = (typeof rng === "function") ? rng : Math.random;
     var gameCfg = config.game || {};
+    var trajectoryCfg = getTrajectoryConfig(config);
 
     // Ball type selection (modifier can force a type)
     var ballType;
@@ -149,15 +195,16 @@
                  reqNum(spd.accelPerSec, "speed.accel", { min: 0 }) * elapsedSec * accelMul) * speedMul;
 
     // Opponent X
-    var opX = canvasW * 0.2 + rand() * canvasW * 0.6;
+    var opX = canvasW * 0.2 + centeredRand(rand) * canvasW * 0.6;
 
     // Target X: spread modifier
-    var spreadBase = canvasW * 0.35;
+    var spreadBase = canvasW * trajectoryCfg.lateralSpreadFrac;
     if (modifier && modifier.spreadMul) spreadBase *= modifier.spreadMul;
+    var edgeMargin = canvasW * trajectoryCfg.edgeMarginFrac;
     var targetX = clamp(
-      playerX + (rand() - 0.5) * spreadBase * 2,
-      canvasW * 0.08,
-      canvasW * 0.92
+      playerX + (centeredRand(rand) - 0.5) * spreadBase * 2,
+      edgeMargin,
+      canvasW - edgeMargin
     );
 
     // Kitchen ratio
@@ -184,15 +231,19 @@
 
     var targetY;
     if (inKitchen) {
-      targetY = netYpx + rand() * (kitchenLineYpx - netYpx) * 0.8 + (kitchenLineYpx - netYpx) * 0.1;
+      var kitchenBand = kitchenLineYpx - netYpx;
+      targetY = netYpx + kitchenBand * (0.18 + centeredRand(rand) * 0.64);
     } else {
-      targetY = kitchenLineYpx + rand() * (baselineYpx - kitchenLineYpx - 20) + 10;
+      var nonKitchenDepthMin = kitchenLineYpx + (baselineYpx - kitchenLineYpx) *
+        reqNum(config.canvas.minLandingYFrac, "canvas.minLandingYFrac", { min: 0, max: 0.99 });
+      var nonKitchenDepthMax = baselineYpx - 12;
+      targetY = nonKitchenDepthMin + centeredRand(rand) * Math.max(0, nonKitchenDepthMax - nonKitchenDepthMin);
     }
 
     var startX = opX;
     var startY = court.opponentY * canvasH;
 
-    var arcHeight = isLob ? (canvasH * 0.15 + rand() * canvasH * 0.05) : (canvasH * 0.02);
+    var arcHeight = getFlightArcHeight(startX, startY, targetX, targetY, canvasH, trajectoryCfg, ballType);
 
     var radiusMul = typeConfig ? reqNum(typeConfig.radiusMultiplier, "ballType.radius", { min: 0.01 }) : 1;
     var baseRadius = reqNum(config.canvas.ballRadius, "canvas.ballRadius", { min: 1 });
@@ -224,8 +275,11 @@
       x: startX, y: startY,
       state: BALL_STATES.TRAVELING,
       spawnedAt: gameTime(),
-      bouncedAt: 0, hitAt: 0, missedAt: 0, faultedAt: 0,
+      landedAt: 0, bouncedAt: 0, hitAt: 0, missedAt: 0, faultedAt: 0,
       tapWindowMs: tapWindowMs,
+      reboundDelayMs: Math.floor(reqNum(gameCfg.reboundDelayMs, "game.reboundDelayMs", { min: 1 })),
+      bounceHeightPx: reqNum(config.canvas.bounceHeight, "canvas.bounceHeight", { min: 0 }) * canvasH,
+      bounceAnimMs: Math.floor(reqNum(config.canvas.bounceAnimMs, "canvas.bounceAnimMs", { min: 1 })),
       returnStartX: 0, returnStartY: 0,
       returnTargetX: 0, returnTargetY: 0,
       returnArcHeight: 0, returnTravelMs: 0,
@@ -284,18 +338,25 @@
       return { x: x, y: yLinear + arc, t: t };
     }
 
+    if (ball.state === BALL_STATES.LANDED) {
+      return { x: ball.targetX, y: ball.targetY, t: 1, squash: 1 };
+    }
+
     if (ball.state === BALL_STATES.BOUNCED) {
       var sinceBounce = gt - ball.bouncedAt;
       var bounceAnim = 0;
-      // Primary hop: bigger (40px over 250ms)
-      if (sinceBounce < 250) {
-        var bt = sinceBounce / 250;
-        bounceAnim = -40 * Math.sin(bt * Math.PI);
+      var primaryAnimMs = ball.bounceAnimMs || 250;
+      var secondaryAnimMs = Math.max(1, Math.round(primaryAnimMs * 0.6));
+      var bounceHeight = Number.isFinite(ball.bounceHeightPx) ? ball.bounceHeightPx : 40;
+      // Primary hop
+      if (sinceBounce < primaryAnimMs) {
+        var bt = sinceBounce / primaryAnimMs;
+        bounceAnim = -bounceHeight * Math.sin(bt * Math.PI);
       }
-      // Secondary smaller hop (250-400ms)
-      else if (sinceBounce < 400) {
-        var bt2 = (sinceBounce - 250) / 150;
-        bounceAnim = -12 * Math.sin(bt2 * Math.PI);
+      // Secondary smaller hop
+      else if (sinceBounce < primaryAnimMs + secondaryAnimMs) {
+        var bt2 = (sinceBounce - primaryAnimMs) / secondaryAnimMs;
+        bounceAnim = -(bounceHeight * 0.3) * Math.sin(bt2 * Math.PI);
       }
       // Squash factor for renderer (0-1, 1=max squash at impact)
       var squash = 0;
@@ -557,6 +618,15 @@
       // ── Ball state machine ──
       if (ball.state === BALL_STATES.TRAVELING) {
         if (pos.t >= 1) {
+          ball.state = BALL_STATES.LANDED;
+          ball.landedAt = gameTime();
+          ball.x = ball.targetX;
+          ball.y = ball.targetY;
+        }
+      }
+
+      if (ball.state === BALL_STATES.LANDED) {
+        if (gameTime() - ball.landedAt >= ball.reboundDelayMs) {
           ball.state = BALL_STATES.BOUNCED;
           ball.bouncedAt = gameTime();
           ball.x = ball.targetX;
@@ -695,12 +765,18 @@
 
       // Return trajectory
       var rand = (typeof r.rng === "function") ? r.rng : Math.random;
+      var trajectoryCfg = getTrajectoryConfig(r.config);
+      var returnEdgeMargin = r.canvasW * trajectoryCfg.edgeMarginFrac;
       ball.returnStartX = ball.x;
       ball.returnStartY = ball.y;
-      ball.returnTargetX = r.canvasW * 0.15 + rand() * r.canvasW * 0.7;
+      ball.returnTargetX = returnEdgeMargin + centeredRand(rand) * (r.canvasW - returnEdgeMargin * 2);
       ball.returnTargetY = court.opponentY * r.canvasH;
-      ball.returnArcHeight = r.canvasH * 0.03;
-      ball.returnTravelMs = Math.max(250, ball.travelMs * 0.7);
+      ball.returnArcHeight = getFlightArcHeight(
+        ball.returnStartX, ball.returnStartY,
+        ball.returnTargetX, ball.returnTargetY,
+        r.canvasH, trajectoryCfg, ball.ballType
+      ) * trajectoryCfg.returnArcScale;
+      ball.returnTravelMs = Math.max(250, ball.travelMs * trajectoryCfg.returnTravelScale);
 
       // Milestones
       for (var mi = 0; mi < r.milestones.length; mi++) {
@@ -823,6 +899,7 @@
           startX: b.startX, startY: b.startY,
           arcHeight: b.arcHeight,
           isFirstKitchen: !!b.isFirstKitchen,
+          landedAt: b.landedAt || 0,
           bouncedAt: b.bouncedAt || 0,
           hitAt: b.hitAt || 0,
           missedAt: b.missedAt || 0,
@@ -911,6 +988,7 @@
     GameEngine: GameEngine,
     BALL_STATES: BALL_STATES,
     getDailyModifier: getDailyModifier,
-    DAILY_MODIFIERS: DAILY_MODIFIERS
+    DAILY_MODIFIERS: DAILY_MODIFIERS,
+    getDailyKeyUtc: getDailyKeyUtc
   };
 })();
