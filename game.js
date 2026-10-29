@@ -246,11 +246,11 @@
     };
   }
 
-  function getDepthScaledHitRange(config, court, ball, baseRange, autoMultiplier) {
+  function getDepthScaledHitRange(config, court, ball, baseRange, autoMultiplier, canvasH) {
     var nearScale = reqNum(config.court.hitRangeNearScale, "court.hitRangeNearScale", { min: 0.5, max: 2 });
     var farScale = reqNum(config.court.hitRangeFarScale, "court.hitRangeFarScale", { min: 0.5, max: 2 });
-    var baselineY = court.baselineY;
-    var netY = court.netY;
+    var baselineY = court.baselineY * canvasH;
+    var netY = court.netY * canvasH;
     var sampleY = Number.isFinite(ball && ball.groundY) ? ball.groundY : (ball ? ball.y : baselineY);
     var depthT = clamp((sampleY - netY) / Math.max(1, baselineY - netY), 0, 1);
     var scaled = baseRange * lerp(farScale, nearScale, depthT);
@@ -898,7 +898,7 @@
       } else {
         r.opponentTargetX = r.canvasW / 2;
       }
-      var oppSpeed = playerSpeed * 0.7;
+      var oppSpeed = playerSpeed * (cfg.rally ? Math.min(0.65, 0.23 + (r.level - 1) * 0.035) : 0.7);
       var oppDiff = r.opponentTargetX - r.opponentX;
       if (Math.abs(oppDiff) > 2) {
         r.opponentX += Math.sign(oppDiff) * Math.min(Math.abs(oppDiff), oppSpeed * (dtMs / 16.67));
@@ -1059,7 +1059,7 @@
     // V3: Get auto-hit proximity range
     _getAutoHitRange(r) {
       var hitRange = reqNum(r.config.court.hitRange, "court.hitRange", { min: 1 });
-      return getDepthScaledHitRange(r.config, r.court, r.ball, hitRange, 1.5);
+      return getDepthScaledHitRange(r.config, r.court, r.ball, hitRange, 1.5, r.canvasH);
     }
 
     _getEffectiveMoveSpeed(r) {
@@ -1263,7 +1263,7 @@
     // V3: Try volley (hit ball before bounce — only valid after double bounce rule satisfied)
     _tryVolley(r, ball) {
       var hitRange = reqNum(r.config.court.hitRange, "court.hitRange", { min: 1 });
-      hitRange = getDepthScaledHitRange(r.config, r.court, ball, hitRange, 1);
+      hitRange = getDepthScaledHitRange(r.config, r.court, ball, hitRange, 1, r.canvasH);
       var d = dist(r.playerX, r.playerY, ball.x, ball.y);
       if (d > hitRange * 1.2) {
         // Too far — whiff
@@ -1273,7 +1273,7 @@
       }
 
       // Volley stays illegal while this incoming ball still must bounce.
-      var mustBounce = !!ball.mustBounce;
+      var mustBounce = !!ball.mustBounce || r.playerY <= r.court.kitchenLineY * r.canvasH;
       if (mustBounce) {
         this._faultBall(r, ball);
         return;
