@@ -1,7 +1,7 @@
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 const sources=['config.js','players.js','rally-config.js','game.js','rally-rules.js'].map(file=>({file,text:readFileSync(new URL('../'+file,import.meta.url),'utf8')}));
-export const VERSION='rally-1',TICK=1000/60,MAX_TICKS=36000;
+export const VERSION='rally-2',TICK=1000/60,MAX_TICKS=36000;
 export function createEngine(seed,edition='fr'){
   const context=vm.createContext({window:{location:{hostname:'localhost'}},structuredClone,URLSearchParams,console});
   for(const {file,text} of sources)vm.runInContext(text,context,{filename:file});

@@ -22,11 +22,10 @@
       r.level=Math.min(30,1+Math.floor(r.totalSmashed/8));
       const speed=this._getEffectiveMoveSpeed(r)*(this.has('speed')?1.25:1);
       const dx=r.targetX-r.playerX;
-      // The player chooses lateral placement; depth follows the bounce automatically.
+      // One visible lane: the player only moves left and right.
       r.playerX+=clamp(dx,-speed*dt/16.67,speed*dt/16.67);
+      r.playerY=r.court.playerY*C.height;
       const ball=r.ball;
-      const targetY=ball&&['TRAVELING','LANDED','BOUNCED'].includes(ball.state)?clamp(ball.groundY||ball.targetY,r.court.netY*C.height+18,r.playerMaxY):r.court.playerY*C.height;
-      const dy=targetY-r.playerY;r.playerY+=clamp(dy,-speed*1.2*dt/16.67,speed*1.2*dt/16.67);
       const returning=ball?.state===B.HIT?ball:null;
       // Input is recorded as a bounded lateral target; no hidden teleportation.
       this.setInput(false,false,false,false,false);
@@ -43,6 +42,9 @@
     _spawnBall(r){
       super._spawnBall(r,Math.min(180,(r.level-1)*9));
       const b=r.ball;
+      // Incoming shots share the fixed reception lane; no invisible depth assistance.
+      b.targetY=r.court.playerY*C.height+10;
+      b.inKitchen=false;
       // Original onboarding/serve retargeting must also rebuild its ballistic coefficients.
       const startX=r.nextStartX??b.startX;
       const slow=this.has('slow')?1.25:1;
