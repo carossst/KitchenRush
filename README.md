@@ -1,7 +1,7 @@
 # Kitchen Rush — rally arcade
 
 Le jeu original de ce dépôt reprend les échanges de pickleball : **aucune brique**.
-Cette branche conserve son moteur `game.js` et sa configuration, corrige les coordonnées de portée et ajoute une interface à un doigt.
+Cette branche conserve son moteur `game.js` et sa configuration, corrige les coordonnées de portée et ajoute une interface au doigt avec déplacement libre.
 
 ## Jouer et vérifier
 
@@ -13,7 +13,7 @@ Cette branche conserve son moteur `game.js` et sa configuration, corrige les coo
 
 ## Règles de cette version
 
-Glisser horizontalement, utiliser la souris ou les flèches gauche/droite. Le personnage reste sur une ligne fixe et renvoie automatiquement après le rebond. Les balles arrivent sur cette même ligne ; aucun déplacement en profondeur n’est nécessaire. Se décaler du centre du cercle de réception modifie l’angle du renvoi. L’adversaire poursuit la balle et peut être débordé.
+Glisser dans toutes les directions, utiliser la souris ou les quatre flèches. Le personnage avance ou recule uniquement sur demande ; le renvoi après rebond reste automatique. Les trois premiers envois restent près de la position initiale, puis les balles utilisent la profondeur du terrain. Se décaler du centre du cercle de réception modifie l’angle du renvoi. L’adversaire poursuit la balle et peut être débordé.
 
 - 3 vies, un renvoi = 1 point, un coup gagnant = 3 points supplémentaires.
 - Kitchen Rush : 5 renvois sans rater déclenchent 6 secondes à 2 points par renvoi (pas de destruction ni de renvoi automatique supplémentaire).
@@ -55,7 +55,7 @@ Deux possibilités :
 
 Configurer `KR_ALLOWED_ORIGINS` avec les origines autorisées séparées par des virgules, incluant l’origine HTTPS de l’hébergement lui-même et `https://carossst.github.io` si nécessaire. Le serveur se lie par défaut à 127.0.0.1 ; définir `HOST=0.0.0.0` si l’hébergeur le demande. Utiliser un volume persistant pour `KR_DB_PATH`, sauvegarder SQLite, et lancer une seule instance pour cette configuration simple. Derrière un proxy, les quotas portent par défaut sur l’adresse réseau du proxy : régler le proxy ou adapter l’identification IP avant une forte affluence. Aucun en-tête IP fourni arbitrairement par un visiteur n’est cru.
 
-Le protocole utilise des sessions signées par jeton aléatoire à usage unique, des graines serveur et des déplacements quantifiés à 60 Hz. Le serveur recalcule les scores, rejette les journaux invalides/incomplets, les durées impossibles, les répétitions et les versions différentes. Cela bloque les scores simplement inventés, **pas les bots capables de jouer**. Les sessions non soumises expirent en une heure. Le classement `rally-2` ne mélange pas les anciens scores casse-briques. Les pseudos ne sont pas des identités authentifiées.
+Le protocole utilise des sessions signées par jeton aléatoire à usage unique, des graines serveur et des déplacements X/Y quantifiés à 60 Hz. Le serveur recalcule les scores, rejette les journaux invalides/incomplets, les durées impossibles, les répétitions et les versions différentes. Cela bloque les scores simplement inventés, **pas les bots capables de jouer**. Les sessions non soumises expirent en une heure. Le classement `rally-3` ne mélange pas les anciens scores casse-briques. Les pseudos ne sont pas des identités authentifiées.
 
 Le serveur fourni n’est pas déployé automatiquement par cette branche. Tant que l’API n’est pas connectée, l’interface indique clairement « entraînement » ; elle n’invente pas de classement mondial.
 
@@ -75,6 +75,6 @@ Les clés du déploiement Sites existant ne sont pas présentes dans ce dépôt 
 
 ## Vérification visuelle
 
-Le canvas possède un repère fixe de 480 × 760. Sa taille CSS conserve ce rapport ; la zone Kitchen vaut 7/22 de chaque demi-terrain avant compression de perspective côté adverse. La même projection transforme les coordonnées du doigt. L’en-tête se réduit pendant une partie sur mobile pour laisser les vies et l’effet visibles.
+Le canvas possède un repère fixe de 480 × 760. Sa taille CSS conserve ce rapport ; la zone Kitchen vaut 7/22 de chaque demi-terrain avant compression de perspective côté adverse. La même projection transforme les coordonnées du doigt et le contact de la raquette. Le pouvoir Volée bloquée agrandit visiblement la raquette ; son tutoriel compare avant/après. La frappe utilise un instant de contact commun à la balle et au geste, suivi d’un accompagnement de 230 ms. L’en-tête se réduit pendant une partie sur mobile pour laisser les vies et l’effet visibles.
 
 Avant publication : tests automatisés, essais tactiles réels, lecture FR/EN, première découverte d’un pouvoir, perte de focus, erreurs réseau, hors ligne, et réception des deux confirmations Kit sur le nouvel hébergement.

@@ -1,7 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createEngine,replay,TICK,MAX_TICKS} from '../server/model.mjs';
-function play(seed=42,edition='fr',follow=false){const engine=createEngine(seed,edition);const inputs=[];let state,last=-1,ticks=0;for(;ticks<MAX_TICKS;ticks++){let x=follow&&engine.run.ball?Math.round(engine.run.ball.targetX*10)/10:240;if(x!==last){inputs.push([ticks,x]);last=x;}engine.setTarget(x);state=engine.update(TICK);if(state.done){ticks++;break;}}return {state,ticks,inputs};}
+function play(seed=42,edition='fr',follow=false){
+  const engine=createEngine(seed,edition),inputs=[];let state,last='',ticks=0;
+  for(;ticks<MAX_TICKS;ticks++){
+    const b=engine.run.ball;
+    const x=Math.round(Math.max(0,Math.min(480,follow&&b?b.targetX:240))*10)/10;
+    const y=Math.round(Math.max(0,Math.min(760,follow&&b?b.targetY:592.8))*10)/10;
+    const key=x+':'+y;if(key!==last){inputs.push([ticks,x,y]);last=key;}
+    engine.setTarget(x,y);state=engine.update(TICK);if(state.done){ticks++;break;}
+  }return {state,ticks,inputs};
+}
 test('a seeded run replays to the exact same score and ending',()=>{const run=play();const result=replay(42,'fr',run.ticks,run.inputs);assert.equal(result.score,run.state.smashes);assert.equal(result.level,run.state.level);assert.equal(result.winners,run.state.winners);});
 test('FR/US share identical gameplay for the same seed and inputs',()=>{const fr=play(91,'fr',true),us=play(91,'us',true);for(const key of ['smashes','lives','level','winners','totalSmashed'])assert.equal(fr.state[key],us.state[key],key);assert.equal(fr.ticks,us.ticks);});
 test('following the ball is rewarded, passive play eventually loses',()=>{const passive=play(123,'fr'),active=play(123,'fr',true);assert.equal(passive.state.done,true);assert.equal(passive.state.lives,0);assert.ok(active.state.totalSmashed>passive.state.totalSmashed+10);});
@@ -10,7 +19,33 @@ test('hit range changes with world depth, without mixing pixels and fractions',(
 test('recomputed serve reaches its marker without an end-of-flight teleport',()=>{const e=createEngine(2);e.update(800);const b=e.run.ball,t=b.travelMs/1000;assert.ok(Math.abs(b.startX+b.flightVx*t-b.targetX)<1e-7);assert.ok(Math.abs(b.startY+b.flightVy*t-b.targetY)<1e-7);assert.ok(Math.abs(b.flightLaunchVz*t-.5*b.flightGravity*t*t)<1e-7);});
 test('life powers cap at 3 and shield saves exactly one miss',()=>{const e=createEngine(1);e.run.assist={key:'shield',charges:1,until:12000};e._loseLife(e.run);assert.equal(e.run.lives,3);e._loseLife(e.run);assert.equal(e.run.lives,2);for(let i=0;i<30;i++)e.grantPlayer();assert.ok(e.run.lives<=3);});
 test('power clocks only advance with simulated game time',()=>{const e=createEngine(1);e.grantPlayer();const before=e.run.elapsedMs;for(let i=0;i<20;i++)e.getState();assert.equal(e.run.elapsedMs,before);});
-test('replay rejects incomplete, oversized and malformed logs',()=>{assert.throws(()=>replay(1,'fr',10,[[0,240]]),/unfinished/);assert.throws(()=>replay(1,'fr',MAX_TICKS+1,[]));for(const inputs of [[[0,Infinity]],[[0,-1]],[[0,500]],[[0,2.22]],[[1,240],[0,240]],[[0,240,1]]])assert.throws(()=>replay(1,'fr',10,inputs));});
-test('off-centre returns produce more winners than aiming at the middle',()=>{const totals=[];for(const offset of [0,40]){const e=createEngine(42);for(let t=0;t<12000&&!e.run.done;t++){if(e.run.ball)e.setTarget(e.run.ball.targetX+offset);e.update(TICK);}totals.push(e.run.winners);}assert.ok(totals[1]>totals[0]+2,JSON.stringify(totals));});
+test('replay rejects incomplete, oversized and malformed logs',()=>{assert.throws(()=>replay(1,'fr',10,[[0,240,592.8]]),/unfinished/);assert.throws(()=>replay(1,'fr',MAX_TICKS+1,[]));for(const inputs of [[[0,Infinity,500]],[[0,-1,500]],[[0,500,500]],[[0,2.22,500]],[[1,240,500],[0,240,500]],[[0,240]],[[0,240,-1]],[[0,240,761]],[[0,240,1.22]]])assert.throws(()=>replay(1,'fr',10,inputs));});
+test('off-centre returns produce more winners than aiming at the middle',()=>{const totals=[];for(const offset of [0,40]){const e=createEngine(42);for(let t=0;t<12000&&!e.run.done;t++){if(e.run.ball)e.setTarget(e.run.ball.targetX+offset,e.run.ball.targetY);e.update(TICK);}totals.push(e.run.winners);}assert.ok(totals[1]>totals[0]+2,JSON.stringify(totals));});
 test('Rush requires five returns and a miss resets the gauge and active effect',()=>{const e=createEngine(1);e.run.rushReturns=4;e.run.rushUntil=0;e.update(800);const b=e.run.ball;b.state='BOUNCED';b.bouncedAt=e.run.elapsedMs;e._executeHit(e.run,b,0);assert.ok(e.run.rushUntil>e.run.elapsedMs);assert.equal(e.run.rushReturns,0);e._loseLife(e.run);assert.equal(e.run.rushUntil,0);assert.equal(e.run.rushReturns,0);});
-test('player stays on a fixed depth lane while balls remain reachable',()=>{const e=createEngine(42),y=e.run.playerY;for(let tick=0;tick<6000&&!e.run.done;tick++){if(e.run.ball)e.setTarget(e.run.ball.targetX);e.update(TICK);assert.equal(e.run.playerY,y);}assert.ok(e.run.totalSmashed>=10);});
+test('depth changes only at the player request, with court boundaries',()=>{
+  const e=createEngine(42),y=e.run.playerY;
+  for(let tick=0;tick<60;tick++)e.update(TICK);
+  assert.equal(e.run.playerY,y);
+  e.setTarget(240,y-120);for(let i=0;i<30;i++)e.update(TICK);
+  assert.equal(e.run.playerY,y-120);
+  for(let i=0;i<20;i++)e.update(TICK);assert.equal(e.run.playerY,y-120);
+  e.setTarget(240,-100);assert.equal(e.run.targetY,e.run.playerMinY);
+  e.setTarget(240,10000);assert.equal(e.run.targetY,e.run.playerMaxY);
+});
+test('giant paddle increases the actual return reach only while active',()=>{
+  const e=createEngine(2),normal=e._getAutoHitRange(e.run);
+  e.run.assist={key:'giant',until:6000,charges:-1};assert.ok(e._getAutoHitRange(e.run)>normal*1.3);
+  e.run.elapsedMs=6000;assert.equal(e._getAutoHitRange(e.run),normal);
+});
+test('paddle contact uses the same point and instant as the outgoing ball',async()=>{
+  const {default:vm}=await import('node:vm');const {readFileSync}=await import('node:fs');
+  const context=vm.createContext({window:{KR_RALLY:{width:480,height:760,config:{court:{netY:.4,baselineY:.88}}}}});
+  vm.runInContext(readFileSync(new URL('../rally-view.js',import.meta.url),'utf8'),context);
+  const e=createEngine(2);e.update(800);const b=e.run.ball;b.state='BOUNCED';b.x=e.run.playerX;b.y=e.run.playerY-28;b.groundY=e.run.playerY;
+  e._executeHit(e.run,b,0);const s=e.getState(),pose=context.window.KR_RALLY_VIEW.contactPose(s);
+  assert.equal(s.stroke.at,b.hitAt);assert.equal(pose.x,context.window.KR_RALLY_VIEW.project(b.x,b.groundY).x);assert.equal(pose.y,b.y);
+  assert.equal(b.returnStartY-b.returnStartHeight,b.y);assert.equal(pose.contact,true);
+});
+test('pointer projection preserves both court coordinates at any depth',async()=>{
+  const {default:vm}=await import('node:vm');const {readFileSync}=await import('node:fs');const context=vm.createContext({window:{KR_RALLY:{width:480,height:760,config:{court:{netY:.4,baselineY:.88}}}}});vm.runInContext(readFileSync(new URL('../rally-view.js',import.meta.url),'utf8'),context);const V=context.window.KR_RALLY_VIEW,canvas={getBoundingClientRect:()=>({left:10,top:20,width:240,height:380})};for(const y of [340,480,640]){const p=V.project(160,y),actual=V.pointerPosition(canvas,10+p.x/2,20+y/2);assert.ok(Math.abs(actual.x-160)<1e-8);assert.equal(actual.y,y);}
+});

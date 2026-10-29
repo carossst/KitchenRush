@@ -10,3 +10,4 @@
 .rush{font-size:10px;line-height:1.4;margin:0 3px 8px;color:var(--muted);min-height:14px}
 
 @media(max-height:520px) and (orientation:landscape){.court-wrap,body.playing .court-wrap{max-height:none;min-width:0}}
+#effect-preview{width:100%;height:auto;border-radius:12px;margin:8px 0;touch-action:auto}#effect-dialog .muted{font-size:11px;margin:14px 0 0}

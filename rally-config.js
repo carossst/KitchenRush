@@ -21,7 +21,7 @@
   ].map(([power,fr,us])=>Object.freeze({power,fr,us}));
   // Arcade effects named after real strokes; these are not claims about the athletes.
   const powers = {
-    giant:{fr:['VOLÉE BLOQUÉE','Tu attrapes les balles de plus loin pendant 6 s.'],en:['BLOCK VOLLEY','Reach balls farther away for 6 seconds.'],seconds:6},
+    giant:{fr:['VOLÉE BLOQUÉE','Ta raquette grandit pendant 6 secondes. Plus facile de toucher la balle !'],en:['BLOCK VOLLEY','Your paddle grows for 6 seconds. Hitting the ball is easier!'],seconds:6},
     speed:{fr:['ERNE','Tu te déplaces plus vite pendant 6 s.'],en:['ERNE','Move faster for 6 seconds.'],seconds:6},
     slow:{fr:['RESET','L’adversaire envoie les balles plus lentement pendant 6 s.'],en:['RESET','Your opponent sends slower balls for 6 seconds.'],seconds:6},
     storm:{fr:['ATP','Le prochain renvoi vise la ligne extérieure. À toi de le réussir !'],en:['ATP','Your next return targets the outside line. You still have to reach it!'],charges:1,seconds:12},
@@ -33,5 +33,5 @@
   };
   function random(seed){let v=seed>>>0;return ()=>{v=(Math.imul(v,1664525)+1013904223)>>>0;return v/4294967296;};}
   function roster(edition){if(!['fr','us'].includes(edition))throw Error('edition');return slots.map(s=>({...window.KR_PLAYER_CATALOG.find(p=>p.id===s[edition]),power:s.power}));}
-  window.KR_RALLY = Object.freeze({version:'rally-2',width:480,height:760,tickMs:1000/60,maxTicks:36000,config,slots,powers,random,roster});
+  window.KR_RALLY = Object.freeze({version:'rally-3',width:480,height:760,tickMs:1000/60,maxTicks:36000,config,slots,powers,random,roster});
 })();
