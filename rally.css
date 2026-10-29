@@ -7,4 +7,6 @@
 
 @media(max-width:760px){body.playing .intro>.how,body.playing .intro>#start,body.playing .intro>#connection,body.playing .intro>details{display:none}body.playing .court-wrap{width:min(100%,calc((100svh - 255px)*480/760))}}
 
-.rush{font-size:10px;line-height:1.4;margin:0 3px 8px;color:var(--muted);min-height:14px}body.playing .court-wrap{max-height:calc(100svh - 235px)}
+.rush{font-size:10px;line-height:1.4;margin:0 3px 8px;color:var(--muted);min-height:14px}
+
+@media(max-height:520px) and (orientation:landscape){.court-wrap,body.playing .court-wrap{max-height:none;min-width:0}}
