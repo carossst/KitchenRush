@@ -28,6 +28,22 @@ Glisser dans toutes les directions, utiliser la souris ou les quatre flèches. L
 
 Les neuf effets joueurs du prototype récent sont adaptés au jeu d’échanges : portée, déplacement, ralentissement, renvoi extérieur, frappe accélérée, sauvetage et vie. Il n’y a pas de multiballe ni d’explosion de briques dans ce mode. Les noms sont des coups de pickleball ; les effets sont des fictions arcade, pas des représentations du style réel des athlètes. Les six capsules supplémentaires propres au casse-briques ne sont pas importées comme telles.
 
+## Côté et stratégie avant la partie
+
+Deux choix indépendants sont mémorisés localement et fixés pour la partie :
+
+- **Gauche / droite** : position du joueur au départ et moitié attribuée au partenaire, même si le joueur traverse le milieu.
+- **Construire (drop)** : renvois plus doux avec une courbe plus haute, visant la Kitchen adverse ; le partenaire accompagne une montée décidée par le joueur. L’adversaire a davantage de temps pour défendre.
+- **Accélérer (drive)** : renvois plus rapides et plus bas vers le fond ; les contre-attaques adverses arrivent également plus vite. Aucun bonus de points caché.
+
+Les défenseurs suivent maintenant les balles en profondeur et en largeur ; l’évaluation d’un coup gagnant utilise les deux coordonnées. Le serveur mémorise côté et stratégie au démarrage et les réutilise pour le replay : modifier les valeurs lors de la publication ne change pas les règles de la session. Migration additive des colonnes sur une ancienne base SQLite.
+
+### Source et limite de l’adaptation
+
+Le texte fourni `YOUTUBE TEXTE OK-noe-khlif-pickleball-pro-transcript-clean-v3.txt` oppose le réflexe de tout driver au travail de drops/dinks et à la construction du point à la Kitchen. Noé parle aussi du choix drive/drop préparé avant un match. Les deux options sont une **adaptation arcade de ce passage**, pas deux recommandations équivalentes attribuées à Noé ni une restitution exhaustive de sa tactique. Les coefficients numériques sont des réglages du jeu.
+
+Le fichier `bp-s02-e02-thomas-provost-corrections-json.json` contient des remplacements de mots et des références de segments, pas la transcription. Aucune stratégie n’est attribuée à Thomas à partir de ce fichier ; son passage complet reste nécessaire. Les documents privés ne sont pas copiés dans le dépôt.
+
 ## Architecture / sources de vérité
 
 | Fichier | Rôle |
@@ -55,7 +71,7 @@ Deux possibilités :
 
 Configurer `KR_ALLOWED_ORIGINS` avec les origines autorisées séparées par des virgules, incluant l’origine HTTPS de l’hébergement lui-même et `https://carossst.github.io` si nécessaire. Le serveur se lie par défaut à 127.0.0.1 ; définir `HOST=0.0.0.0` si l’hébergeur le demande. Utiliser un volume persistant pour `KR_DB_PATH`, sauvegarder SQLite, et lancer une seule instance pour cette configuration simple. Derrière un proxy, les quotas portent par défaut sur l’adresse réseau du proxy : régler le proxy ou adapter l’identification IP avant une forte affluence. Aucun en-tête IP fourni arbitrairement par un visiteur n’est cru.
 
-Le protocole utilise des sessions signées par jeton aléatoire à usage unique, des graines serveur et des déplacements X/Y quantifiés à 60 Hz. Le serveur recalcule les scores, rejette les journaux invalides/incomplets, les durées impossibles, les répétitions et les versions différentes. Cela bloque les scores simplement inventés, **pas les bots capables de jouer**. Les sessions non soumises expirent en une heure. Le classement `rally-4` ne mélange pas les anciens scores casse-briques. Les pseudos ne sont pas des identités authentifiées.
+Le protocole utilise des sessions signées par jeton aléatoire à usage unique, des graines serveur et des déplacements X/Y quantifiés à 60 Hz. Le serveur recalcule les scores, rejette les journaux invalides/incomplets, les durées impossibles, les répétitions et les versions différentes. Cela bloque les scores simplement inventés, **pas les bots capables de jouer**. Les sessions non soumises expirent en une heure. Le classement `rally-5` ne mélange pas les anciens scores casse-briques. Les pseudos ne sont pas des identités authentifiées.
 
 Le serveur fourni n’est pas déployé automatiquement par cette branche. Tant que l’API n’est pas connectée, l’interface indique clairement « entraînement » ; elle n’invente pas de classement mondial.
 

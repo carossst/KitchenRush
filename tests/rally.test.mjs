@@ -63,6 +63,19 @@ test('partner cannot return an unreachable ball or steal a ball from the human',
   const e=createEngine(2);e.update(800);const r=e.run,b=r.ball;b.state='BOUNCED';b.bouncedAt=r.elapsedMs-200;b.targetX=400;b.x=450;b.y=350;e._tryPartnerHit(r,b);assert.equal(b.state,'BOUNCED');r.playerX=r.partnerX;b.x=r.partnerX;b.y=r.partnerY-28;e._tryPartnerHit(r,b);assert.equal(b.state,'BOUNCED');
 });
 test('a winner must beat both opponents',()=>{
-  for(const covered of [true,false]){const e=createEngine(3);e.update(800);const r=e.run,b=r.ball;b.state='BOUNCED';b.x=r.playerX;b.y=r.playerY-28;b.groundY=r.playerY;e._executeHit(r,b,0);r.opponentX=covered?b.returnTargetX:30;r.opponentPartnerX=450;r.opponentReactAt=Infinity;b.hitAt=r.elapsedMs-b.returnTravelMs-1;e.update(TICK);assert.equal(r.winners,covered?0:1);}
+  for(const covered of [true,false]){const e=createEngine(3);e.update(800);const r=e.run,b=r.ball;b.state='BOUNCED';b.x=r.playerX;b.y=r.playerY-28;b.groundY=r.playerY;e._executeHit(r,b,0);r.opponentX=covered?b.returnTargetX:30;r.opponentY=covered?b.returnTargetY:167;r.opponentPartnerX=450;r.opponentPartnerY=167;r.opponentReactAt=Infinity;b.hitAt=r.elapsedMs-b.returnTravelMs-1;e.update(TICK);assert.equal(r.winners,covered?0:1);}
 });
 test('serving keeps both opponents in place and launches from the actual server',()=>{const e=createEngine(2),left=e.run.opponentX,right=e.run.opponentPartnerX;e.update(800);assert.equal(e.run.opponentX,left);assert.equal(e.run.opponentPartnerX,right);assert.equal(e.run.ball.startX,left);});
+test('side swaps the starting places and remains the partner assignment',()=>{
+  const left=createEngine(2,'fr','left'),right=createEngine(2,'fr','right');assert.equal(left.run.playerX,right.run.partnerX);assert.equal(left.run.partnerX,right.run.playerX);
+  right.run.playerX=120;right._moveTeams(right.run,1000);assert.ok(right.run.partnerX<240);assert.equal(right.run.side,'right');
+});
+test('strategy changes real trajectory, pace and partner positioning',()=>{
+  const runs=[];for(const strategy of ['build','drive']){const e=createEngine(2,'fr','left',strategy);e.update(800);const b=e.run.ball;runs.push({e,travel:b.travelMs});b.state='BOUNCED';b.x=e.run.playerX;b.y=e.run.playerY-28;b.groundY=e.run.playerY;e._executeHit(e.run,b,0);}
+  assert.ok(runs[0].e.run.ball.returnTravelMs>runs[1].e.run.ball.returnTravelMs);assert.ok(runs[0].e.run.ball.returnTargetY>runs[1].e.run.ball.returnTargetY);assert.ok(runs[0].travel>runs[1].travel);
+  for(const {e} of runs){e.run.ball=null;e.run.playerY=460;e._moveTeams(e.run,1000);}assert.ok(runs[0].e.run.partnerY<runs[1].e.run.partnerY);
+});
+test('all side and strategy combinations replay with identical FR/US rules',()=>{
+  for(const side of ['left','right'])for(const strategy of ['build','drive']){const a=createEngine(23,'fr',side,strategy),b=createEngine(23,'us',side,strategy);let ticks=0;while(!a.run.done&&ticks<MAX_TICKS){a.update(TICK);b.update(TICK);ticks++;}assert.equal(a.run.smashes,b.run.smashes);assert.equal(a.run.winners,b.run.winners);assert.equal(replay(23,'fr',ticks,[],side,strategy).score,a.run.smashes);}
+  assert.throws(()=>createEngine(1,'fr','unknown','build'),/setup/);assert.throws(()=>createEngine(1,'fr','left','unknown'),/setup/);
+});

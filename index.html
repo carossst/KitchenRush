@@ -19,6 +19,14 @@
 <p class="eyebrow" data-i18n="eyebrow"></p><h1 data-i18n="headline"></h1><p class="lead" data-i18n="intro"></p>
 <div class="how"><span>↔</span><p data-i18n="controls"></p></div>
 <p class="scoring" data-i18n="scoring"></p>
+<fieldset class="setup" id="side-choice"><legend data-i18n="chooseSide"></legend><div class="setup-options">
+<label><input id="side-left" type="radio" name="side" value="left" checked><strong data-i18n="leftSide"></strong><span data-i18n="leftRole"></span></label>
+<label><input id="side-right" type="radio" name="side" value="right"><strong data-i18n="rightSide"></strong><span data-i18n="rightRole"></span></label>
+</div></fieldset>
+<fieldset class="setup" id="strategy-choice"><legend data-i18n="chooseStrategy"></legend><div class="setup-options">
+<label><input id="strategy-build" type="radio" name="strategy" value="build" checked><strong data-i18n="buildTitle"></strong><span data-i18n="buildBrief"></span></label>
+<label><input id="strategy-drive" type="radio" name="strategy" value="drive"><strong data-i18n="driveTitle"></strong><span data-i18n="driveBrief"></span></label>
+</div><p class="source-note" data-i18n="strategySource"></p></fieldset>
 <button id="start" class="primary" data-i18n="play"></button>
 <p id="connection" role="status"></p>
 <details id="guide"><summary data-i18n="players"></summary><p data-i18n="fiction"></p><div id="roster"></div></details>

@@ -75,9 +75,9 @@
     }
     const serving=b?.state==='TRAVELING'&&s.elapsedMs-b.spawnedAt<200;
     for(const side of [0,1]){
-      const x=side===0?s.opponentX:s.opponentPartnerX,op=project(x,C.config.court.opponentY*H);
+      const x=side===0?s.opponentX:s.opponentPartnerX,y=side===0?s.opponentY:s.opponentPartnerY,op=project(x,y);
       const racket=serving&&s.serverSide===side?{x:project(b.startX,b.startY).x,y:b.startY-30,angle:.1,size:.74}:{x:op.x+18,y:op.y-24,angle:.35,size:.74};
-      athlete(x,C.config.court.opponentY*H,'#f3a079',.78,racket);
+      athlete(x,y,'#f3a079',.78,racket);
     }
     const e=edges(net);ctx.fillStyle='#14333d55';ctx.fillRect(e.l,net-12,e.r-e.l,25);ctx.strokeStyle='#f4f1df';ctx.lineWidth=3;
     ctx.beginPath();ctx.moveTo(e.l-4,net-12);ctx.quadraticCurveTo(W/2,net-6,e.r+4,net-12);ctx.stroke();ctx.lineWidth=.6;ctx.strokeStyle='#d2e0d9aa';
