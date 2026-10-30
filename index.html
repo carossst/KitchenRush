@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#123c34"><link rel="icon" href="./icons/kr-favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.json"><link rel="stylesheet" href="./rally.css">
 <script defer src="./config.js"></script><script defer src="./players.js"></script><script defer src="./rally-config.js"></script>
-<script defer src="./game.js"></script><script defer src="./rally-rules.js"></script><script defer src="./rally-view.js"></script><script defer src="./rally-app.js"></script>
+<script defer src="./game.js"></script><script defer src="./rally-rules.js"></script><script defer src="./rally-view.js"></script><script defer src="./rally-feedback.js"></script><script defer src="./rally-app.js"></script>
 </head>
 <body>
 <a class="skip" href="#court">Aller au terrain / Skip to court</a>
@@ -36,7 +36,8 @@
 <details id="guide"><summary data-i18n="players"></summary><p data-i18n="fiction"></p><div id="roster"></div></details>
 </section>
 <section class="match" aria-label="Kitchen Rush">
-<header class="hud"><div><small data-i18n="score"></small><strong id="score">0</strong></div><div><small data-i18n="level"></small><strong id="level">1</strong></div><div class="health"><small data-i18n="lives"></small><strong id="lives" aria-live="polite">♥ ♥ ♥</strong></div><button id="pause" aria-label="Pause" disabled>Ⅱ</button></header>
+<header class="hud"><div><small data-i18n="score"></small><strong id="score">0</strong></div><div><small data-i18n="level"></small><strong id="level">1</strong></div><div class="health"><small data-i18n="lives"></small><strong id="lives" aria-live="polite">♥ ♥ ♥</strong></div><button id="sound" type="button" aria-pressed="false">SON</button><button id="pause" aria-label="Pause" disabled>Ⅱ</button></header>
+<div class="match-status"><p id="round-goal" class="round-goal"></p><p id="combo" class="combo" role="status"></p></div>
 <p id="rush" class="rush" role="status"></p>
 <div class="court-wrap"><canvas id="court" width="480" height="760" tabindex="0"></canvas><div id="splash"><p data-i18n="splash"></p><span>↔</span></div></div>
 <div id="power" class="power" role="status" aria-live="polite"><strong id="power-name"></strong><span id="power-effect"></span><progress id="power-progress" max="1" value="0"></progress></div>

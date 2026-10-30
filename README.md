@@ -101,3 +101,11 @@ Les clés du déploiement Sites existant ne sont pas présentes dans ce dépôt 
 Le canvas possède un repère fixe de 480 × 760. Sa taille CSS conserve ce rapport ; la zone Kitchen vaut 7/22 de chaque demi-terrain avant compression de perspective côté adverse. La même projection transforme les coordonnées du doigt et le contact de la raquette. Le pouvoir Volée bloquée agrandit visiblement la raquette ; son tutoriel compare avant/après. La frappe utilise un instant de contact commun à la balle et au geste, suivi d’un accompagnement de 230 ms. L’en-tête se réduit pendant une partie sur mobile pour laisser les vies et l’effet visibles.
 
 Avant publication : tests automatisés, essais tactiles réels, lecture FR/EN, première découverte d’un pouvoir, perte de focus, erreurs réseau, hors ligne, et réception des deux confirmations Kit sur le nouvel hébergement.
+
+## Présentation arcade
+
+Le moteur et les scores restent ceux de `rally-6`. La présentation ajoute une balle contrastée et une traînée courte, des impacts/rebonds, un compteur de série d’équipe, un objectif visible de 8 renvois par manche et des palettes de terrain variant avec la progression existante. Aucun multiplicateur caché n’est ajouté au combo. Les pouvoirs sont matérialisés sur le terrain ; les quatre personnages ont une animation de déplacement.
+
+`rally-feedback.js` conserve au maximum 16 événements et 9 points de traînée. Les effets utilisent le temps simulé : la pause les suspend et une nouvelle partie les remet à zéro. La préférence système de réduction des mouvements désactive les traînées et la marche animée et réduit les déplacements des effets. Pas de secousse d’écran ni de clignotement plein écran.
+
+Le son est désactivé par défaut, mémorisé localement et activé par un bouton accessible. Des notes courtes sont synthétisées dans le navigateur après un geste utilisateur : frappe, rebond, point gagnant, pouvoir et balle ratée. Aucun fichier audio ni service externe requis. Les effets n’altèrent ni la physique ni le replay serveur.

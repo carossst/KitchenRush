@@ -23,6 +23,12 @@
   const apiBase=configuredApi?new URL(configuredApi).href.replace(/\/?$/,'/'):new URL('.',location.href).pathname; // Works under /KitchenRush/ on GitHub Pages.
   async function api(path,body){const response=await fetch(apiBase+'api/'+path,{method:body?'POST':'GET',headers:body?{'content-type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(8000),credentials:'omit',cache:'no-store'});if(!response.ok)throw Error('api');return response.json();}
   function track(name){if(!store.get('metrics',false)||navigator.doNotTrack==='1'||navigator.globalPrivacyControl||!['carossst.github.io','kitchenrush.app'].includes(location.hostname))return;const p=new URLSearchParams({p:name+'-rally-'+edition,t:'Kitchen Rush Rally',e:'true',ns:'true',r:'',rnd:String(Math.random()).slice(2)});void fetch('https://kitchenrush.goatcounter.com/count?'+p,{mode:'no-cors',credentials:'omit',referrerPolicy:'no-referrer',keepalive:true}).catch(()=>{});}
+  const fx=window.KR_RALLY_FEEDBACK,sound=window.KR_RALLY_SOUND;
+  let soundOn=store.get('sound',false)===true;
+  function syncSound(){sound.setEnabled(soundOn);$('sound').textContent=(lang==='fr'?'SON':'SOUND')+(soundOn?' ✓':' ×');$('sound').setAttribute('aria-pressed',String(soundOn));$('sound').setAttribute('aria-label',lang==='fr'?(soundOn?'Couper le son':'Activer le son'):(soundOn?'Mute sound':'Enable sound'));}
+  syncSound();$('sound').onclick=()=>{soundOn=!soundOn;store.set('sound',soundOn);syncSound();sound.unlock();};
+  copy.level=lang==='fr'?'MANCHE':'ROUND';
+  document.querySelector('[data-i18n="level"]').textContent=copy.level;
   $('metrics').checked=store.get('metrics',false);$('metrics').onchange=()=>store.set('metrics',$('metrics').checked);
   for(const player of C.roster(edition)){const article=document.createElement('article'),name=document.createElement('strong'),effect=document.createElement('span');name.textContent=player.name+' · '+C.powers[player.power][lang][0];effect.textContent=C.powers[player.power][lang][1];article.append(name,effect);$('roster').append(article);}
   const savedSetup=store.get('setup',{});
@@ -37,7 +43,7 @@
   function modalOpen(){return !!document.querySelector('dialog[open]');}
   function setPaused(value){paused=value;keys={left:false,right:false,up:false,down:false};acc=0;last=performance.now();$('pause').textContent=value?'▶':'Ⅱ';$('pause').setAttribute('aria-label',value?copy.resume:copy.pause);if(value)say(copy.paused);}
   async function start(){
-    if(starting)return;const setup=choices();store.set('setup',setup);lockSetup(true);starting=true;playing=false;setPaused(true);$('start').disabled=true;$('pause').disabled=true;
+    if(starting)return;sound.unlock();fx.reset();const setup=choices();store.set('setup',setup);lockSetup(true);starting=true;playing=false;setPaused(true);$('start').disabled=true;$('pause').disabled=true;
     try{
       for(const d of document.querySelectorAll('dialog[open]'))d.close();
       session=null;completed=null;let seed=crypto.getRandomValues(new Uint32Array(1))[0];
@@ -70,6 +76,8 @@
         const x=Math.round(target*10)/10,y=Math.round(targetY*10)/10,key=x+':'+y;
         if(key!==lastTarget){inputs.push([ticks,x,y]);lastTarget=key;}
         const before=state;engine.setTarget(x,y);state=engine.update(C.tickMs);ticks++;acc-=C.tickMs;
+        fx.observe(state,lang);
+        if(state.lives<before.lives)sound.play('miss');else if(state.winners>before.winners)sound.play('winner');else if(state.powerEvent?.serial!==before.powerEvent?.serial)sound.play('power');else if(state.totalSmashed>before.totalSmashed)sound.play('hit');else if(state.ball?.landedAt>0&&state.ball.landedAt!==before.ball?.landedAt)sound.play('bounce');
         if(state.lives<before.lives)say(copy.lost);else if(state.savedAt!==before.savedAt)say(copy.saved);
         if(state.winners>before.winners)say(copy.winner);else if(state.partnerStroke?.at!==before.partnerStroke?.at)say(state.partnerStroke?.middle?(lang==='fr'?'Ton partenaire prend le milieu !':'Your partner takes the middle!'):(lang==='fr'?'Ton partenaire renvoie !':'Your partner returns!'));
         powerNotice(state.powerEvent);
@@ -77,7 +85,10 @@
         if(state.done)finish();
       }
     }else acc=0;
-    V.draw($('court'),state,lang);$('rush').textContent=state.rushUntil>state.elapsedMs?(lang==='fr'?'RUSH · +2 par renvoi · ':'RUSH · +2 per return · ')+Math.ceil((state.rushUntil-state.elapsedMs)/1000)+' s':(lang==='fr'?'RUSH : ':'RUSH: ')+state.rushReturns+'/5 · '+(lang==='fr'?'5 renvois sans rater → +2 par renvoi pendant 6 s':'5 returns without a miss → +2 per return for 6 s');$('score').textContent=state.smashes;$('level').textContent=state.level;$('lives').textContent='♥ '.repeat(state.lives)+'♡ '.repeat(3-state.lives);$('lives').setAttribute('aria-label',copy.lives+' '+state.lives+'/3');
+    V.draw($('court'),state,lang);
+    $('round-goal').textContent=(lang==='fr'?'OBJECTIF · ':'GOAL · ')+(state.totalSmashed%8)+'/8 '+(lang==='fr'?'RENVOIS':'RETURNS');
+    const combo=state.currentStreak>=3?'COMBO · '+state.currentStreak+(lang==='fr'?' RENVOIS':' RETURNS'):'';if($('combo').textContent!==combo)$('combo').textContent=combo;
+$('rush').textContent=state.rushUntil>state.elapsedMs?(lang==='fr'?'RUSH · +2 par renvoi · ':'RUSH · +2 per return · ')+Math.ceil((state.rushUntil-state.elapsedMs)/1000)+' s':(lang==='fr'?'RUSH : ':'RUSH: ')+state.rushReturns+'/5 · '+(lang==='fr'?'5 renvois sans rater → +2 par renvoi pendant 6 s':'5 returns without a miss → +2 per return for 6 s');$('score').textContent=state.smashes;$('level').textContent=state.level;$('lives').textContent='♥ '.repeat(state.lives)+'♡ '.repeat(3-state.lives);$('lives').setAttribute('aria-label',copy.lives+' '+state.lives+'/3');
     const assist=state.assist;$('power-progress').value=assist?Math.max(0,(assist.until-state.elapsedMs)/(C.powers[assist.key].seconds*1000)):0;
     if(assist){$('power-effect').textContent=C.powers[assist.key][lang][1]+' · '+Math.ceil((assist.until-state.elapsedMs)/1000)+' '+copy.seconds+(assist.charges>0?' · '+assist.charges+' '+copy.charges:'');}else if(powerSerial&&state.elapsedMs-(state.powerEvent?.at||0)<3500){$('power-effect').textContent=C.powers[state.powerEvent.power][lang][1];}else if(powerSerial){$('power-effect').textContent=lang==='fr'?'Pouvoir terminé. Prochain joueur dans '+Math.max(0,engine.run.nextPowerAt-state.totalSmashed)+' renvois.':'Power ended. Next player in '+Math.max(0,engine.run.nextPowerAt-state.totalSmashed)+' returns.';}
     if(performance.now()>feedbackUntil)$('feedback').textContent='';
@@ -103,7 +114,7 @@
   $('signup').onsubmit=async e=>{e.preventDefault();const btn=e.currentTarget.querySelector('button');btn.disabled=true;$('signup-status').textContent=copy.sending;try{await api('newsletter',{edition,email:$('email').value,consent:$('email-consent').checked,website:$('website').value});$('email').value='';$('email-consent').checked=false;$('signup-status').textContent=copy.subscribed;track('newsletter_accepted');}catch{$('signup-status').textContent=copy.signupError;}finally{btn.disabled=false;}};
   $('power-name').textContent=lang==='fr'?'À toi de jouer.':'Your court.';$('power-effect').textContent=copy.waiting;$('connection').textContent=copy.practice;
   // Replace only the legacy app worker within this exact repository scope.
-  if('serviceWorker' in navigator)void navigator.serviceWorker.register('./sw.js?v=rally-6').catch(()=>{});
+  if('serviceWorker' in navigator)void navigator.serviceWorker.register('./sw.js?v=rally-6-art1').catch(()=>{});
   if(['localhost','127.0.0.1'].includes(location.hostname))window.KR_RALLY_DEBUG={get state(){return state;},get engine(){return engine;},get paused(){return paused;}};
   void ranking();requestAnimationFrame(frame);
 })();
