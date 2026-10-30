@@ -900,7 +900,7 @@
       }
       var oppSpeed = playerSpeed * (cfg.rally ? Math.min(0.65, 0.23 + (r.level - 1) * 0.035) : 0.7);
       var oppDiff = r.opponentTargetX - r.opponentX;
-      if (Math.abs(oppDiff) > 2) {
+      if (!cfg.rallyDoubles && Math.abs(oppDiff) > 2) {
         r.opponentX += Math.sign(oppDiff) * Math.min(Math.abs(oppDiff), oppSpeed * (dtMs / 16.67));
       }
 
@@ -952,6 +952,8 @@
           ball.y = ball.targetY;
         }
       }
+
+      if (cfg.rallyDoubles && ball.state === BALL_STATES.BOUNCED) this._tryPartnerHit(r, ball);
 
       if (ball.state === BALL_STATES.BOUNCED) {
         var effectiveTapWindowMs = this._getEffectiveTapWindowMs(r, ball);

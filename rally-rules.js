@@ -12,7 +12,7 @@
   class RallyEngine extends Base {
     start({seed=1,edition='fr'}={}){
       super.start({config:C.config,canvasW:C.width,canvasH:C.height,mode:'RUN',isDaily:false});
-      const r=this.run;r.rng=C.random(seed);r.edition=edition;r.level=1;r.winners=0;r.assist=null;r.powerEvent=null;r.powerSerial=0;r.rushUntil=0;r.rushReturns=0;r.nextPowerAt=4;r.playerQueue=[];r.lastPlayer=null;r.targetX=C.width/2;r.targetY=r.playerY;r.stroke=null;r.nextStartX=null;r.lastWinnerAt=-9999;
+      const r=this.run;r.rng=C.random(seed);r.edition=edition;r.level=1;r.winners=0;r.assist=null;r.powerEvent=null;r.powerSerial=0;r.rushUntil=0;r.rushReturns=0;r.nextPowerAt=4;r.playerQueue=[];r.lastPlayer=null;r.playerX=C.width*.25;r.targetX=r.playerX;r.partnerX=C.width*.75;r.partnerY=r.playerY;r.partnerStroke=null;r.opponentX=C.width*.3;r.opponentPartnerX=C.width*.7;r.receiver=null;r.hitter=null;r.serverSide=0;r.targetY=r.playerY;r.stroke=null;r.nextStartX=null;r.lastWinnerAt=-9999;
       return this.getState();
     }
     setTarget(x,y=this.run.targetY){
@@ -30,29 +30,58 @@
       // Both axes belong to the player: no automatic depth tracking.
       r.playerX+=dx*step;r.playerY+=dy*step;
       const ball=r.ball;
+      this._moveTeams(r,dt);
       const returning=ball?.state===B.HIT?ball:null;
       // Input records bounded two-dimensional targets; no hidden teleportation.
       this.setInput(false,false,false,false,false);
       super.update(dt);
       if(returning&&!r.ball){
-        const gap=Math.abs(returning.returnTargetX-r.opponentX);
+        const leftGap=Math.abs(returning.returnTargetX-r.opponentX),rightGap=Math.abs(returning.returnTargetX-r.opponentPartnerX);
+        const gap=Math.min(leftGap,rightGap);
         if(gap>38){r.winners++;r.smashes+=3;r.lastWinnerAt=r.elapsedMs;r.rallyCount=0;r.doubleBouncePhase=0;r.waitUntil=r.elapsedMs+650;}
-        r.nextStartX=r.opponentX;
+        r.serverSide=leftGap<=rightGap?0:1;r.nextStartX=r.serverSide===0?r.opponentX:r.opponentPartnerX;
       }
       return this.getState();
+    }
+    _moveTeams(r,dt){
+      const b=r.ball,incoming=b&&['TRAVELING','LANDED','BOUNCED'].includes(b.state);
+      const coversRight=r.playerX<C.width/2;
+      const ownSide=incoming&&(coversRight?b.targetX>C.width/2:b.targetX<C.width/2);
+      const partnerTargetX=ownSide?clamp(b.targetX,coversRight?250:30,coversRight?450:230):(coversRight?360:120);
+      const partnerTargetY=ownSide?clamp(b.targetY,r.playerMinY,r.playerMaxY):r.court.playerY*C.height;
+      const dx=partnerTargetX-r.partnerX,dy=partnerTargetY-r.partnerY;
+      const fraction=Math.min(1,3.9*dt/16.67/Math.max(1,Math.hypot(dx,dy)));
+      r.partnerX+=dx*fraction;r.partnerY+=dy*fraction;
+      const chasing=b?.state===B.HIT&&r.elapsedMs>=r.opponentReactAt;
+      const step=(1.25+Math.min(1.6,(r.level-1)*.10))*dt/16.67;
+      for(const side of [0,1]){
+        const key=side===0?'opponentX':'opponentPartnerX';
+        const target=chasing&&r.receiver===side?b.returnTargetX:(side===0?144:336);
+        r[key]+=clamp(target-r[key],-step,step);
+      }
+    }
+    _tryPartnerHit(r,b){
+      if(r.elapsedMs-b.bouncedAt<180)return;
+      const partnerSide=r.playerX<C.width/2?b.targetX>C.width/2:b.targetX<C.width/2;
+      const playerDistance=Math.hypot(r.playerX-b.x,r.playerY-28-b.y);
+      const partnerDistance=Math.hypot(r.partnerX-b.x,r.partnerY-28-b.y);
+      if(!partnerSide||playerDistance<=this._getAutoHitRange(r)||partnerDistance>46)return;
+      r.hitter='partner';try{b.autoHitFired=true;this._executeHit(r,b,0);}finally{r.hitter=null;}
     }
     has(key){const a=this.run.assist;return a?.key===key&&a.until>this.run.elapsedMs&&a.charges!==0;}
     _getAutoHitRange(r){return super._getAutoHitRange(r)*(this.has('giant')?1.35:this.has('multi')?1.25:1);}
     _spawnBall(r){
+      const leftX=r.opponentX,rightX=r.opponentPartnerX;
       super._spawnBall(r,Math.min(180,(r.level-1)*9));
+      r.opponentX=leftX;r.opponentPartnerX=rightX;
       const b=r.ball;
       // Opening balls stay near the starting depth; later shots use the whole half-court.
       if(r.totalSpawned<=3){b.targetY=r.court.playerY*C.height+10;b.inKitchen=false;}
       // Original onboarding/serve retargeting must also rebuild its ballistic coefficients.
-      const startX=r.nextStartX??b.startX;
+      const startX=r.serverSide===0?r.opponentX:r.opponentPartnerX;
       const slow=this.has('slow')?1.25:1;
       flight(b,'',startX,b.startY,b.targetX,b.targetY,clamp(b.travelMs,850,2200)*slow,b.arcHeight,30);
-      b.x=startX;b.y=b.startY-30;b.groundY=b.startY;r.opponentX=startX;r.nextStartX=null;
+      b.x=startX;b.y=b.startY-30;b.groundY=b.startY;r.nextStartX=null;
       // Automatic play always waits for the bounce, including Kitchen balls.
       b.mustBounce=true;
     }
@@ -60,13 +89,16 @@
       const active=r.assist;
       super._executeHit(r,b,timing);
       if(b.state!==B.HIT)return;
-      r.stroke={at:r.elapsedMs,x:b.x,y:b.y,groundY:b.groundY};
+      const stroke={at:r.elapsedMs,x:b.x,y:b.y,groundY:b.groundY};
+      if(r.hitter==='partner')r.partnerStroke=stroke;else r.stroke=stroke;
       if(r.elapsedMs<r.rushUntil)r.smashes++;
       r.rushReturns++;
       if(r.rushReturns===5){r.rushUntil=r.elapsedMs+6000;r.rushReturns=0;}
-      const offset=clamp((b.x-r.playerX)/Math.max(1,this._getAutoHitRange(r)),-1,1);
+      const offset=clamp((b.x-(r.hitter==='partner'?r.partnerX:r.playerX))/Math.max(1,this._getAutoHitRange(r)),-1,1);
       let aim=clamp(C.width/2+offset*C.width*.60,48,C.width-48);
+      r.receiver=Math.abs(aim-r.opponentX)<=Math.abs(aim-r.opponentPartnerX)?0:1;r.opponentReactAt=r.elapsedMs+180;
       if(this.has('storm'))aim=r.opponentX<C.width/2?C.width-48:48;
+      r.receiver=Math.abs(aim-r.opponentX)<=Math.abs(aim-r.opponentPartnerX)?0:1;
       const factor=this.has('bomb')?.7:this.has('fire')?.8:1;
       flight(b,'return',b.x,b.groundY,aim,r.court.opponentY*C.height,b.returnTravelMs*factor,b.returnArcHeight,Math.max(0,b.groundY-b.y));
       if(active?.charges>0&&['storm','fire','bomb','multi'].includes(active.key)){active.charges--;if(!active.charges)r.assist=null;}
@@ -89,7 +121,7 @@
       r.powerEvent={player:player.id,power:player.power,serial:++r.powerSerial,at:r.elapsedMs};
       return r.powerEvent;
     }
-    getState(){const state=super.getState(),r=this.run;if(!r)return state;return {...state,level:r.level||1,winners:r.winners||0,rushUntil:r.rushUntil||0,rushReturns:r.rushReturns||0,assist:r.assist?{...r.assist}:null,powerEvent:r.powerEvent?{...r.powerEvent}:null,lastWinnerAt:r.lastWinnerAt,savedAt:r.savedAt,stroke:r.stroke?{...r.stroke}:null,hitRange:this._getAutoHitRange(r)};}
+    getState(){const state=super.getState(),r=this.run;if(!r)return state;return {...state,level:r.level||1,winners:r.winners||0,rushUntil:r.rushUntil||0,rushReturns:r.rushReturns||0,assist:r.assist?{...r.assist}:null,powerEvent:r.powerEvent?{...r.powerEvent}:null,lastWinnerAt:r.lastWinnerAt,savedAt:r.savedAt,stroke:r.stroke?{...r.stroke}:null,hitRange:this._getAutoHitRange(r),partnerX:r.partnerX??C.width*.75,partnerY:r.partnerY??r.playerY,partnerStroke:r.partnerStroke?{...r.partnerStroke}:null,opponentPartnerX:r.opponentPartnerX??C.width*.7,serverSide:r.serverSide||0};}
   }
   window.KR_RallyEngine=RallyEngine;
 })();

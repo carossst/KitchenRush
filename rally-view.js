@@ -73,18 +73,26 @@
       ctx.strokeStyle='#e6b28e';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(-10,-36);ctx.lineTo(-20,-27);ctx.stroke();ctx.restore();
       paddle(ctx,racket.x,racket.y,racket.size??scale,racket.angle);
     }
-    const op=project(s.opponentX??W/2,C.config.court.opponentY*H);
     const serving=b?.state==='TRAVELING'&&s.elapsedMs-b.spawnedAt<200;
-    const opponentRacket=serving?{x:project(b.startX,b.startY).x,y:b.startY-30,angle:.1,size:.74}:{x:op.x+18,y:op.y-24,angle:.35,size:.74};
-    athlete(s.opponentX??W/2,C.config.court.opponentY*H,'#f3a079',.78,opponentRacket);
+    for(const side of [0,1]){
+      const x=side===0?s.opponentX:s.opponentPartnerX,op=project(x,C.config.court.opponentY*H);
+      const racket=serving&&s.serverSide===side?{x:project(b.startX,b.startY).x,y:b.startY-30,angle:.1,size:.74}:{x:op.x+18,y:op.y-24,angle:.35,size:.74};
+      athlete(x,C.config.court.opponentY*H,'#f3a079',.78,racket);
+    }
     const e=edges(net);ctx.fillStyle='#14333d55';ctx.fillRect(e.l,net-12,e.r-e.l,25);ctx.strokeStyle='#f4f1df';ctx.lineWidth=3;
     ctx.beginPath();ctx.moveTo(e.l-4,net-12);ctx.quadraticCurveTo(W/2,net-6,e.r+4,net-12);ctx.stroke();ctx.lineWidth=.6;ctx.strokeStyle='#d2e0d9aa';
     for(let x=e.l;x<e.r;x+=9){ctx.beginPath();ctx.moveTo(x,net-10);ctx.lineTo(x,net+13);ctx.stroke();}
     for(const y of [net-4,net+4,net+12]){ctx.beginPath();ctx.moveTo(e.l,y);ctx.lineTo(e.r,y);ctx.stroke();}
     ctx.fillStyle='#e5ddc6';ctx.fillRect(e.l-4,net-21,4,40);ctx.fillRect(e.r,net-21,4,40);
     if(giant){const p=project(s.playerX,s.playerY);ctx.strokeStyle='#eef3a788';ctx.fillStyle='#eef3a714';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(p.x,p.y,48,15,0,0,Math.PI*2);ctx.fill();ctx.stroke();}
+    const partnerPose=contactPose({...s,playerX:s.partnerX,playerY:s.partnerY,stroke:s.partnerStroke,ball:null});
+    const partnerScale=.78+.25*(s.partnerY-net)/(base-net);
+    athlete(s.partnerX,s.partnerY,'#83c7c0',partnerScale,{...partnerPose,size:1});
+    const partnerLabel=project(s.partnerX,s.partnerY);
+    ctx.font='700 9px system-ui';ctx.fillStyle='#c5f4e9';ctx.fillText(lang==='fr'?'PARTENAIRE':'PARTNER',partnerLabel.x,partnerLabel.y-73*partnerScale);
     const playerScale=.78+.25*(s.playerY-net)/(base-net);
     athlete(s.playerX??W/2,s.playerY??C.config.court.playerY*H,'#e5ef94',playerScale,{...pose,size:giant?1.65:1});
+    const playerLabel=project(s.playerX,s.playerY);ctx.font='700 10px system-ui';ctx.fillStyle='#f3f9b1';ctx.fillText(lang==='fr'?'TOI':'YOU',playerLabel.x,playerLabel.y-73*playerScale);
     if(pose.contact){ctx.strokeStyle='#fff8c3';ctx.lineWidth=2;ctx.beginPath();ctx.arc(pose.x,pose.y,15,0,Math.PI*2);ctx.stroke();}
     if(b&&!['MISSED','FAULTED'].includes(b.state)){
       const ground=b.groundY??b.targetY,p=ballPoint(b),shadow=project(b.x,ground),rad=6+(ground-far)/(base-far)*3;

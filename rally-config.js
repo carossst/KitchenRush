@@ -3,6 +3,7 @@
   'use strict';
   const config = structuredClone(window.KR_CONFIG);
   config.rally = true;
+  config.rallyDoubles = true;
   config.game.powerUps.enabled = false; // Player powers replace the old random unlock system.
   config.game.speed = {base:3.25,accelPerSec:0.025};
   config.game.window = {initialMs:630,decayPerSec:1.5,minMs:330};
@@ -33,5 +34,5 @@
   };
   function random(seed){let v=seed>>>0;return ()=>{v=(Math.imul(v,1664525)+1013904223)>>>0;return v/4294967296;};}
   function roster(edition){if(!['fr','us'].includes(edition))throw Error('edition');return slots.map(s=>({...window.KR_PLAYER_CATALOG.find(p=>p.id===s[edition]),power:s.power}));}
-  window.KR_RALLY = Object.freeze({version:'rally-3',width:480,height:760,tickMs:1000/60,maxTicks:36000,config,slots,powers,random,roster});
+  window.KR_RALLY = Object.freeze({version:'rally-4',width:480,height:760,tickMs:1000/60,maxTicks:36000,config,slots,powers,random,roster});
 })();
