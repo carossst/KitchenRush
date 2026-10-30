@@ -106,3 +106,31 @@ test('all eight tactical choices have deterministic FR/US replays',()=>{
   }
   assert.throws(()=>createEngine(1,'fr','left','build','unknown'),/setup/);
 });
+
+test('horizontal controls can sustain a rally without tracking depth',()=>{
+  const e=createEngine(123);const y=e.run.playerY;let count=0;
+  for(let i=0;i<12000&&!e.run.done;i++){
+    const b=e.run.ball;if(b)e.setTarget(b.targetX,y);
+    e.update(TICK);count=e.run.totalSmashed;
+    assert.equal(e.run.playerY,y);
+  }
+  assert.ok(count>=24,`Only ${count} returns`);
+});
+test('all incoming shots use a stable reception lane even at higher levels',()=>{
+  const e=createEngine(42);for(const level of [1,4,12,30]){
+    e.run.level=level;e._spawnBall(e.run);const b=e.run.ball;
+    assert.equal(b.targetY,e.run.court.playerY*760+10);
+    assert.equal(b.bounceVx,0);assert.equal(b.bounceVy,0);
+    assert.ok(b.travelMs>=850*.85);assert.equal(b.mustBounce,true);
+  }
+});
+test('contact offset selects left, centre or right ahead and stays inside the court',()=>{
+  const e=createEngine(42);const x=e.run.playerX;
+  assert.ok(e.aimAt(x-25)<150);assert.equal(e.aimAt(x),240);assert.ok(e.aimAt(x+25)>330);
+  assert.equal(e.aimAt(-999),48);assert.equal(e.aimAt(999),432);
+});
+test('level formations change opponent coverage with bounded movement',()=>{
+  const positions=[];
+  for(const level of [1,2,3,4]){const e=createEngine(42);e.run.level=level;e._moveTeams(e.run,10000);positions.push([e.run.opponentX,e.run.opponentPartnerX].join(':'));}
+  assert.equal(new Set(positions).size,4);
+});

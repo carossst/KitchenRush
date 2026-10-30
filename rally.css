@@ -19,3 +19,5 @@
 .match-status{display:flex;justify-content:space-between;align-items:center;gap:6px;min-height:18px;margin-bottom:4px}.match-status p{margin:0}.match-status .combo{font-size:10px;white-space:nowrap}
 
 #splash{pointer-events:auto}#splash p{margin:0 0 18px}#court-action{min-width:170px;min-height:52px;background:#e5f39b;color:#173d35;box-shadow:0 5px 20px #071d3544;font-size:18px}#court-action:hover{background:#f3facd}#court-hint{display:block;max-width:240px;color:#f3f5e5;font-size:12px;line-height:1.5;margin-top:15px;text-shadow:0 1px 6px #0006}
+
+#tactics{margin:14px 0}#tactics .setup{margin-top:12px}@media(max-width:760px){#tactics{grid-column:1/-1}body.playing #tactics{display:none}}

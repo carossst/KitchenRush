@@ -64,7 +64,8 @@
       const step=(1.25+Math.min(1.6,(r.level-1)*.10))*dt/16.67;
       for(const side of [0,1]){
         const key=side===0?'opponentX':'opponentPartnerX';
-        const target=chasing&&r.receiver===side?b.returnTargetX:(side===0?144:336);
+        const formation=[[144,336],[105,300],[180,375],[115,365]][(r.level-1)%4];
+        const target=chasing&&r.receiver===side?b.returnTargetX:formation[side];
         const yKey=side===0?'opponentY':'opponentPartnerY';
         const yTarget=chasing&&r.receiver===side?b.returnTargetY:r.court.opponentY*C.height;
         const dx=target-r[key],dy=yTarget-r[yKey],f=Math.min(1,step/Math.max(1,Math.hypot(dx,dy)));
@@ -87,8 +88,9 @@
       super._spawnBall(r,Math.min(180,(r.level-1)*9));
       r.opponentX=leftX;r.opponentPartnerX=rightX;
       const b=r.ball;
-      // Opening balls stay near the starting depth; later shots use the whole half-court.
-      if(r.totalSpawned<=3){b.targetY=r.court.playerY*C.height+10;b.inKitchen=false;}
+      // Every incoming ball reaches the same reception lane: horizontal play is enough.
+      b.targetY=r.court.playerY*C.height+10;b.inKitchen=false;
+      b.bounceVx=0;b.bounceVy=0;
       // Original onboarding/serve retargeting must also rebuild its ballistic coefficients.
       const startX=r.serverSide===0?r.opponentX:r.opponentPartnerX;
       const slow=(this.has('slow')?1.25:1)*C.strategies[r.strategy].counterSpeed;
@@ -97,6 +99,11 @@
       b.x=startX;b.y=b.startY-30;b.groundY=b.startY;r.nextStartX=null;
       // Automatic play always waits for the bounce, including Kitchen balls.
       b.mustBounce=true;
+    }
+    aimAt(ballX,playerX=this.run.playerX){
+      const offset=clamp((ballX-playerX)/Math.max(1,this._getAutoHitRange(this.run)),-1,1);
+      if(this.has('storm'))return this.run.opponentX<C.width/2?C.width-48:48;
+      return clamp(C.width/2+offset*C.width*.60,48,C.width-48);
     }
     _executeHit(r,b,timing){
       const active=r.assist;
@@ -107,11 +114,8 @@
       if(r.elapsedMs<r.rushUntil)r.smashes++;
       r.rushReturns++;
       if(r.rushReturns===5){r.rushUntil=r.elapsedMs+6000;r.rushReturns=0;}
-      const offset=clamp((b.x-(r.hitter==='partner'?r.partnerX:r.playerX))/Math.max(1,this._getAutoHitRange(r)),-1,1);
-      let aim=clamp(C.width/2+offset*C.width*.60,48,C.width-48);
-      r.receiver=Math.abs(aim-r.opponentX)<=Math.abs(aim-r.opponentPartnerX)?0:1;r.opponentReactAt=r.elapsedMs+180;
-      if(this.has('storm'))aim=r.opponentX<C.width/2?C.width-48:48;
-      r.receiver=Math.abs(aim-r.opponentX)<=Math.abs(aim-r.opponentPartnerX)?0:1;
+      const aim=this.aimAt(b.x,r.hitter==='partner'?r.partnerX:r.playerX);
+      r.receiver=Math.abs(aim-r.opponentX)<=Math.abs(aim-r.opponentPartnerX)?0:1;r.opponentReactAt=r.elapsedMs+Math.max(120,320-(r.level-1)*12);
       const factor=this.has('bomb')?.7:this.has('fire')?.8:1;
       const plan=C.strategies[r.strategy];
       const targetY=r.strategy==='build'?r.court.netY*C.height-48:r.court.opponentY*C.height-30;
@@ -136,7 +140,7 @@
       r.powerEvent={player:player.id,power:player.power,serial:++r.powerSerial,at:r.elapsedMs};
       return r.powerEvent;
     }
-    getState(){const state=super.getState(),r=this.run;if(!r)return state;return {...state,level:r.level||1,winners:r.winners||0,rushUntil:r.rushUntil||0,rushReturns:r.rushReturns||0,assist:r.assist?{...r.assist}:null,powerEvent:r.powerEvent?{...r.powerEvent}:null,lastWinnerAt:r.lastWinnerAt,savedAt:r.savedAt,stroke:r.stroke?{...r.stroke}:null,hitRange:this._getAutoHitRange(r),partnerX:r.partnerX??C.width*.75,partnerY:r.partnerY??r.playerY,partnerStroke:r.partnerStroke?{...r.partnerStroke}:null,opponentPartnerX:r.opponentPartnerX??C.width*.7,serverSide:r.serverSide||0,side:r.side||'left',strategy:r.strategy||'build',role:r.role||'creator',opponentY:r.opponentY??r.court.opponentY*C.height,opponentPartnerY:r.opponentPartnerY??r.court.opponentY*C.height};}
+    getState(){const state=super.getState(),r=this.run;if(!r)return state;return {...state,aimX:r.ball?this.aimAt(r.ball.state===B.HIT?r.ball.x:r.ball.targetX):null,level:r.level||1,winners:r.winners||0,rushUntil:r.rushUntil||0,rushReturns:r.rushReturns||0,assist:r.assist?{...r.assist}:null,powerEvent:r.powerEvent?{...r.powerEvent}:null,lastWinnerAt:r.lastWinnerAt,savedAt:r.savedAt,stroke:r.stroke?{...r.stroke}:null,hitRange:this._getAutoHitRange(r),partnerX:r.partnerX??C.width*.75,partnerY:r.partnerY??r.playerY,partnerStroke:r.partnerStroke?{...r.partnerStroke}:null,opponentPartnerX:r.opponentPartnerX??C.width*.7,serverSide:r.serverSide||0,side:r.side||'left',strategy:r.strategy||'build',role:r.role||'creator',opponentY:r.opponentY??r.court.opponentY*C.height,opponentPartnerY:r.opponentPartnerY??r.court.opponentY*C.height};}
   }
   window.KR_RallyEngine=RallyEngine;
 })();

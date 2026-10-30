@@ -67,6 +67,23 @@
       ctx.beginPath();ctx.ellipse(t.x,t.y,21,9,0,0,Math.PI*2);ctx.fill();ctx.stroke();
       ctx.beginPath();ctx.moveTo(t.x-7,t.y);ctx.lineTo(t.x+7,t.y);ctx.moveTo(t.x,t.y-4);ctx.lineTo(t.x,t.y+4);ctx.stroke();ctx.restore();
     }
+    // The reception rail makes the contact width and left/right control visible.
+    const railY=s.playerY-28,railLeft=project(Math.max(0,s.playerX-(s.hitRange||35)),s.playerY),railRight=project(Math.min(W,s.playerX+(s.hitRange||35)),s.playerY);
+    ctx.save();ctx.strokeStyle='#ebf79e';ctx.lineWidth=5;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(railLeft.x,railY);ctx.lineTo(railRight.x,railY);ctx.stroke();ctx.restore();
+    ctx.font='700 10px system-ui';ctx.fillStyle='#ffd1ae';ctx.fillText(lang==='fr'?'↑ VISE LES ESPACES ↑':'↑ AIM FOR THE GAPS ↑',W/2,far-15);
+    if(b&&['TRAVELING','LANDED','BOUNCED','HIT'].includes(b.state)){
+      const outgoing=b.state==='HIT',aimX=outgoing?b.returnTargetX:s.aimX;
+      if(Number.isFinite(aimX)){
+        const aimY=outgoing?b.returnTargetY:(s.strategy==='build'?net-48:C.config.court.opponentY*H-30),goal=project(aimX,aimY);
+        ctx.save();ctx.strokeStyle=outgoing?'#f2ffa4':'#f2ffa477';ctx.lineWidth=2;
+        ctx.beginPath();ctx.ellipse(goal.x,goal.y,16,7,0,0,Math.PI*2);ctx.stroke();
+        if(!outgoing&&Math.abs(b.targetX-s.playerX)<=(s.hitRange||35)){
+          const from=project(s.playerX,s.playerY);ctx.setLineDash([5,9]);ctx.beginPath();ctx.moveTo(from.x,railY);ctx.lineTo(goal.x,goal.y);ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
     const giant=s.assist?.key==='giant',pose=contactPose(s);
     function athlete(x,y,color,scale,racket,moving=false){
       const p=project(x,y);ctx.save();ctx.translate(p.x,p.y);ctx.scale(scale,scale);
@@ -122,7 +139,7 @@
       ctx.shadowColor='#eaff9a';ctx.shadowBlur=12;ctx.fillStyle='#f0ff83';ctx.strokeStyle='#173b3d';ctx.lineWidth=1.8;ctx.beginPath();ctx.arc(p.x,p.y,rad+1,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.shadowBlur=0;
       ctx.fillStyle='#587547';for(const [dx,dy] of [[-2,-2],[3,-1],[0,3]]){ctx.beginPath();ctx.arc(p.x+dx,p.y+dy,1.2,0,Math.PI*2);ctx.fill();}
     }
-    ctx.font='600 11px system-ui';ctx.fillStyle='#dce5cd';ctx.textAlign='center';ctx.fillText(lang==='fr'?'↔  ↕  DÉPLACE-TOI LIBREMENT':'↔  ↕  MOVE IN ANY DIRECTION',W/2,H-33);
+    ctx.font='600 11px system-ui';ctx.fillStyle='#dce5cd';ctx.textAlign='center';ctx.fillText(lang==='fr'?'←  →  PLACE-TOI · VISE EN FACE':'←  →  MOVE · AIM AHEAD',W/2,H-33);
   }
   function drawPowerPreview(canvas,power,lang){
     canvas.hidden=power!=='giant';if(canvas.hidden)return;

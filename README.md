@@ -13,7 +13,7 @@ Cette branche conserve son moteur `game.js` et sa configuration, corrige les coo
 
 ## Règles de cette version
 
-Glisser dans toutes les directions, utiliser la souris ou les quatre flèches. Le personnage avance ou recule uniquement sur demande ; le renvoi après rebond reste automatique. Les trois premiers envois restent près de la position initiale, puis les balles utilisent la profondeur du terrain. Se décaler du centre du cercle de réception modifie l’angle du renvoi. Un partenaire piloté par le jeu couvre l’autre moitié, se déplace à vitesse limitée et renvoie uniquement les balles qu’il atteint. Le joueur reste prioritaire lorsqu’il peut frapper. Les deux adversaires se répartissent les renvois ; un coup n’est gagnant que si aucun des deux n’atteint la balle. Les points et vies appartiennent à l’équipe.
+Glisser horizontalement, utiliser la souris ou les flèches gauche/droite. Le personnage avance ou recule uniquement sur demande ; le renvoi après rebond reste automatique. Tous les envois reviennent dans une même bande de réception : gauche/droite suffit pour jouer. Le glissement tactile et la souris ne déplacent que la largeur ; haut/bas reste facultatif au clavier. Une barre montre la portée de frappe et une ligne en pointillés indique la visée lorsque la balle est à portée. Se décaler du centre du cercle de réception modifie l’angle du renvoi. Un partenaire piloté par le jeu couvre l’autre moitié, se déplace à vitesse limitée et renvoie uniquement les balles qu’il atteint. Le joueur reste prioritaire lorsqu’il peut frapper. Les deux adversaires se répartissent les renvois ; un coup n’est gagnant que si aucun des deux n’atteint la balle. Les points et vies appartiennent à l’équipe.
 
 - 3 vies, un renvoi = 1 point, un coup gagnant = 3 points supplémentaires.
 - Kitchen Rush : 5 renvois sans rater déclenchent 6 secondes à 2 points par renvoi (pas de destruction ni de renvoi automatique supplémentaire).
@@ -28,9 +28,11 @@ Glisser dans toutes les directions, utiliser la souris ou les quatre flèches. L
 
 Les neuf effets joueurs du prototype récent sont adaptés au jeu d’échanges : portée, déplacement, ralentissement, renvoi extérieur, frappe accélérée, sauvetage et vie. Il n’y a pas de multiballe ni d’explosion de briques dans ce mode. Les noms sont des coups de pickleball ; les effets sont des fictions arcade, pas des représentations du style réel des athlètes. Les six capsules supplémentaires propres au casse-briques ne sont pas importées comme telles.
 
+Les formations adverses alternent sur quatre dispositions avec les manches. Leur vitesse et leur réaction augmentent progressivement, avec un plafond. La nouvelle version de règles sépare les scores des anciennes parties.
+
 ## Côté et stratégie avant la partie
 
-Trois choix indépendants sont mémorisés localement et fixés pour la partie :
+Les options tactiques sont repliées par défaut pour démarrer sans préparation. Trois choix indépendants sont mémorisés localement et fixés pour la partie :
 
 - **Gauche / droite** : position du joueur au départ et moitié attribuée au partenaire, même si le joueur traverse le milieu.
 - **Construire (drop)** : renvois plus doux avec une courbe plus haute, visant la Kitchen adverse ; le partenaire accompagne une montée décidée par le joueur. L’adversaire a davantage de temps pour défendre.
@@ -78,7 +80,7 @@ Deux possibilités :
 
 Configurer `KR_ALLOWED_ORIGINS` avec les origines autorisées séparées par des virgules, incluant l’origine HTTPS de l’hébergement lui-même et `https://carossst.github.io` si nécessaire. Le serveur se lie par défaut à 127.0.0.1 ; définir `HOST=0.0.0.0` si l’hébergeur le demande. Utiliser un volume persistant pour `KR_DB_PATH`, sauvegarder SQLite, et lancer une seule instance pour cette configuration simple. Derrière un proxy, les quotas portent par défaut sur l’adresse réseau du proxy : régler le proxy ou adapter l’identification IP avant une forte affluence. Aucun en-tête IP fourni arbitrairement par un visiteur n’est cru.
 
-Le protocole utilise des sessions signées par jeton aléatoire à usage unique, des graines serveur et des déplacements X/Y quantifiés à 60 Hz. Le serveur recalcule les scores, rejette les journaux invalides/incomplets, les durées impossibles, les répétitions et les versions différentes. Cela bloque les scores simplement inventés, **pas les bots capables de jouer**. Les sessions non soumises expirent en une heure. Le classement `rally-6` ne mélange pas les anciens scores casse-briques. Les pseudos ne sont pas des identités authentifiées.
+Le protocole utilise des sessions signées par jeton aléatoire à usage unique, des graines serveur et des déplacements X/Y quantifiés à 60 Hz. Le serveur recalcule les scores, rejette les journaux invalides/incomplets, les durées impossibles, les répétitions et les versions différentes. Cela bloque les scores simplement inventés, **pas les bots capables de jouer**. Les sessions non soumises expirent en une heure. Le classement `rally-7` ne mélange pas les anciens scores casse-briques. Les pseudos ne sont pas des identités authentifiées.
 
 Le serveur fourni n’est pas déployé automatiquement par cette branche. Tant que l’API n’est pas connectée, l’interface indique clairement « entraînement » ; elle n’invente pas de classement mondial.
 
@@ -104,7 +106,7 @@ Avant publication : tests automatisés, essais tactiles réels, lecture FR/EN, p
 
 ## Présentation arcade
 
-Le moteur et les scores restent ceux de `rally-6`. La présentation ajoute une balle contrastée et une traînée courte, des impacts/rebonds, un compteur de série d’équipe, un objectif visible de 8 renvois par manche et des palettes de terrain variant avec la progression existante. Aucun multiplicateur caché n’est ajouté au combo. Les pouvoirs sont matérialisés sur le terrain ; les quatre personnages ont une animation de déplacement.
+Le moteur et les scores restent ceux de `rally-7`. La présentation ajoute une balle contrastée et une traînée courte, des impacts/rebonds, un compteur de série d’équipe, un objectif visible de 8 renvois par manche et des palettes de terrain variant avec la progression existante. Aucun multiplicateur caché n’est ajouté au combo. Les pouvoirs sont matérialisés sur le terrain ; les quatre personnages ont une animation de déplacement.
 
 `rally-feedback.js` conserve au maximum 16 événements et 9 points de traînée. Les effets utilisent le temps simulé : la pause les suspend et une nouvelle partie les remet à zéro. La préférence système de réduction des mouvements désactive les traînées et la marche animée et réduit les déplacements des effets. Pas de secousse d’écran ni de clignotement plein écran.
 
