@@ -1,5 +1,5 @@
 /* Rally shell only. API requests and addresses are never cached. */
-const CACHE='kr-rally-5';
+const CACHE='kr-rally-6';
 const FILES=['./','./index.html','./rally.css','./config.js','./players.js','./rally-config.js','./game.js','./rally-rules.js','./rally-view.js','./rally-app.js','./manifest.json','./icons/kr-favicon.svg','./privacy.html','./terms.html','./icons/kr-icon-192x192.png','./icons/kr-icon-512x512.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('kr-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));});

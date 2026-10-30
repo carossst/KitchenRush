@@ -79,3 +79,30 @@ test('all side and strategy combinations replay with identical FR/US rules',()=>
   for(const side of ['left','right'])for(const strategy of ['build','drive']){const a=createEngine(23,'fr',side,strategy),b=createEngine(23,'us',side,strategy);let ticks=0;while(!a.run.done&&ticks<MAX_TICKS){a.update(TICK);b.update(TICK);ticks++;}assert.equal(a.run.smashes,b.run.smashes);assert.equal(a.run.winners,b.run.winners);assert.equal(replay(23,'fr',ticks,[],side,strategy).score,a.run.smashes);}
   assert.throws(()=>createEngine(1,'fr','unknown','build'),/setup/);assert.throws(()=>createEngine(1,'fr','left','unknown'),/setup/);
 });
+test('Thomas roles allocate the middle without restricting side choice',()=>{
+  for(const side of ['left','right'])for(const role of ['support','creator']){
+    const e=createEngine(9,'fr',side,'build',role);
+    assert.equal(e._partnerOwns(e.run,240),role==='support');
+    assert.equal(e._partnerOwns(e.run,side==='left'?400:80),true);
+    assert.equal(e._partnerOwns(e.run,side==='left'?80:400),false);
+  }
+});
+test('attacking partner may take a reachable middle ball only in anchor role',()=>{
+  for(const role of ['support','creator']){
+    const e=createEngine(2,'fr','left','build',role);e.update(800);const r=e.run,b=r.ball;
+    r.playerX=240;r.partnerX=250;r.partnerY=r.playerY;b.state='BOUNCED';b.bouncedAt=r.elapsedMs-200;b.targetX=240;b.x=240;b.y=r.playerY-28;b.groundY=r.playerY;
+    e._tryPartnerHit(r,b);assert.equal(b.state,role==='support'?'HIT':'BOUNCED');assert.equal(r.playerX,240);
+  }
+});
+test('anchor role changes partner positioning and never moves the human automatically',()=>{
+  const a=createEngine(2,'fr','left','build','support'),b=createEngine(2,'fr','left','build','creator');
+  const y=a.run.playerY;a.update(700);b.update(700);assert.ok(a.run.partnerY<b.run.partnerY);assert.equal(a.run.playerY,y);
+});
+test('all eight tactical choices have deterministic FR/US replays',()=>{
+  for(const side of ['left','right'])for(const strategy of ['build','drive'])for(const role of ['support','creator']){
+    const a=createEngine(23,'fr',side,strategy,role),b=createEngine(23,'us',side,strategy,role);let ticks=0;
+    while(!a.run.done&&ticks<MAX_TICKS){a.update(TICK);b.update(TICK);ticks++;}
+    assert.equal(a.run.smashes,b.run.smashes);assert.equal(a.run.winners,b.run.winners);assert.equal(replay(23,'fr',ticks,[],side,strategy,role).score,a.run.smashes);
+  }
+  assert.throws(()=>createEngine(1,'fr','left','build','unknown'),/setup/);
+});

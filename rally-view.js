@@ -89,10 +89,10 @@
     const partnerScale=.78+.25*(s.partnerY-net)/(base-net);
     athlete(s.partnerX,s.partnerY,'#83c7c0',partnerScale,{...partnerPose,size:1});
     const partnerLabel=project(s.partnerX,s.partnerY);
-    ctx.font='700 9px system-ui';ctx.fillStyle='#c5f4e9';ctx.fillText(lang==='fr'?'PARTENAIRE':'PARTNER',partnerLabel.x,partnerLabel.y-73*partnerScale);
+    ctx.font='700 9px system-ui';ctx.fillStyle='#c5f4e9';ctx.fillText(s.role==='support'?(lang==='fr'?'PARTENAIRE · ATTAQUE':'PARTNER · ATTACK'):(lang==='fr'?'PARTENAIRE · APPUI':'PARTNER · SUPPORT'),partnerLabel.x,partnerLabel.y-73*partnerScale);
     const playerScale=.78+.25*(s.playerY-net)/(base-net);
     athlete(s.playerX??W/2,s.playerY??C.config.court.playerY*H,'#e5ef94',playerScale,{...pose,size:giant?1.65:1});
-    const playerLabel=project(s.playerX,s.playerY);ctx.font='700 10px system-ui';ctx.fillStyle='#f3f9b1';ctx.fillText(lang==='fr'?'TOI':'YOU',playerLabel.x,playerLabel.y-73*playerScale);
+    const playerLabel=project(s.playerX,s.playerY);ctx.font='700 10px system-ui';ctx.fillStyle='#f3f9b1';ctx.fillText(s.role==='support'?(lang==='fr'?'TOI · PILIER':'YOU · ANCHOR'):(lang==='fr'?'TOI · CRÉATEUR':'YOU · CREATOR'),playerLabel.x,playerLabel.y-73*playerScale);
     if(pose.contact){ctx.strokeStyle='#fff8c3';ctx.lineWidth=2;ctx.beginPath();ctx.arc(pose.x,pose.y,15,0,Math.PI*2);ctx.stroke();}
     if(b&&!['MISSED','FAULTED'].includes(b.state)){
       const ground=b.groundY??b.targetY,p=ballPoint(b),shadow=project(b.x,ground),rad=6+(ground-far)/(base-far)*3;

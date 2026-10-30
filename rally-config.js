@@ -34,5 +34,5 @@
   };
   function random(seed){let v=seed>>>0;return ()=>{v=(Math.imul(v,1664525)+1013904223)>>>0;return v/4294967296;};}
   function roster(edition){if(!['fr','us'].includes(edition))throw Error('edition');return slots.map(s=>({...window.KR_PLAYER_CATALOG.find(p=>p.id===s[edition]),power:s.power}));}
-  window.KR_RALLY = Object.freeze({version:'rally-5',width:480,height:760,tickMs:1000/60,maxTicks:36000,config,slots,powers,random,roster,strategies:Object.freeze({build:Object.freeze({returnSpeed:1.12,counterSpeed:1,arc:1.2}),drive:Object.freeze({returnSpeed:.78,counterSpeed:.85,arc:.75})})});
+  window.KR_RALLY = Object.freeze({version:'rally-6',width:480,height:760,tickMs:1000/60,maxTicks:36000,config,slots,powers,random,roster,strategies:Object.freeze({build:Object.freeze({returnSpeed:1.12,counterSpeed:1,arc:1.2}),drive:Object.freeze({returnSpeed:.78,counterSpeed:.85,arc:.75})})});
 })();
