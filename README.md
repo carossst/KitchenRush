@@ -109,3 +109,7 @@ Le moteur et les scores restent ceux de `rally-6`. La présentation ajoute une b
 `rally-feedback.js` conserve au maximum 16 événements et 9 points de traînée. Les effets utilisent le temps simulé : la pause les suspend et une nouvelle partie les remet à zéro. La préférence système de réduction des mouvements désactive les traînées et la marche animée et réduit les déplacements des effets. Pas de secousse d’écran ni de clignotement plein écran.
 
 Le son est désactivé par défaut, mémorisé localement et activé par un bouton accessible. Des notes courtes sont synthétisées dans le navigateur après un geste utilisateur : frappe, rebond, point gagnant, pouvoir et balle ratée. Aucun fichier audio ni service externe requis. Les effets n’altèrent ni la physique ni le replay serveur.
+
+### Démarrer et reprendre
+
+Un bouton Jouer est disponible directement sur le terrain, en plus du bouton principal. En pause (bouton, perte de focus ou changement d’onglet), une invitation Reprendre reste visible au centre. Espace lance la partie ou bascule pause/reprise. Les sons et effets sont facultatifs : leur absence ne doit pas empêcher le démarrage.
