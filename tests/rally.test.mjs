@@ -134,3 +134,17 @@ test('level formations change opponent coverage with bounded movement',()=>{
   for(const level of [1,2,3,4]){const e=createEngine(42);e.run.level=level;e._moveTeams(e.run,10000);positions.push([e.run.opponentX,e.run.opponentPartnerX].join(':'));}
   assert.equal(new Set(positions).size,4);
 });
+
+test('every FR/US pair activates exactly the same effect, duration and charges',()=>{
+  const expected=[['platel','waters'],['rocchi','bright'],['roy','johns'],['enmer','black'],['burnel','patriquin'],['loriot','jw'],['khlif','khlif'],['devilliers','devilliers'],['vernaz','jorja'],['sarcelet','todd']];
+  // Test each pair at the same game time, both with a missing life and at full health.
+  for(let i=0;i<expected.length;i++)for(const lives of [2,3]){
+    const a=createEngine(1,'fr'),b=createEngine(1,'us');
+    // Queue the real configured pair, rather than deriving one side from the other.
+    const catalog=(engine,edition)=>{engine.run.playerQueue=[];const found=[];for(let n=0;n<10;n++)found.push(engine.grantPlayer());return found.find(p=>p.player===expected[i][edition]);};
+    const fa=catalog(a,0),ub=catalog(b,1);assert.equal(fa.power,ub.power);
+    for(const [engine,id,power] of [[a,fa.player,fa.power],[b,ub.player,ub.power]]){engine.run.elapsedMs=5000;engine.run.lives=lives;engine.run.smashes=0;engine.run.playerQueue=[{id,power}];engine.grantPlayer();}
+    assert.equal(JSON.stringify(a.run.assist),JSON.stringify(b.run.assist));
+    assert.equal(a.run.lives,b.run.lives);assert.equal(a.run.smashes,b.run.smashes);
+  }
+});

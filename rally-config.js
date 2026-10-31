@@ -32,7 +32,17 @@
     bomb:{fr:['SMASH','Ton prochain renvoi est beaucoup plus rapide.'],en:['SMASH','Your next return is much faster.'],charges:1,seconds:12},
     life:{fr:['LOB','Récupère une vie, au maximum 3. Si elles sont pleines : +2 points.'],en:['LOB','Recover one life, up to 3. Full lives: +2 points.'],seconds:0}
   };
+  for(const power of Object.values(powers)){Object.freeze(power.fr);Object.freeze(power.en);Object.freeze(power);}
+  Object.freeze(powers);Object.freeze(slots);
   function random(seed){let v=seed>>>0;return ()=>{v=(Math.imul(v,1664525)+1013904223)>>>0;return v/4294967296;};}
-  function roster(edition){if(!['fr','us'].includes(edition))throw Error('edition');return slots.map(s=>({...window.KR_PLAYER_CATALOG.find(p=>p.id===s[edition]),power:s.power}));}
+  function roster(edition){
+    if(!['fr','us'].includes(edition))throw Error('edition');
+    const other=edition==='fr'?'us':'fr';
+    return slots.map(s=>{
+      const player=window.KR_PLAYER_CATALOG.find(p=>p.id===s[edition]),equivalent=window.KR_PLAYER_CATALOG.find(p=>p.id===s[other]);
+      if(!player||!equivalent||!powers[s.power])throw Error('Invalid player pair');
+      return Object.freeze({...player,power:s.power,effect:powers[s.power],equivalent:Object.freeze({id:equivalent.id,name:equivalent.name})});
+    });
+  }
   window.KR_RALLY = Object.freeze({version:'rally-7',width:480,height:760,tickMs:1000/60,maxTicks:36000,config,slots,powers,random,roster,strategies:Object.freeze({build:Object.freeze({returnSpeed:1.12,counterSpeed:1,arc:1.2}),drive:Object.freeze({returnSpeed:.78,counterSpeed:.85,arc:.75})})});
 })();

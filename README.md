@@ -115,3 +115,7 @@ Le son est désactivé par défaut, mémorisé localement et activé par un bout
 ### Démarrer et reprendre
 
 Un bouton Jouer est disponible directement sur le terrain, en plus du bouton principal. En pause (bouton, perte de focus ou changement d’onglet), une invitation Reprendre reste visible au centre. Espace lance la partie ou bascule pause/reprise. Les sons et effets sont facultatifs : leur absence ne doit pas empêcher le démarrage.
+
+### Correspondances des éditions
+
+Chaque paire FR/USA référence la même définition de pouvoir, figée et partagée : même effet, durée, charges et points. Le guide des joueurs affiche le nom de son équivalent. Noé Khlif et Jay Devilliers sont communs. Les dix paires sont testées à pleine vie et avec une vie manquante. Les noms et les traductions n’interviennent pas dans les règles.

@@ -30,7 +30,7 @@
   copy.level=lang==='fr'?'MANCHE':'ROUND';
   document.querySelector('[data-i18n="level"]').textContent=copy.level;
   $('metrics').checked=store.get('metrics',false);$('metrics').onchange=()=>store.set('metrics',$('metrics').checked);
-  for(const player of C.roster(edition)){const article=document.createElement('article'),name=document.createElement('strong'),effect=document.createElement('span');name.textContent=player.name+' · '+C.powers[player.power][lang][0];effect.textContent=C.powers[player.power][lang][1];article.append(name,effect);$('roster').append(article);}
+  for(const player of C.roster(edition)){const article=document.createElement('article'),name=document.createElement('strong'),effect=document.createElement('span'),pair=document.createElement('span');name.textContent=player.name+' · '+player.effect[lang][0];effect.textContent=player.effect[lang][1];pair.textContent=player.id===player.equivalent.id?(lang==='fr'?'Même joueur et même pouvoir dans les deux éditions.':'Same player and power in both editions.'):(lang==='fr'?'Équivalent USA : ':'French counterpart: ')+player.equivalent.name+(lang==='fr'?' · pouvoir identique.':' · identical power.');article.append(name,effect,pair);$('roster').append(article);}
   const savedSetup=store.get('setup',{});
   $('side-'+(savedSetup.side==='right'?'right':'left')).checked=true;
   $('strategy-'+(savedSetup.strategy==='drive'?'drive':'build')).checked=true;
@@ -123,7 +123,7 @@ $('rush').textContent=state.rushUntil>state.elapsedMs?(lang==='fr'?'RUSH · +2 p
   $('signup').onsubmit=async e=>{e.preventDefault();const btn=e.currentTarget.querySelector('button');btn.disabled=true;$('signup-status').textContent=copy.sending;try{await api('newsletter',{edition,email:$('email').value,consent:$('email-consent').checked,website:$('website').value});$('email').value='';$('email-consent').checked=false;$('signup-status').textContent=copy.subscribed;track('newsletter_accepted');}catch{$('signup-status').textContent=copy.signupError;}finally{btn.disabled=false;}};
   $('power-name').textContent=lang==='fr'?'À toi de jouer.':'Your court.';$('power-effect').textContent=copy.waiting;$('connection').textContent=copy.practice;
   // Replace only the legacy app worker within this exact repository scope.
-  if('serviceWorker' in navigator)void navigator.serviceWorker.register('./sw.js?v=rally-7-forward1').catch(()=>{});
+  if('serviceWorker' in navigator)void navigator.serviceWorker.register('./sw.js?v=rally-7-pairs1').catch(()=>{});
   if(['localhost','127.0.0.1'].includes(location.hostname))window.KR_RALLY_DEBUG={get state(){return state;},get engine(){return engine;},get paused(){return paused;}};
   syncCourtAction();void ranking();requestAnimationFrame(frame);
 })();
