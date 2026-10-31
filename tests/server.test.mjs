@@ -12,3 +12,32 @@ test('native Kit signup uses inactive contact, localized form and both tags',asy
 
 test('server locks side and strategy at session creation for score replay',async t=>{let clock=1000000;const {post}=await setup(t,{now:()=>clock});const session=await(await post('runs',{version:VERSION,edition:'fr',side:'right',strategy:'drive'})).json();assert.equal(session.side,'right');assert.equal(session.strategy,'drive');const engine=createEngine(session.seed,'fr','right','drive');let ticks=0;while(!engine.run.done&&ticks<36000){engine.update(TICK);ticks++;}clock+=ticks/60*1000+1000;const result=await post('scores',{...session,side:'left',strategy:'build',name:'Plan',ticks,inputs:[]});assert.equal(result.status,201);assert.equal((await result.json()).score,engine.run.smashes);assert.equal((await post('runs',{version:VERSION,edition:'fr',side:'invalid'})).status,400);});
 test('server keeps the selected role even if submission claims another',async t=>{let clock=1000000;const {post}=await setup(t,{now:()=>clock});const session=await(await post('runs',{version:VERSION,edition:'fr',side:'right',strategy:'build',role:'support'})).json();assert.equal(session.role,'support');const engine=createEngine(session.seed,'fr','right','build','support');let ticks=0;while(!engine.run.done&&ticks<36000){engine.update(TICK);ticks++;}clock+=ticks/60*1000+1000;const response=await post('scores',{...session,role:'creator',name:'Duo',ticks,inputs:[]});assert.equal(response.status,201);assert.equal((await response.json()).score,engine.run.smashes);assert.equal((await post('runs',{version:VERSION,edition:'fr',role:'unknown'})).status,400);});
+
+test('daily uses a shared UTC seed and fixed settings across languages',async t=>{
+ let clock=Date.parse('2026-10-31T23:59:00Z');const {post}=await setup(t,{now:()=>clock});
+ const a=await(await post('runs',{version:VERSION,edition:'fr',mode:'daily',side:'right',style:'advanced',precision:true})).json();
+ const b=await(await post('runs',{version:VERSION,edition:'us',mode:'daily'})).json();
+ assert.equal(a.seed,b.seed);assert.equal(a.day,'2026-10-31');assert.equal(a.side,'left');assert.equal(a.style,'arcade');assert.equal(a.precision,false);
+ clock=Date.parse('2026-11-01T00:01:00Z');const c=await(await post('runs',{version:VERSION,edition:'fr',mode:'daily'})).json();assert.notEqual(c.seed,a.seed);assert.equal(c.day,'2026-11-01');
+});
+test('daily scores remain on the session date and cannot be submitted as classic',async t=>{
+ let clock=Date.parse('2026-10-31T23:59:59Z');const {base,post}=await setup(t,{now:()=>clock});
+ const session=await(await post('runs',{version:VERSION,edition:'fr',mode:'daily'})).json();const e=createEngine(session.seed);let ticks=0;while(!e.run.done&&ticks<36000){e.update(TICK);ticks++;}clock+=ticks/60*1000+2000;
+ const response=await post('scores',{...session,mode:'classic',day:'2099-01-01',name:'Daily',ticks,inputs:[]});assert.equal(response.status,201);
+ const get=async query=>(await(await fetch(base+'/api/leaderboard?edition=fr&version='+VERSION+query)).json()).entries;
+ assert.equal((await get('&mode=daily&day=2026-10-31')).length,1);assert.equal((await get('&mode=classic')).length,0);assert.equal((await get('&mode=daily&day=2026-11-01')).length,0);
+});
+test('advanced and precision scores stay isolated and use session settings for replay',async t=>{
+ let clock=1000000;const {base,post}=await setup(t,{now:()=>clock});
+ const session=await(await post('runs',{version:VERSION,edition:'fr',style:'advanced',precision:true})).json();const e=createEngine(session.seed,'fr','left','build','creator',{style:'advanced',precision:true});let ticks=0;while(!e.run.done&&ticks<36000){e.update(TICK);ticks++;}clock+=ticks/60*1000+2000;
+ const response=await post('scores',{...session,style:'arcade',precision:false,name:'Precise',ticks,inputs:[]});assert.equal(response.status,201);assert.equal((await response.json()).score,e.run.smashes);
+ const get=async query=>(await(await fetch(base+'/api/leaderboard?edition=fr&version='+VERSION+query)).json()).entries;
+ assert.equal((await get('&style=advanced&precision=true')).length,1);assert.equal((await get('')).length,0);
+});
+
+test('schema migration preserves old scores while adding context columns',async t=>{
+ const {mkdtemp,rm}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path'),{DatabaseSync}=await import('node:sqlite');
+ const dir=await mkdtemp(join(tmpdir(),'kr-migration-')),path=join(dir,'scores.sqlite');t.after(()=>rm(dir,{recursive:true,force:true}));
+ const old=new DatabaseSync(path);old.exec("CREATE TABLE scores(run_id TEXT PRIMARY KEY,name TEXT NOT NULL,edition TEXT NOT NULL,version TEXT NOT NULL,score INTEGER NOT NULL,level INTEGER NOT NULL,created INTEGER NOT NULL); INSERT INTO scores VALUES ('legacy','Old','fr','rally-7',123,4,0)");old.close();
+ const server=createServer({dbPath:path,env:{}});await new Promise(resolve=>server.close(resolve));const db=new DatabaseSync(path);assert.equal(db.prepare('SELECT score FROM scores WHERE run_id=?').get('legacy').score,123);const cols=db.prepare('PRAGMA table_info(scores)').all().map(c=>c.name);for(const c of ['mode','day','style','precision'])assert.ok(cols.includes(c));db.close();
+});

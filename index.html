@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#123c34"><link rel="icon" href="./icons/kr-favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.json"><link rel="stylesheet" href="./rally.css">
 <script defer src="./config.js"></script><script defer src="./players.js"></script><script defer src="./rally-config.js"></script>
-<script defer src="./game.js"></script><script defer src="./rally-rules.js"></script><script defer src="./rally-view.js"></script><script defer src="./rally-feedback.js"></script><script defer src="./rally-app.js"></script>
+<script defer src="./game.js"></script><script defer src="./rally-rules.js"></script><script defer src="./rally-view.js"></script><script defer src="./rally-feedback.js"></script><script defer src="./rally-progress.js"></script><script defer src="./rally-app.js"></script>
 </head>
 <body>
 <a class="skip" href="#court">Aller au terrain / Skip to court</a>
@@ -19,6 +19,7 @@
 <p class="eyebrow" data-i18n="eyebrow"></p><h1 data-i18n="headline"></h1><p class="lead" data-i18n="intro"></p>
 <div class="how"><span>↔</span><p data-i18n="controls"></p></div>
 <p class="scoring" data-i18n="scoring"></p>
+<fieldset class="setup" id="mode-choice"><legend data-i18n="modeTitle"></legend><select id="game-mode" aria-label="Mode"><option value="classic" data-i18n="classic"></option><option value="daily" data-i18n="daily"></option></select><p id="mode-note" class="source-note"></p></fieldset>
 <details id="tactics"><summary data-i18n="tactics"></summary>
 <fieldset class="setup" id="side-choice"><legend data-i18n="chooseSide"></legend><div class="setup-options">
 <label><input id="side-left" type="radio" name="side" value="left" checked><strong data-i18n="leftSide"></strong><span data-i18n="leftRole"></span></label>
@@ -32,6 +33,7 @@
 <label><input id="role-support" type="radio" name="role" value="support"><strong data-i18n="supportTitle"></strong><span data-i18n="supportBrief"></span></label>
 <label><input id="role-creator" type="radio" name="role" value="creator" checked><strong data-i18n="creatorTitle"></strong><span data-i18n="creatorBrief"></span></label>
 </div><p class="source-note" data-i18n="roleSource"></p></fieldset>
+<fieldset class="setup"><legend data-i18n="challengeTitle"></legend><label class="consent"><input id="advanced" type="checkbox"><span data-i18n="advanced"></span></label><label class="consent"><input id="precision" type="checkbox"><span data-i18n="precision"></span></label></fieldset>
 </details>
 <button id="start" class="primary" data-i18n="play"></button>
 <p id="connection" role="status"></p>
@@ -40,6 +42,7 @@
 <section class="match" aria-label="Kitchen Rush">
 <header class="hud"><div><small data-i18n="score"></small><strong id="score">0</strong></div><div><small data-i18n="level"></small><strong id="level">1</strong></div><div class="health"><small data-i18n="lives"></small><strong id="lives" aria-live="polite">♥ ♥ ♥</strong></div><button id="sound" type="button" aria-pressed="false">SON</button><button id="pause" aria-label="Pause" disabled>Ⅱ</button></header>
 <div class="match-status"><p id="round-goal" class="round-goal"></p><p id="combo" class="combo" role="status"></p></div>
+<p id="round-rule" class="round-goal" role="status"></p><p id="capture-note" class="round-goal" role="status"></p>
 <p id="rush" class="rush" role="status"></p>
 <div class="court-wrap"><canvas id="court" width="480" height="760" tabindex="0"></canvas><div id="splash"><p id="court-message" data-i18n="splash"></p><button id="court-action" type="button" class="primary">Jouer ▶</button><small id="court-hint"></small></div></div>
 <div id="power" class="power" role="status" aria-live="polite"><strong id="power-name"></strong><span id="power-effect"></span><progress id="power-progress" max="1" value="0"></progress></div>
@@ -47,13 +50,15 @@
 </section>
 <section class="community">
 <div class="ranking-head"><div><p class="eyebrow" data-i18n="world"></p><h2 data-i18n="ranking"></h2></div><button id="refresh" data-i18n="refresh"></button></div>
-<p id="ranking-status" role="status"></p><ol id="ranking"></ol>
+<p id="board-scope" class="source-note"></p><p id="ranking-status" role="status"></p><ol id="ranking"></ol>
 <form id="submit-score" hidden><label for="nickname" data-i18n="nickname"></label><input id="nickname" required maxlength="20" autocomplete="nickname"><button class="primary" data-i18n="save"></button><p id="submit-status" role="status"></p></form>
 <details id="newsletter" hidden><summary data-i18n="newsletter"></summary><form id="signup"><label for="email" data-i18n="email"></label><input id="email" type="email" required autocomplete="email"><label class="consent"><input id="email-consent" type="checkbox" required><span data-i18n="consent"></span></label><input name="website" id="website" class="honeypot" tabindex="-1" autocomplete="off" aria-hidden="true"><button data-i18n="subscribe"></button><p id="signup-status" role="status"></p></form></details>
+<details id="collection"><summary id="collection-title"></summary><ul id="collection-list"></ul><h3 data-i18n="recent"></h3><ol id="history-list"></ol></details>
+<button id="update-game" hidden data-i18n="update"></button><p id="update-note" class="source-note" role="status"></p>
 <label class="consent analytics"><input id="metrics" type="checkbox"><span data-i18n="metrics"></span></label>
 <footer><a href="https://github.com/carossst/KitchenRush">GitHub ↗</a><a href="./privacy.html" data-i18n="privacy"></a><a href="./terms.html" data-i18n="terms"></a></footer>
 </section>
 </main>
 <dialog id="effect-dialog"><p class="eyebrow" data-i18n="newPower"></p><h2 id="effect-title"></h2><canvas id="effect-preview" width="280" height="90" aria-hidden="true" hidden></canvas><p id="effect-copy"></p><p class="muted" data-i18n="pausedHint"></p><button id="effect-close" class="primary" data-i18n="continue"></button></dialog>
-<dialog id="result-dialog"><p class="eyebrow" data-i18n="finished"></p><h2 id="result-score"></h2><p id="result-copy"></p><button id="again" class="primary" data-i18n="again"></button><button id="result-close" data-i18n="seeRanking"></button></dialog>
+<dialog id="result-dialog"><p class="eyebrow" data-i18n="finished"></p><h2 id="result-score"></h2><p id="result-copy"></p><p id="result-goal"></p><p id="result-scope" class="muted"></p><button id="share-result" data-i18n="share"></button><button id="copy-result" data-i18n="copy"></button><p id="share-state" role="status"></p><textarea id="share-fallback" readonly hidden aria-label="Share text"></textarea><button id="again" class="primary" data-i18n="again"></button><button id="result-close" data-i18n="seeRanking"></button></dialog>
 </body></html>

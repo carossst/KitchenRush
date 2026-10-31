@@ -21,3 +21,5 @@
 #splash{pointer-events:auto}#splash p{margin:0 0 18px}#court-action{min-width:170px;min-height:52px;background:#e5f39b;color:#173d35;box-shadow:0 5px 20px #071d3544;font-size:18px}#court-action:hover{background:#f3facd}#court-hint{display:block;max-width:240px;color:#f3f5e5;font-size:12px;line-height:1.5;margin-top:15px;text-shadow:0 1px 6px #0006}
 
 #tactics{margin:14px 0}#tactics .setup{margin-top:12px}@media(max-width:760px){#tactics{grid-column:1/-1}body.playing #tactics{display:none}}
+
+#mode-choice select{width:100%;font:inherit;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--paper);color:var(--ink)}#collection ul,#collection ol{padding-left:20px;font-size:12px;line-height:1.8}#collection .unknown{color:var(--muted)}#round-rule,#capture-note{line-height:1.5;margin:5px 3px}#capture-note:empty{display:none}#share-fallback{width:100%;min-height:100px}#result-goal{font-weight:700}#update-game{width:100%}@media(max-width:760px){#mode-choice{grid-column:1/-1}body.playing #mode-choice{display:none}}

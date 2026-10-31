@@ -1,0 +1,42 @@
+{
+  "name": "Kitchen Rush",
+  "short_name": "Kitchen Rush",
+  "id": "./",
+  "description": "One more rally. Arcade pickleball with players, powers and leaderboards.",
+  "start_url": "./index.html?edition=us",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f2e9",
+  "theme_color": "#123c34",
+  "categories": [
+    "games"
+  ],
+  "lang": "en",
+  "icons": [
+    {
+      "src": "./icons/kr-icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/kr-icon-192x192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icons/kr-icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/kr-icon-512x512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

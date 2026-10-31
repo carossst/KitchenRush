@@ -14,7 +14,7 @@ function play(seed=42,edition='fr',follow=false){
 test('a seeded run replays to the exact same score and ending',()=>{const run=play();const result=replay(42,'fr',run.ticks,run.inputs);assert.equal(result.score,run.state.smashes);assert.equal(result.level,run.state.level);assert.equal(result.winners,run.state.winners);});
 test('FR/US share identical gameplay for the same seed and inputs',()=>{const fr=play(91,'fr',true),us=play(91,'us',true);for(const key of ['smashes','lives','level','winners','totalSmashed'])assert.equal(fr.state[key],us.state[key],key);assert.equal(fr.ticks,us.ticks);});
 test('following the ball is rewarded, passive play eventually loses',()=>{const passive=play(123,'fr'),active=play(123,'fr',true);assert.equal(passive.state.done,true);assert.equal(passive.state.lives,0);assert.ok(active.state.totalSmashed>passive.state.totalSmashed+10);});
-test('all ten players rotate once before repetition; shared players keep powers',()=>{for(const edition of ['fr','us']){const e=createEngine(3,edition),ids=[];for(let i=0;i<30;i++){ids.push(e.grantPlayer().player);}for(let i=0;i<30;i+=10)assert.equal(new Set(ids.slice(i,i+10)).size,10);for(let i=1;i<30;i++)assert.notEqual(ids[i],ids[i-1]);}const fr=createEngine(4,'fr'),us=createEngine(4,'us');for(let i=0;i<10;i++){const a=fr.grantPlayer(),b=us.grantPlayer();assert.equal(a.power,b.power);if(['khlif','devilliers'].includes(a.player))assert.equal(a.player,b.player);}});
+test('all ten players rotate once before repetition; shared players keep powers',()=>{for(const edition of ['fr','us']){const e=createEngine(3,edition),ids=[];e.run.level=30;for(let i=0;i<30;i++){ids.push(e.grantPlayer().player);}for(let i=0;i<30;i+=10)assert.equal(new Set(ids.slice(i,i+10)).size,10);for(let i=1;i<30;i++)assert.notEqual(ids[i],ids[i-1]);}const fr=createEngine(4,'fr'),us=createEngine(4,'us');fr.run.level=us.run.level=30;for(let i=0;i<10;i++){const a=fr.grantPlayer(),b=us.grantPlayer();assert.equal(a.power,b.power);if(['khlif','devilliers'].includes(a.player))assert.equal(a.player,b.player);}});
 test('hit range changes with world depth, without mixing pixels and fractions',()=>{const e=createEngine(1);e.run.ball={groundY:e.run.court.netY*760};const far=e._getAutoHitRange(e.run);e.run.ball.groundY=e.run.court.baselineY*760;const near=e._getAutoHitRange(e.run);assert.ok(near>far);assert.ok(near/far<1.3);});
 test('recomputed serve reaches its marker without an end-of-flight teleport',()=>{const e=createEngine(2);e.update(800);const b=e.run.ball,t=b.travelMs/1000;assert.ok(Math.abs(b.startX+b.flightVx*t-b.targetX)<1e-7);assert.ok(Math.abs(b.startY+b.flightVy*t-b.targetY)<1e-7);assert.ok(Math.abs(b.flightLaunchVz*t-.5*b.flightGravity*t*t)<1e-7);});
 test('life powers cap at 3 and shield saves exactly one miss',()=>{const e=createEngine(1);e.run.assist={key:'shield',charges:1,until:12000};e._loseLife(e.run);assert.equal(e.run.lives,3);e._loseLife(e.run);assert.equal(e.run.lives,2);for(let i=0;i<30;i++)e.grantPlayer();assert.ok(e.run.lives<=3);});
@@ -25,7 +25,7 @@ test('return angle still depends on contact placement in doubles',()=>{
 });
 test('Rush requires five returns and a miss resets the gauge and active effect',()=>{const e=createEngine(1);e.run.rushReturns=4;e.run.rushUntil=0;e.update(800);const b=e.run.ball;b.state='BOUNCED';b.bouncedAt=e.run.elapsedMs;e._executeHit(e.run,b,0);assert.ok(e.run.rushUntil>e.run.elapsedMs);assert.equal(e.run.rushReturns,0);e._loseLife(e.run);assert.equal(e.run.rushUntil,0);assert.equal(e.run.rushReturns,0);});
 test('depth changes only at the player request, with court boundaries',()=>{
-  const e=createEngine(42),y=e.run.playerY;
+  const e=createEngine(42,'fr','left','build','creator',{style:'advanced'}),y=e.run.playerY;
   for(let tick=0;tick<60;tick++)e.update(TICK);
   assert.equal(e.run.playerY,y);
   e.setTarget(240,y-120);for(let i=0;i<30;i++)e.update(TICK);
@@ -139,7 +139,7 @@ test('every FR/US pair activates exactly the same effect, duration and charges',
   const expected=[['platel','waters'],['rocchi','bright'],['roy','johns'],['enmer','black'],['burnel','patriquin'],['loriot','jw'],['khlif','khlif'],['devilliers','devilliers'],['vernaz','jorja'],['sarcelet','todd']];
   // Test each pair at the same game time, both with a missing life and at full health.
   for(let i=0;i<expected.length;i++)for(const lives of [2,3]){
-    const a=createEngine(1,'fr'),b=createEngine(1,'us');
+    const a=createEngine(1,'fr'),b=createEngine(1,'us');a.run.level=b.run.level=30;
     // Queue the real configured pair, rather than deriving one side from the other.
     const catalog=(engine,edition)=>{engine.run.playerQueue=[];const found=[];for(let n=0;n<10;n++)found.push(engine.grantPlayer());return found.find(p=>p.player===expected[i][edition]);};
     const fa=catalog(a,0),ub=catalog(b,1);assert.equal(fa.power,ub.power);
@@ -147,4 +147,53 @@ test('every FR/US pair activates exactly the same effect, duration and charges',
     assert.equal(JSON.stringify(a.run.assist),JSON.stringify(b.run.assist));
     assert.equal(a.run.lives,b.run.lives);assert.equal(a.run.smashes,b.run.smashes);
   }
+});
+
+test('a defended return keeps the same ball and starts at the exact opponent contact',()=>{
+  const e=createEngine(5);e.update(800);const r=e.run,b=r.ball;
+  b.state='BOUNCED';b.x=r.playerX;b.y=r.playerY-28;b.groundY=r.playerY;e._executeHit(r,b,0);
+  const x=b.returnTargetX,y=b.returnTargetY,id=b.id;r.opponentX=x;r.opponentY=y;r.opponentReactAt=Infinity;
+  b.hitAt=r.elapsedMs-b.returnTravelMs;e.update(TICK);
+  assert.equal(r.winners,0);assert.equal(r.ball,b);assert.equal(b.id,id);assert.equal(b.state,'TRAVELING');
+  assert.equal(b.startX,x);assert.equal(b.startY,y);assert.equal(b.x,x);assert.equal(b.y,y);
+  assert.equal(r.opponentStroke.x,x);assert.equal(r.opponentStroke.y,y);assert.equal(r.waitUntil,0);
+});
+test('beginner powers are simple and every identity becomes available at round four',()=>{
+  for(const edition of ['fr','us']){
+    const e=createEngine(3,edition);let last=null;
+    for(let n=0;n<50;n++){const p=e.grantPlayer();assert.ok(['giant','slow','multi'].includes(p.power));assert.notEqual(p.player,last);last=p.player;assert.ok(e.run.playerQueue.length<=10);}
+    e.run.playerQueue=[];e.run.level=4;const ids=new Set();for(let n=0;n<10;n++)ids.add(e.grantPlayer().player);assert.equal(ids.size,10);
+  }
+});
+test('team powers have the same charges when the partner returns',()=>{
+  const e=createEngine(5);e.update(800);const r=e.run,b=r.ball;r.assist={key:'fire',charges:2,until:12000};
+  b.state='BOUNCED';b.bouncedAt=r.elapsedMs-200;b.x=r.partnerX;b.targetX=r.partnerX;b.y=r.partnerY-28;b.groundY=r.partnerY;
+  e._tryPartnerHit(r,b);assert.equal(b.state,'HIT');assert.equal(r.assist.charges,1);assert.ok(r.partnerStroke);
+});
+test('capture pauses scoring, follows the paddle, and releases automatically once',()=>{
+  const e=createEngine(8);e.update(800);const r=e.run,b=r.ball;r.totalSmashed=16;r.level=3;r.nextPowerAt=999;
+  b.state='BOUNCED';b.x=r.playerX;b.y=r.playerY-28;b.groundY=r.playerY;const before=r.smashes;
+  e._executeHit(r,b,0);assert.equal(b.state,'HELD');assert.equal(r.smashes,before);assert.equal(r.capturedRound,3);
+  e.setTarget(r.playerX+40);for(let i=0;i<30;i++)e.update(TICK);assert.equal(b.state,'HELD');assert.equal(b.x,r.playerX);
+  for(let i=0;i<90;i++)e.update(TICK);assert.equal(b.state,'HIT');assert.equal(r.smashes,before+1);assert.equal(r.totalSmashed,17);
+});
+test('precision narrows reach and adds exactly one point for either team member',()=>{
+  const normal=createEngine(6),precise=createEngine(6,'fr','left','build','creator',{precision:true});
+  assert.ok(Math.abs(precise._getAutoHitRange(precise.run)/normal._getAutoHitRange(normal.run)-.72)<1e-9);
+  for(const e of [normal,precise]){e.update(800);const r=e.run,b=r.ball;b.state='BOUNCED';b.x=r.playerX;b.y=r.playerY-28;b.groundY=r.playerY;e._executeHit(r,b,0);}
+  assert.equal(precise.run.smashes,normal.run.smashes+1);
+  for(const e of [normal,precise]){const r=e.run,b=r.ball;b.state='BOUNCED';b.x=r.partnerX;b.y=r.partnerY-28;b.groundY=r.partnerY;r.hitter='partner';e._executeHit(r,b,0);r.hitter=null;}
+  assert.equal(precise.run.smashes,normal.run.smashes+2);
+});
+test('advanced mode alone enables depth targets and varied landing depths',()=>{
+  const arcade=createEngine(42),advanced=createEngine(42,'fr','left','build','creator',{style:'advanced'});
+  arcade.setTarget(200,450);advanced.setTarget(200,450);assert.equal(arcade.run.targetY,arcade.run.playerY);assert.equal(advanced.run.targetY,450);
+  advanced.run.totalSpawned=8;const depths=new Set();for(let n=0;n<15;n++){advanced._spawnBall(advanced.run);depths.add(advanced.run.ball.targetY);}assert.ok(depths.size>3);
+});
+
+test('offline and server daily seeds match for the same UTC day and rules',async()=>{
+  const vm=await import('node:vm'),{readFileSync}=await import('node:fs'),{dailySeed}=await import('../server/model.mjs');
+  const context=vm.createContext({window:{location:{hostname:'localhost'}},structuredClone,URLSearchParams,console});
+  for(const file of ['config.js','players.js','rally-config.js'])vm.runInContext(readFileSync(new URL('../'+file,import.meta.url),'utf8'),context);
+  for(const day of ['2026-10-31','2026-11-01','2027-01-01'])assert.equal(context.window.KR_RALLY.dailySeed(day),dailySeed(day));
 });

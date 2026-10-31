@@ -13,22 +13,22 @@ Cette branche conserve son moteur `game.js` et sa configuration, corrige les coo
 
 ## Règles de cette version
 
-Glisser horizontalement, utiliser la souris ou les flèches gauche/droite. Le personnage avance ou recule uniquement sur demande ; le renvoi après rebond reste automatique. Tous les envois reviennent dans une même bande de réception : gauche/droite suffit pour jouer. Le glissement tactile et la souris ne déplacent que la largeur ; haut/bas reste facultatif au clavier. Une barre montre la portée de frappe et une ligne en pointillés indique la visée lorsque la balle est à portée. Se décaler du centre du cercle de réception modifie l’angle du renvoi. Un partenaire piloté par le jeu couvre l’autre moitié, se déplace à vitesse limitée et renvoie uniquement les balles qu’il atteint. Le joueur reste prioritaire lorsqu’il peut frapper. Les deux adversaires se répartissent les renvois ; un coup n’est gagnant que si aucun des deux n’atteint la balle. Les points et vies appartiennent à l’équipe.
+Glisser horizontalement, utiliser la souris ou les flèches gauche/droite. En mode avancé seulement, le personnage avance ou recule sur demande ; le renvoi après rebond reste automatique. Tous les envois reviennent dans une même bande de réception : gauche/droite suffit pour jouer. Le glissement tactile et la souris ne déplacent que la largeur ; le mode avancé facultatif rétablit la profondeur au doigt, à la souris et aux quatre flèches. Une barre montre la portée de frappe et une ligne en pointillés indique la visée lorsque la balle est à portée. Se décaler du centre du cercle de réception modifie l’angle du renvoi. Un partenaire piloté par le jeu couvre l’autre moitié, se déplace à vitesse limitée et renvoie uniquement les balles qu’il atteint. Le joueur reste prioritaire lorsqu’il peut frapper. Les deux adversaires se répartissent les renvois ; un coup n’est gagnant que si aucun des deux n’atteint la balle. Les points et vies appartiennent à l’équipe.
 
 - 3 vies, un renvoi = 1 point, un coup gagnant = 3 points supplémentaires.
 - Kitchen Rush : 5 renvois sans rater déclenchent 6 secondes à 2 points par renvoi (pas de destruction ni de renvoi automatique supplémentaire).
 - Niveau suivant tous les 8 renvois ; accélération progressive plafonnée.
 - Premier joueur après 4 renvois, puis tous les 6 renvois.
-- Chaque édition contient 10 joueurs. Mélange sans remise, et pas de répétition à la jonction de deux cycles.
+- Chaque édition contient 10 joueurs. Mélange sans remise parmi les joueurs accessibles, sans répétition immédiate. Portée/ralentissement/volée réflexe dès la manche 1 ; vie/protection en manche 2 ; vitesse/drive en manche 3 ; ATP/smash en manche 4. Les dix identités deviennent accessibles sans jamais changer leur pouvoir.
 - Même moteur, mêmes paramètres et mêmes pouvoirs par emplacement dans les deux éditions. Noé Khlif et Jay Devilliers conservent leur identité et pouvoir dans les deux.
-- Un seul pouvoir joueur à la fois ; pas de cumul incontrôlé. Les vies sont plafonnées à 3.
+- Un seul pouvoir d’équipe à la fois : les charges sont consommées par les renvois du joueur ou du partenaire ; la portée et la vitesse bénéficient aux deux. Aucun changement des associations FR/USA. Un seul effet à la fois ; pas de cumul incontrôlé. Les vies sont plafonnées à 3.
 - Première découverte d’un pouvoir : fenêtre native qui suspend le jeu et son chronomètre, puis mémorisation locale.
 - Pause manuelle (bouton/P), automatique lors d’un changement d’onglet ou perte de focus.
 - Partie de 10 minutes maximum, puis publication possible du score final.
 
-Les neuf effets joueurs du prototype récent sont adaptés au jeu d’échanges : portée, déplacement, ralentissement, renvoi extérieur, frappe accélérée, sauvetage et vie. Il n’y a pas de multiballe ni d’explosion de briques dans ce mode. Les noms sont des coups de pickleball ; les effets sont des fictions arcade, pas des représentations du style réel des athlètes. Les six capsules supplémentaires propres au casse-briques ne sont pas importées comme telles.
+Les neuf effets d’équipe du prototype récent sont adaptés au jeu d’échanges : portée, déplacement, ralentissement, renvoi extérieur, frappe accélérée, sauvetage et vie. Il n’y a pas de multiballe ni d’explosion de briques dans ce mode. Les noms sont des coups de pickleball ; les effets sont des fictions arcade, pas des représentations du style réel des athlètes. Les six capsules supplémentaires propres au casse-briques ne sont pas importées comme telles.
 
-Les formations adverses alternent sur quatre dispositions avec les manches. Leur vitesse et leur réaction augmentent progressivement, avec un plafond. La nouvelle version de règles sépare les scores des anciennes parties.
+Six profils de manche alternent : angle, milieu, côtés, rythme lent/rapide, ouverture gauche et ouverture droite. Le profil apparaît au-dessus du terrain. Leur vitesse et leur réaction augmentent progressivement, avec un plafond. La nouvelle version de règles sépare les scores des anciennes parties.
 
 ## Côté et stratégie avant la partie
 
@@ -69,6 +69,24 @@ La transcription complète `bp-thomas-provost-sous-titres.txt` précise le duo a
 
 Les anciennes interfaces `ui*.js`, `main.js`, le système premium et `simulate.js` restent dans l’historique et les sources mais ne sont plus chargés par `index.html`. Les simulations de personas ne remplacent pas les tests du moteur ou des essais humains.
 
+## Échange continu, capture et précision
+
+Quand le renvoi est couvert, le même objet balle conserve son identité et repart exactement de la réception adverse, avec un geste de raquette au même instant. Seuls une balle ratée ou un coup gagnant nécessitent un nouveau service. Les déplacements adverses restent bornés ; l’équipe doit battre les deux défenseurs pour marquer le bonus gagnant.
+
+Chaque troisième manche offre une capture automatique sur une frappe du joueur : la balle suit sa raquette pendant 1,8 seconde, puis repart sans nouvelle commande. Aucun point n’est ajouté avant le relâchement, ni deux fois. Ce bonus de manche ne modifie aucun pouvoir de joueur.
+
+Le défi précision est facultatif avant la partie : portée des deux joueurs réduite de 28 %, chaque renvoi d’équipe rapporte un point supplémentaire (2 normalement, 3 pendant Rush). Son classement est séparé, tout comme celui du mode avancé. Les options sont fixées dans la session serveur et non crues à la soumission.
+
+## Défi du jour, historique et partage
+
+Le défi quotidien utilise une graine déterministe à partir de la version des règles et de la date UTC. FR et USA partagent la graine ; côté gauche, drops, rôle Créateur, arcade et précision désactivée sont imposés à tous. Essais illimités. Le serveur fixe la date au démarrage : une fin après minuit reste attachée au jour de la session. En cas de réseau absent, le même tirage se joue localement sans publication différée.
+
+Le classement distingue édition, règles, partie libre/défi, date du défi, style et précision. Les migrations SQLite ajoutent les colonnes sans supprimer les anciennes parties.
+
+`rally-progress.js` conserve sur l’appareil les 20 dernières parties (5 affichées pour l’édition), les joueurs réellement rencontrés et au maximum 100 records de contexte. Noé/Jay gardent une seule identité de collection commune. Données validées, stockage inaccessible ou corrompu toléré. Aucun email, pseudo, token ni journal de déplacements n’y est stocké. Les anciens records des versions précédentes ne sont pas convertis en scores des nouvelles règles.
+
+L’écran de fin indique l’écart au record et le prochain palier de dix points. Le partage natif, la copie ou un champ manuel exportent édition, contexte, date du défi et statut local/vérifié. Un partage de test localhost avertit que l’adresse fonctionne uniquement sur cet ordinateur. En production, l’URL partagée utilise l’origine réellement déployée, sans domaine de production inventé.
+
 ## Classement mondial : déploiement séparé du code
 
 GitHub reste le dépôt de référence. GitHub Pages sert les fichiers statiques mais **ne peut pas exécuter le serveur ni contenir la clé Kit**.
@@ -80,7 +98,7 @@ Deux possibilités :
 
 Configurer `KR_ALLOWED_ORIGINS` avec les origines autorisées séparées par des virgules, incluant l’origine HTTPS de l’hébergement lui-même et `https://carossst.github.io` si nécessaire. Le serveur se lie par défaut à 127.0.0.1 ; définir `HOST=0.0.0.0` si l’hébergeur le demande. Utiliser un volume persistant pour `KR_DB_PATH`, sauvegarder SQLite, et lancer une seule instance pour cette configuration simple. Derrière un proxy, les quotas portent par défaut sur l’adresse réseau du proxy : régler le proxy ou adapter l’identification IP avant une forte affluence. Aucun en-tête IP fourni arbitrairement par un visiteur n’est cru.
 
-Le protocole utilise des sessions signées par jeton aléatoire à usage unique, des graines serveur et des déplacements X/Y quantifiés à 60 Hz. Le serveur recalcule les scores, rejette les journaux invalides/incomplets, les durées impossibles, les répétitions et les versions différentes. Cela bloque les scores simplement inventés, **pas les bots capables de jouer**. Les sessions non soumises expirent en une heure. Le classement `rally-7` ne mélange pas les anciens scores casse-briques. Les pseudos ne sont pas des identités authentifiées.
+Le protocole utilise des sessions signées par jeton aléatoire à usage unique, des graines serveur et des déplacements X/Y quantifiés à 60 Hz. Le serveur recalcule les scores, rejette les journaux invalides/incomplets, les durées impossibles, les répétitions et les versions différentes. Cela bloque les scores simplement inventés, **pas les bots capables de jouer**. Les sessions non soumises expirent en une heure. Le classement `rally-8` ne mélange pas les anciens scores casse-briques. Les pseudos ne sont pas des identités authentifiées.
 
 Le serveur fourni n’est pas déployé automatiquement par cette branche. Tant que l’API n’est pas connectée, l’interface indique clairement « entraînement » ; elle n’invente pas de classement mondial.
 
@@ -106,7 +124,7 @@ Avant publication : tests automatisés, essais tactiles réels, lecture FR/EN, p
 
 ## Présentation arcade
 
-Le moteur et les scores restent ceux de `rally-7`. La présentation ajoute une balle contrastée et une traînée courte, des impacts/rebonds, un compteur de série d’équipe, un objectif visible de 8 renvois par manche et des palettes de terrain variant avec la progression existante. Aucun multiplicateur caché n’est ajouté au combo. Les pouvoirs sont matérialisés sur le terrain ; les quatre personnages ont une animation de déplacement.
+Le moteur et les scores restent ceux de `rally-8`. La présentation ajoute une balle contrastée et une traînée courte, des impacts/rebonds, un compteur de série d’équipe, un objectif visible de 8 renvois par manche et des palettes de terrain variant avec la progression existante. Aucun multiplicateur caché n’est ajouté au combo. Les pouvoirs sont matérialisés sur le terrain ; les quatre personnages ont une animation de déplacement.
 
 `rally-feedback.js` conserve au maximum 16 événements et 9 points de traînée. Les effets utilisent le temps simulé : la pause les suspend et une nouvelle partie les remet à zéro. La préférence système de réduction des mouvements désactive les traînées et la marche animée et réduit les déplacements des effets. Pas de secousse d’écran ni de clignotement plein écran.
 
@@ -119,3 +137,11 @@ Un bouton Jouer est disponible directement sur le terrain, en plus du bouton pri
 ### Correspondances des éditions
 
 Chaque paire FR/USA référence la même définition de pouvoir, figée et partagée : même effet, durée, charges et points. Le guide des joueurs affiche le nom de son équivalent. Noé Khlif et Jay Devilliers sont communs. Les dix paires sont testées à pleine vie et avec une vie manquante. Les noms et les traductions n’interviennent pas dans les règles.
+
+## Mises à jour et installation bilingue
+
+Le service worker prépare un cache complet sans forcer son activation. Un bouton propose la mise à jour et reste bloqué pendant une partie, y compris en pause. L’utilisateur peut l’installer après la fin ; la page ne recharge qu’après cette action explicite. Le cache fournit un ensemble cohérent de fichiers, sans intercepter les API. L’historique n’est pas effacé. Les manifestes FR/USA conservent la langue de lancement.
+
+Validation de cette évolution : tests du moteur, paires FR/USA, capture, stockage, worker, défi quotidien à minuit UTC, classements isolés et replay des options verrouillées. Les essais navigateur utilisent une base de test en mémoire ; ils ne publient aucun score réel de production. Installation sur appareil physique et hébergement public restent à réaliser.
+
+Validation finale : **58 tests passent**. Parcours navigateur FR complet jusqu’à la fin, historique/collection, copie du résultat et score accepté par l’API locale après replay. Défi quotidien EN avec paramètres imposés, mouvement en profondeur et précision sur tablette, affichage mobile sans débordement, rechargement hors connexion, mise à jour bloquée en partie puis activée après fin avec historique conservé. Tests d’installation sur téléphone physique non effectués.

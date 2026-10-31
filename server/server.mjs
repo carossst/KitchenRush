@@ -5,7 +5,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {readFile} from 'node:fs/promises';
 import {resolve,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {VERSION,MAX_TICKS,replay} from './model.mjs';
+import {VERSION,MAX_TICKS,replay,dailySeed} from './model.mjs';
 import {configured,normalizeEmail,subscribeKit} from './kit.mjs';
 export function createServer({dbPath=process.env.KR_DB_PATH||'./kitchen-rush.sqlite',env=process.env,now=Date.now,send=fetch}={}){
   const db=new DatabaseSync(dbPath),root=fileURLToPath(new URL('../',import.meta.url));
@@ -18,6 +18,10 @@ export function createServer({dbPath=process.env.KR_DB_PATH||'./kitchen-rush.sql
   if(!runColumns.includes('side'))db.exec("ALTER TABLE runs ADD COLUMN side TEXT NOT NULL DEFAULT 'left'");
   if(!runColumns.includes('strategy'))db.exec("ALTER TABLE runs ADD COLUMN strategy TEXT NOT NULL DEFAULT 'build'");
   if(!runColumns.includes('role'))db.exec("ALTER TABLE runs ADD COLUMN role TEXT NOT NULL DEFAULT 'creator'");
+  for(const table of ['runs','scores']){
+    const columns=db.prepare('PRAGMA table_info('+table+')').all().map(c=>c.name);
+    for(const [name,definition] of Object.entries({mode:"TEXT NOT NULL DEFAULT 'classic'",day:"TEXT NOT NULL DEFAULT ''",style:"TEXT NOT NULL DEFAULT 'arcade'",precision:'INTEGER NOT NULL DEFAULT 0'}))if(!columns.includes(name))db.exec('ALTER TABLE '+table+' ADD COLUMN '+name+' '+definition);
+  }
   const envKit={KIT_FORM_FR_ID:'10107559',KIT_FORM_EN_ID:'10110844',KIT_TAG_KITCHEN_RUSH:'25052091',KIT_TAG_FR_ID:'25052095',KIT_TAG_EN_ID:'25052096',...env};
   const allowed=new Set((env.KR_ALLOWED_ORIGINS||'https://carossst.github.io').split(',').map(x=>x.trim()));
   const hash=value=>createHash('sha256').update(value).digest('hex');
@@ -35,7 +39,9 @@ export function createServer({dbPath=process.env.KR_DB_PATH||'./kitchen-rush.sql
     try{
       if(path==='/api/leaderboard'&&req.method==='GET'){
         const q=new URL(req.url,requestOrigin).searchParams,edition=q.get('edition');if(!['fr','us'].includes(edition)||q.get('version')!==VERSION)return json({error:'version'},400);
-        const entries=db.prepare('SELECT name,MAX(score) as score FROM scores WHERE edition=? AND version=? GROUP BY lower(name) ORDER BY score DESC,MIN(created) ASC LIMIT 20').all(edition,VERSION);return json({version:VERSION,entries});
+        const mode=q.get('mode')||'classic',style=q.get('style')||'arcade',precision=q.get('precision')==='true'?1:0,day=mode==='daily'?(q.get('day')||new Date(now()).toISOString().slice(0,10)):'';
+        if(!['classic','daily'].includes(mode)||!['arcade','advanced'].includes(style)||!/^(|\d{4}-\d{2}-\d{2})$/.test(day))return json({error:'mode'},400);
+        const entries=db.prepare('SELECT name,MAX(score) as score FROM scores WHERE edition=? AND version=? AND mode=? AND day=? AND style=? AND precision=? GROUP BY lower(name) ORDER BY score DESC,MIN(created) ASC LIMIT 20').all(edition,VERSION,mode,day,mode==='daily'?'arcade':style,mode==='daily'?0:precision);return json({version:VERSION,mode,day,entries});
       }
       if(path==='/api/newsletter'&&req.method==='GET')return json({enabled:envKit.KIT_SIGNUP_ENABLED==='true'&&configured(envKit)});
       if(path.startsWith('/api/')){
@@ -45,13 +51,16 @@ export function createServer({dbPath=process.env.KR_DB_PATH||'./kitchen-rush.sql
         const data=await body(req,path==='/api/newsletter'?2048:900000);
         if(path==='/api/runs'){
           if(!['fr','us'].includes(data.edition)||data.version!==VERSION)return json({error:'version'},400);
-          const side=data.side??'left',strategy=data.strategy??'build',role=data.role??'creator';
+          const mode=data.mode??'classic';if(!['classic','daily'].includes(mode))return json({error:'mode'},400);
+          const day=mode==='daily'?new Date(now()).toISOString().slice(0,10):'',style=mode==='daily'?'arcade':(data.style??'arcade'),precision=mode==='daily'?false:(data.precision??false);
+          if(!['arcade','advanced'].includes(style)||typeof precision!=='boolean')return json({error:'setup'},400);
+          const side=mode==='daily'?'left':(data.side??'left'),strategy=mode==='daily'?'build':(data.strategy??'build'),role=mode==='daily'?'creator':(data.role??'creator');
           if(!['left','right'].includes(side)||!['build','drive'].includes(strategy)||!['support','creator'].includes(role))return json({error:'setup'},400);
           if(!rate(ip,'start',12))return json({error:'rate'},429);
-          const id=randomUUID(),token=randomBytes(32).toString('hex'),seed=randomBytes(4).readUInt32LE(),started=now();
+          const id=randomUUID(),token=randomBytes(32).toString('hex'),seed=mode==='daily'?dailySeed(day):randomBytes(4).readUInt32LE(),started=now();
           db.prepare('DELETE FROM runs WHERE started<? AND used=0').run(started-3600000);
-          db.prepare('INSERT INTO runs (id,token_hash,seed,edition,version,started,used,side,strategy,role) VALUES (?,?,?,?,?,?,0,?,?,?)').run(id,hash(token),seed,data.edition,VERSION,started,side,strategy,role);
-          return json({id,token,seed,version:VERSION,side,strategy,role},201);
+          db.prepare('INSERT INTO runs (id,token_hash,seed,edition,version,started,used,side,strategy,role,mode,day,style,precision) VALUES (?,?,?,?,?,?,0,?,?,?,?,?,?,?)').run(id,hash(token),seed,data.edition,VERSION,started,side,strategy,role,mode,day,style,precision?1:0);
+          return json({id,token,seed,version:VERSION,side,strategy,role,mode,day,style,precision},201);
         }
         if(path==='/api/scores'){
           if(!rate(ip,'score',6))return json({error:'rate'},429);
@@ -61,8 +70,8 @@ export function createServer({dbPath=process.env.KR_DB_PATH||'./kitchen-rush.sql
           if(!run||run.used||run.version!==VERSION||now()-run.started>3600000)return json({error:'run'},400);
           if(!timingSafeEqual(Buffer.from(hash(data.token),'hex'),Buffer.from(run.token_hash,'hex')))return json({error:'token'},403);
           if(!Number.isInteger(data.ticks)||data.ticks>MAX_TICKS||data.ticks/60*1000>now()-run.started+1000)throw Error('duration');
-          const result=replay(run.seed,run.edition,data.ticks,data.inputs,run.side,run.strategy,run.role);
-          db.exec('BEGIN IMMEDIATE');try{const claimed=db.prepare('UPDATE runs SET used=1 WHERE id=? AND used=0').run(run.id);if(claimed.changes!==1)throw Error('claimed');db.prepare('INSERT INTO scores VALUES (?,?,?,?,?,?,?)').run(run.id,name,run.edition,VERSION,result.score,result.level,now());db.exec('COMMIT');}catch(error){db.exec('ROLLBACK');throw error;}
+          const result=replay(run.seed,run.edition,data.ticks,data.inputs,run.side,run.strategy,run.role,{style:run.style,precision:!!run.precision});
+          db.exec('BEGIN IMMEDIATE');try{const claimed=db.prepare('UPDATE runs SET used=1 WHERE id=? AND used=0').run(run.id);if(claimed.changes!==1)throw Error('claimed');db.prepare('INSERT INTO scores (run_id,name,edition,version,score,level,created,mode,day,style,precision) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(run.id,name,run.edition,VERSION,result.score,result.level,now(),run.mode,run.day,run.style,run.precision);db.exec('COMMIT');}catch(error){db.exec('ROLLBACK');throw error;}
           return json(result,201);
         }
         if(path==='/api/newsletter'){

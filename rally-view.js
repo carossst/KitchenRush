@@ -31,6 +31,7 @@
       return {x:hit.x+Math.sin(follow*Math.PI)*23,y:hit.y-follow*20,angle:-.1-follow*.7,contact:age<65};
     }
     const b=s.ball;
+    if(b?.state==='HELD'){const hit=ballPoint(b);return {x:hit.x,y:hit.y,angle:-.3,contact:true};}
     if(b?.state==='BOUNCED'&&Math.hypot(b.x-s.playerX,b.y-s.playerY)<=(s.hitRange||55)){
       const hit=ballPoint(b),t=Math.min(1,(s.elapsedMs-b.bouncedAt)/160);
       return {x:p.x+22+(hit.x-p.x-22)*t,y:p.y-28+(hit.y-p.y+28)*t,angle:-.3,contact:false};
@@ -104,7 +105,8 @@
     const serving=b?.state==='TRAVELING'&&s.elapsedMs-b.spawnedAt<200;
     for(const side of [0,1]){
       const x=side===0?s.opponentX:s.opponentPartnerX,y=side===0?s.opponentY:s.opponentPartnerY,op=project(x,y);
-      const racket=serving&&s.serverSide===side?{x:project(b.startX,b.startY).x,y:b.startY-30,angle:.1,size:.74}:{x:op.x+18,y:op.y-24,angle:.35,size:.74};
+      const stroke=s.opponentStroke,age=stroke?s.elapsedMs-stroke.at:Infinity,contact=stroke?.side===side&&age>=0&&age<230;
+      const racket=contact?{x:project(stroke.x,stroke.groundY).x,y:stroke.y-Math.sin(age/230*Math.PI)*12,angle:.1,size:.74}:serving&&s.serverSide===side?{x:project(b.startX,b.startY).x,y:b.startY-30,angle:.1,size:.74}:{x:op.x+18,y:op.y-24,angle:.35,size:.74};
       athlete(x,y,side===0?'#f3a079':'#edb4aa',.78,racket,moved(x,y,side===0?last?.opponentX:last?.opponentPartnerX,side===0?last?.opponentY:last?.opponentPartnerY));
     }
     const e=edges(net);ctx.fillStyle='#14333d55';ctx.fillRect(e.l,net-12,e.r-e.l,25);ctx.strokeStyle='#f4f1df';ctx.lineWidth=3;
@@ -115,7 +117,7 @@
     if(giant){const p=project(s.playerX,s.playerY);ctx.strokeStyle='#eef3a788';ctx.fillStyle='#eef3a714';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(p.x,p.y,48,15,0,0,Math.PI*2);ctx.fill();ctx.stroke();}
     const partnerPose=contactPose({...s,playerX:s.partnerX,playerY:s.partnerY,stroke:s.partnerStroke,ball:null});
     const partnerScale=.78+.25*(s.partnerY-net)/(base-net);
-    athlete(s.partnerX,s.partnerY,'#83c7c0',partnerScale,{...partnerPose,size:1},partnerMoving);
+    athlete(s.partnerX,s.partnerY,'#83c7c0',partnerScale,{...partnerPose,size:giant?1.65:1},partnerMoving);
     const partnerLabel=project(s.partnerX,s.partnerY);
     ctx.font='700 9px system-ui';ctx.fillStyle='#c5f4e9';ctx.fillText(s.role==='support'?(lang==='fr'?'PARTENAIRE · ATTAQUE':'PARTNER · ATTACK'):(lang==='fr'?'PARTENAIRE · APPUI':'PARTNER · SUPPORT'),partnerLabel.x,partnerLabel.y-73*partnerScale);
     const playerScale=.78+.25*(s.playerY-net)/(base-net);
@@ -139,7 +141,7 @@
       ctx.shadowColor='#eaff9a';ctx.shadowBlur=12;ctx.fillStyle='#f0ff83';ctx.strokeStyle='#173b3d';ctx.lineWidth=1.8;ctx.beginPath();ctx.arc(p.x,p.y,rad+1,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.shadowBlur=0;
       ctx.fillStyle='#587547';for(const [dx,dy] of [[-2,-2],[3,-1],[0,3]]){ctx.beginPath();ctx.arc(p.x+dx,p.y+dy,1.2,0,Math.PI*2);ctx.fill();}
     }
-    ctx.font='600 11px system-ui';ctx.fillStyle='#dce5cd';ctx.textAlign='center';ctx.fillText(lang==='fr'?'←  →  PLACE-TOI · VISE EN FACE':'←  →  MOVE · AIM AHEAD',W/2,H-33);
+    ctx.font='600 11px system-ui';ctx.fillStyle='#dce5cd';ctx.textAlign='center';ctx.fillText(lang==='fr'?(s.style==='advanced'?'← → ↑ ↓ · PROFONDEUR LIBRE':'← → · PLACE-TOI · VISE EN FACE'):(s.style==='advanced'?'← → ↑ ↓ · MOVE IN DEPTH':'← → · MOVE · AIM AHEAD'),W/2,H-33);
   }
   function drawPowerPreview(canvas,power,lang){
     canvas.hidden=power!=='giant';if(canvas.hidden)return;

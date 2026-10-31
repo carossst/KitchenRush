@@ -3,7 +3,7 @@
   "short_name": "Kitchen Rush",
   "id": "./",
   "description": "Un échange de plus. Pickleball arcade avec joueurs, pouvoirs et classement.",
-  "start_url": "./index.html",
+  "start_url": "./index.html?edition=fr",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

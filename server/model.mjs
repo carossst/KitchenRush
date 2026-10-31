@@ -1,17 +1,17 @@
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 const sources=['config.js','players.js','rally-config.js','game.js','rally-rules.js'].map(file=>({file,text:readFileSync(new URL('../'+file,import.meta.url),'utf8')}));
-export const VERSION='rally-7',TICK=1000/60,MAX_TICKS=36000;
-export function createEngine(seed,edition='fr',side='left',strategy='build',role='creator'){
+export const VERSION='rally-8',TICK=1000/60,MAX_TICKS=36000;
+export function createEngine(seed,edition='fr',side='left',strategy='build',role='creator',options={}){
   const context=vm.createContext({window:{location:{hostname:'localhost'}},structuredClone,URLSearchParams,console});
   for(const {file,text} of sources)vm.runInContext(text,context,{filename:file});
-  const engine=new context.window.KR_RallyEngine();engine.start({seed,edition,side,strategy,role});return engine;
+  const engine=new context.window.KR_RallyEngine();engine.start({seed,edition,side,strategy,role,style:options.style??'arcade',precision:options.precision??false});return engine;
 }
-export function replay(seed,edition,ticks,inputs,side='left',strategy='build',role='creator'){
+export function replay(seed,edition,ticks,inputs,side='left',strategy='build',role='creator',options={}){
   if(!Number.isSafeInteger(ticks)||ticks<1||ticks>MAX_TICKS||!Array.isArray(inputs)||inputs.length>ticks)throw Error('inputs');
   let previous=-1;
   for(const row of inputs){if(!Array.isArray(row)||row.length!==3||!Number.isSafeInteger(row[0])||row[0]<=previous||row[0]>=ticks||!Number.isFinite(row[1])||row[1]<0||row[1]>480||Math.abs(row[1]*10-Math.round(row[1]*10))>1e-6||!Number.isFinite(row[2])||row[2]<0||row[2]>760||Math.abs(row[2]*10-Math.round(row[2]*10))>1e-6)throw Error('input');previous=row[0];}
-  const engine=createEngine(seed,edition,side,strategy,role);let at=0,state;
+  const engine=createEngine(seed,edition,side,strategy,role,options);let at=0,state;
   for(let tick=0;tick<ticks;tick++){
     if(at<inputs.length&&inputs[at][0]===tick)engine.setTarget(inputs[at][1],inputs[at++][2]);
     state=engine.update(TICK);
@@ -20,3 +20,5 @@ export function replay(seed,edition,ticks,inputs,side='left',strategy='build',ro
   if(!state.done&&ticks!==MAX_TICKS)throw Error('unfinished');
   return {score:state.smashes,level:state.level,winners:state.winners,ticks};
 }
+
+export function dailySeed(day){let seed=2166136261;for(const c of VERSION+':'+day)seed=Math.imul(seed^c.charCodeAt(0),16777619)>>>0;return seed;}
