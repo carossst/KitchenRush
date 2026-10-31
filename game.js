@@ -246,11 +246,11 @@
     };
   }
 
-  function getDepthScaledHitRange(config, court, ball, baseRange, autoMultiplier) {
+  function getDepthScaledHitRange(config, court, ball, baseRange, autoMultiplier, canvasH) {
     var nearScale = reqNum(config.court.hitRangeNearScale, "court.hitRangeNearScale", { min: 0.5, max: 2 });
     var farScale = reqNum(config.court.hitRangeFarScale, "court.hitRangeFarScale", { min: 0.5, max: 2 });
-    var baselineY = court.baselineY;
-    var netY = court.netY;
+    var baselineY = court.baselineY * canvasH;
+    var netY = court.netY * canvasH;
     var sampleY = Number.isFinite(ball && ball.groundY) ? ball.groundY : (ball ? ball.y : baselineY);
     var depthT = clamp((sampleY - netY) / Math.max(1, baselineY - netY), 0, 1);
     var scaled = baseRange * lerp(farScale, nearScale, depthT);
@@ -629,7 +629,7 @@
       var tSec = t * Math.max(0.001, ball.travelMs / 1000);
       var x = ball.startX + (ball.flightVx || 0) * tSec;
       var groundY = ball.startY + (ball.flightVy || 0) * tSec;
-      var z = Math.max(0, (ball.flightLaunchVz || 0) * tSec - 0.5 * (ball.flightGravity || 0) * tSec * tSec);
+      var z = Math.max(0, (ball.flightStartHeight || 0) * (1 - t) + (ball.flightLaunchVz || 0) * tSec - 0.5 * (ball.flightGravity || 0) * tSec * tSec);
       return { x: x, y: groundY - z, groundY: groundY, t: t };
     }
 
@@ -661,7 +661,7 @@
       var t2Sec = t2 * Math.max(0.001, ball.returnTravelMs / 1000);
       var x2 = ball.returnStartX + (ball.returnVx || 0) * t2Sec;
       var groundY2 = ball.returnStartY + (ball.returnVy || 0) * t2Sec;
-      var z2 = Math.max(0, (ball.returnLaunchVz || 0) * t2Sec - 0.5 * (ball.returnGravity || 0) * t2Sec * t2Sec);
+      var z2 = Math.max(0, (ball.returnStartHeight || 0) * (1 - t2) + (ball.returnLaunchVz || 0) * t2Sec - 0.5 * (ball.returnGravity || 0) * t2Sec * t2Sec);
       return { x: x2, y: groundY2 - z2, groundY: groundY2, t: t2 };
     }
 
@@ -898,9 +898,9 @@
       } else {
         r.opponentTargetX = r.canvasW / 2;
       }
-      var oppSpeed = playerSpeed * 0.7;
+      var oppSpeed = playerSpeed * (cfg.rally ? Math.min(0.65, 0.23 + (r.level - 1) * 0.035) : 0.7);
       var oppDiff = r.opponentTargetX - r.opponentX;
-      if (Math.abs(oppDiff) > 2) {
+      if (!cfg.rallyDoubles && Math.abs(oppDiff) > 2) {
         r.opponentX += Math.sign(oppDiff) * Math.min(Math.abs(oppDiff), oppSpeed * (dtMs / 16.67));
       }
 
@@ -953,13 +953,15 @@
         }
       }
 
+      if (cfg.rallyDoubles && ball.state === BALL_STATES.BOUNCED) this._tryPartnerHit(r, ball);
+
       if (ball.state === BALL_STATES.BOUNCED) {
         var effectiveTapWindowMs = this._getEffectiveTapWindowMs(r, ball);
         if (gameTime() - ball.bouncedAt > effectiveTapWindowMs) {
           // ── V3: Auto-hit — if player is close enough, auto-return ──
           if (!ball.autoHitFired) {
             var autoRange = this._getAutoHitRange(r);
-            var d = dist(r.playerX, r.playerY, ball.x, ball.y);
+            var d = dist(r.playerX, r.playerY - (r.config.rally ? 28 : 0), ball.x, ball.y);
             if (d <= autoRange) {
               ball.autoHitFired = true;
               ball.timingBonus = 0; // no timing bonus on auto-hit
@@ -983,7 +985,7 @@
       // ── V3: Auto-hit check (while ball is BOUNCED, before expiry) ──
       if (ball.state === BALL_STATES.BOUNCED && !ball.autoHitFired) {
         var autoRange = this._getAutoHitRange(r);
-        var d2 = dist(r.playerX, r.playerY, ball.x, ball.y);
+        var d2 = dist(r.playerX, r.playerY - (r.config.rally ? 28 : 0), ball.x, ball.y);
         if (d2 <= autoRange) {
           // Player is close enough — auto-hit fires
           var sinceBounce = gameTime() - ball.bouncedAt;
@@ -1059,7 +1061,7 @@
     // V3: Get auto-hit proximity range
     _getAutoHitRange(r) {
       var hitRange = reqNum(r.config.court.hitRange, "court.hitRange", { min: 1 });
-      return getDepthScaledHitRange(r.config, r.court, r.ball, hitRange, 1.5);
+      return getDepthScaledHitRange(r.config, r.court, r.ball, hitRange, 1.5, r.canvasH);
     }
 
     _getEffectiveMoveSpeed(r) {
@@ -1263,8 +1265,8 @@
     // V3: Try volley (hit ball before bounce — only valid after double bounce rule satisfied)
     _tryVolley(r, ball) {
       var hitRange = reqNum(r.config.court.hitRange, "court.hitRange", { min: 1 });
-      hitRange = getDepthScaledHitRange(r.config, r.court, ball, hitRange, 1);
-      var d = dist(r.playerX, r.playerY, ball.x, ball.y);
+      hitRange = getDepthScaledHitRange(r.config, r.court, ball, hitRange, 1, r.canvasH);
+      var d = dist(r.playerX, r.playerY - (r.config.rally ? 28 : 0), ball.x, ball.y);
       if (d > hitRange * 1.2) {
         // Too far — whiff
         r.playerState = (ball.x < r.playerX) ? "swingBackhand" : "swingForehand";
@@ -1273,7 +1275,7 @@
       }
 
       // Volley stays illegal while this incoming ball still must bounce.
-      var mustBounce = !!ball.mustBounce;
+      var mustBounce = !!ball.mustBounce || r.playerY <= r.court.kitchenLineY * r.canvasH;
       if (mustBounce) {
         this._faultBall(r, ball);
         return;

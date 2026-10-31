@@ -2,17 +2,17 @@
   "name": "Kitchen Rush",
   "short_name": "Kitchen Rush",
   "id": "./",
-  "description": "A fast arcade game inspired by pickleball. Smash balls, stay out of the Kitchen.",
-  "start_url": "./index.html",
+  "description": "Un échange de plus. Pickleball arcade avec joueurs, pouvoirs et classement.",
+  "start_url": "./index.html?edition=fr",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#1a2332",
-  "theme_color": "#1a2332",
+  "background_color": "#f5f2e9",
+  "theme_color": "#123c34",
   "categories": [
     "games"
   ],
-  "lang": "en",
+  "lang": "fr",
   "icons": [
     {
       "src": "./icons/kr-icon-192x192.png",
