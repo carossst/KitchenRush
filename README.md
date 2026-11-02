@@ -98,7 +98,7 @@ Deux possibilités :
 
 Configurer `KR_ALLOWED_ORIGINS` avec les origines autorisées séparées par des virgules, incluant l’origine HTTPS de l’hébergement lui-même et `https://carossst.github.io` si nécessaire. Le serveur se lie par défaut à 127.0.0.1 ; définir `HOST=0.0.0.0` si l’hébergeur le demande. Utiliser un volume persistant pour `KR_DB_PATH`, sauvegarder SQLite, et lancer une seule instance pour cette configuration simple. Derrière un proxy, les quotas portent par défaut sur l’adresse réseau du proxy : régler le proxy ou adapter l’identification IP avant une forte affluence. Aucun en-tête IP fourni arbitrairement par un visiteur n’est cru.
 
-Le protocole utilise des sessions signées par jeton aléatoire à usage unique, des graines serveur et des déplacements X/Y quantifiés à 60 Hz. Le serveur recalcule les scores, rejette les journaux invalides/incomplets, les durées impossibles, les répétitions et les versions différentes. Cela bloque les scores simplement inventés, **pas les bots capables de jouer**. Les sessions non soumises expirent en une heure. Le classement `rally-8` ne mélange pas les anciens scores casse-briques. Les pseudos ne sont pas des identités authentifiées.
+Le protocole utilise des sessions signées par jeton aléatoire à usage unique, des graines serveur et des déplacements X/Y quantifiés à 60 Hz. Le serveur recalcule les scores, rejette les journaux invalides/incomplets, les durées impossibles, les répétitions et les versions différentes. Cela bloque les scores simplement inventés, **pas les bots capables de jouer**. Les sessions non soumises expirent en une heure. Le classement `rally-9` ne mélange pas les anciens scores casse-briques. Les pseudos ne sont pas des identités authentifiées.
 
 Le serveur fourni n’est pas déployé automatiquement par cette branche. Tant que l’API n’est pas connectée, l’interface indique clairement « entraînement » ; elle n’invente pas de classement mondial.
 
@@ -124,7 +124,7 @@ Avant publication : tests automatisés, essais tactiles réels, lecture FR/EN, p
 
 ## Présentation arcade
 
-Le moteur et les scores restent ceux de `rally-8`. La présentation ajoute une balle contrastée et une traînée courte, des impacts/rebonds, un compteur de série d’équipe, un objectif visible de 8 renvois par manche et des palettes de terrain variant avec la progression existante. Aucun multiplicateur caché n’est ajouté au combo. Les pouvoirs sont matérialisés sur le terrain ; les quatre personnages ont une animation de déplacement.
+Le moteur et les scores restent ceux de `rally-9`. La présentation ajoute une balle contrastée et une traînée courte, des impacts/rebonds, un compteur de série d’équipe, un objectif visible de 8 renvois par manche et des palettes de terrain variant avec la progression existante. Aucun multiplicateur caché n’est ajouté au combo. Les pouvoirs sont matérialisés sur le terrain ; les quatre personnages ont une animation de déplacement.
 
 `rally-feedback.js` conserve au maximum 16 événements et 9 points de traînée. Les effets utilisent le temps simulé : la pause les suspend et une nouvelle partie les remet à zéro. La préférence système de réduction des mouvements désactive les traînées et la marche animée et réduit les déplacements des effets. Pas de secousse d’écran ni de clignotement plein écran.
 
@@ -145,3 +145,11 @@ Le service worker prépare un cache complet sans forcer son activation. Un bouto
 Validation de cette évolution : tests du moteur, paires FR/USA, capture, stockage, worker, défi quotidien à minuit UTC, classements isolés et replay des options verrouillées. Les essais navigateur utilisent une base de test en mémoire ; ils ne publient aucun score réel de production. Installation sur appareil physique et hébergement public restent à réaliser.
 
 Validation finale : **58 tests passent**. Parcours navigateur FR complet jusqu’à la fin, historique/collection, copie du résultat et score accepté par l’API locale après replay. Défi quotidien EN avec paramètres imposés, mouvement en profondeur et précision sur tablette, affichage mobile sans débordement, rechargement hors connexion, mise à jour bloquée en partie puis activée après fin avec historique conservé. Tests d’installation sur téléphone physique non effectués.
+
+## Direction visuelle et rythme
+
+Présentation sombre, accent citron/cyan, terrain moins écrasé en perspective, joueurs et raquettes redessinés sans textures rétro. Le rendu Canvas adapte sa résolution aux écrans Retina (DPR plafonné à 2) ; les coordonnées tactiles restent dans le même repère logique. Une indication souligne l’espace actuellement le moins couvert, sans bonus de score caché.
+
+Déplacement plus réactif au doigt et au clavier, trajets entrants plafonnés à 1,45 seconde avant modificateurs, pause après coup gagnant ramenée à 400 ms. Les défenseurs attendent à une profondeur adaptée aux drops ou drives : accélérer le rythme ne transforme pas chaque frappe en point gratuit. Le ressenti de plaisir reste à tester avec des joueurs ; les simulations vérifient uniquement rythme et cohérence.
+
+Validation de la refonte : **59 tests passent**, dont une comparaison entre une frappe dans l’ouverture du milieu et une frappe vers un défenseur dans les mêmes conditions. Une sonde de 12 graines sur 60 secondes distingue les renvois et les coups gagnants ; elle sert à détecter les points automatiques, pas à mesurer le plaisir d’un joueur humain. Les anciens scores restent isolés par la version des règles.

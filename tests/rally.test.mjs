@@ -197,3 +197,15 @@ test('offline and server daily seeds match for the same UTC day and rules',async
   for(const file of ['config.js','players.js','rally-config.js'])vm.runInContext(readFileSync(new URL('../'+file,import.meta.url),'utf8'),context);
   for(const day of ['2026-10-31','2026-11-01','2027-01-01'])assert.equal(context.window.KR_RALLY.dailySeed(day),dailySeed(day));
 });
+
+test('aiming into the opening beats a covered lane under the same conditions',()=>{
+  const outcomes=[];
+  for(const aim of [144,240]){
+    const e=createEngine(42);e.update(800);const r=e.run,b=r.ball;r.totalSmashed=8;r.level=2;e._moveTeams(r,10000);b.groundY=r.playerY;const range=e._getAutoHitRange(r);
+    r.playerX=240-(aim-240)*range/(480*.60);r.targetX=r.playerX;b.x=240;b.y=r.playerY-28;b.groundY=r.playerY;b.state='BOUNCED';
+    e._executeHit(r,b,0);assert.ok(Math.abs(b.returnTargetX-aim)<1e-7);
+    for(let i=0;i<180&&b.state==='HIT';i++)e.update(TICK);
+    outcomes.push(r.winners);
+  }
+  assert.deepEqual(outcomes,[0,1]);
+});

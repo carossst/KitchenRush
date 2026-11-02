@@ -13,7 +13,7 @@
     start({seed=1,edition='fr',side='left',strategy='build',role='creator',style='arcade',precision=false}={}){
       if(!['arcade','advanced'].includes(style)||typeof precision!=='boolean'||!['left','right'].includes(side)||!Object.hasOwn(C.strategies,strategy)||!['support','creator'].includes(role))throw Error('setup');
       super.start({config:C.config,canvasW:C.width,canvasH:C.height,mode:'RUN',isDaily:false});
-      const r=this.run;r.style=style;r.precision=precision;r.opponentStroke=null;r.capturedRound=0;r.captureUntil=0;r.rng=C.random(seed);r.edition=edition;r.side=side;r.strategy=strategy;r.role=role;r.level=1;r.winners=0;r.assist=null;r.powerEvent=null;r.powerSerial=0;r.rushUntil=0;r.rushReturns=0;r.nextPowerAt=4;r.playerQueue=[];r.lastPlayer=null;r.playerX=C.width*(side==='left'?.25:.75);r.targetX=r.playerX;r.partnerX=C.width*(side==='left'?.75:.25);r.partnerY=r.playerY;r.partnerStroke=null;r.opponentX=C.width*.3;r.opponentPartnerX=C.width*.7;r.opponentY=r.court.opponentY*C.height;r.opponentPartnerY=r.opponentY;r.receiver=null;r.hitter=null;r.serverSide=0;r.targetY=r.playerY;r.stroke=null;r.nextStartX=null;r.lastWinnerAt=-9999;
+      const r=this.run;r.style=style;r.precision=precision;r.opponentStroke=null;r.capturedRound=0;r.captureUntil=0;r.rng=C.random(seed);r.edition=edition;r.side=side;r.strategy=strategy;r.role=role;r.level=1;r.winners=0;r.assist=null;r.powerEvent=null;r.powerSerial=0;r.rushUntil=0;r.rushReturns=0;r.nextPowerAt=4;r.playerQueue=[];r.lastPlayer=null;r.playerX=C.width*(side==='left'?.25:.75);r.targetX=r.playerX;r.partnerX=C.width*(side==='left'?.75:.25);r.partnerY=r.playerY;r.partnerStroke=null;r.opponentX=C.width*.3;r.opponentPartnerX=C.width*.7;r.opponentY=this._defenceY(r);r.opponentPartnerY=r.opponentY;r.receiver=null;r.hitter=null;r.serverSide=0;r.targetY=r.playerY;r.stroke=null;r.nextStartX=null;r.lastWinnerAt=-9999;
       return this.getState();
     }
     setTarget(x,y=this.run.targetY){
@@ -41,7 +41,7 @@
       if(returning&&!r.ball){
         const leftGap=Math.hypot(returning.returnTargetX-r.opponentX,returning.returnTargetY-r.opponentY),rightGap=Math.hypot(returning.returnTargetX-r.opponentPartnerX,returning.returnTargetY-r.opponentPartnerY);
         const gap=Math.min(leftGap,rightGap);
-        if(gap>38){r.winners++;r.smashes+=3;r.lastWinnerAt=r.elapsedMs;r.rallyCount=0;r.doubleBouncePhase=0;r.waitUntil=r.elapsedMs+650;}
+        if(gap>38){r.winners++;r.smashes+=3;r.lastWinnerAt=r.elapsedMs;r.rallyCount=0;r.doubleBouncePhase=0;r.waitUntil=r.elapsedMs+400;}
         r.serverSide=leftGap<=rightGap?0:1;r.nextStartX=r.serverSide===0?r.opponentX:r.opponentPartnerX;
         if(gap<=38){
           const x=returning.returnTargetX,y=returning.returnTargetY,id=returning.id;
@@ -54,6 +54,7 @@
       }
       return this.getState();
     }
+    _defenceY(r){return r.strategy==='build'?r.court.netY*C.height-65:r.court.opponentY*C.height;}
     _partnerOwns(r,x){
       if(Math.abs(x-C.width/2)<=44)return r.role==='support';
       return r.side==='left'?x>C.width/2:x<C.width/2;
@@ -77,7 +78,7 @@
         const formation=C.rounds[(r.level-1)%C.rounds.length].formation;
         const target=chasing&&r.receiver===side?b.returnTargetX:formation[side];
         const yKey=side===0?'opponentY':'opponentPartnerY';
-        const yTarget=chasing&&r.receiver===side?b.returnTargetY:r.court.opponentY*C.height;
+        const yTarget=chasing&&r.receiver===side?b.returnTargetY:this._defenceY(r);
         const dx=target-r[key],dy=yTarget-r[yKey],f=Math.min(1,step/Math.max(1,Math.hypot(dx,dy)));
         r[key]+=dx*f;r[yKey]+=dy*f;
       }
@@ -106,7 +107,7 @@
       const rhythm=(r.level-1)%C.rounds.length===3?(r.totalSpawned%2?1.18:.88):1;
       const slow=(this.has('slow')?1.25:1)*C.strategies[r.strategy].counterSpeed*rhythm;
       b.startY=r.serverSide===0?r.opponentY:r.opponentPartnerY;
-      flight(b,'',startX,b.startY,b.targetX,b.targetY,clamp(b.travelMs,850,2200)*slow,b.arcHeight,30);
+      flight(b,'',startX,b.startY,b.targetX,b.targetY,clamp(b.travelMs,780,1450)*slow,b.arcHeight,30);
       b.x=startX;b.y=b.startY-30;b.groundY=b.startY;r.nextStartX=null;
       // Automatic play always waits for the bounce, including Kitchen balls.
       b.mustBounce=true;

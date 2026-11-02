@@ -11,7 +11,7 @@
   config.game.timing.minBounceVisibleMs = 160;
   config.game.timing.autoHitGraceFrac = 0.26;
   config.game.trajectory.lateralSpreadFrac = 0.42;
-  config.court.playerSpeed = 5.8;
+  config.court.playerSpeed = 8.2;
   config.court.hitRange = 35;
   config.court.kitchenLineY = config.court.netY + (config.court.baselineY-config.court.netY)*7/22;
   config.canvas.ballRadius = 8;
@@ -42,7 +42,7 @@
     {fr:'Ouverture à gauche',en:'Left opening',formation:[210,375],pace:1},
     {fr:'Ouverture à droite',en:'Right opening',formation:[105,270],pace:1}
   ].map(p=>Object.freeze({...p,formation:Object.freeze(p.formation)})));
-  function dailySeed(day){let seed=2166136261;for(const c of 'rally-8:'+day)seed=Math.imul(seed^c.charCodeAt(0),16777619)>>>0;return seed;}
+  function dailySeed(day){let seed=2166136261;for(const c of 'rally-9:'+day)seed=Math.imul(seed^c.charCodeAt(0),16777619)>>>0;return seed;}
   function random(seed){let v=seed>>>0;return ()=>{v=(Math.imul(v,1664525)+1013904223)>>>0;return v/4294967296;};}
   function roster(edition){
     if(!['fr','us'].includes(edition))throw Error('edition');
@@ -53,5 +53,5 @@
       return Object.freeze({...player,power:s.power,effect:powers[s.power],equivalent:Object.freeze({id:equivalent.id,name:equivalent.name})});
     });
   }
-  window.KR_RALLY = Object.freeze({version:'rally-8',width:480,height:760,tickMs:1000/60,maxTicks:36000,config,slots,powers,rounds,dailySeed,random,roster,strategies:Object.freeze({build:Object.freeze({returnSpeed:1.12,counterSpeed:1,arc:1.2}),drive:Object.freeze({returnSpeed:.78,counterSpeed:.85,arc:.75})})});
+  window.KR_RALLY = Object.freeze({version:'rally-9',width:480,height:760,tickMs:1000/60,maxTicks:36000,config,slots,powers,rounds,dailySeed,random,roster,strategies:Object.freeze({build:Object.freeze({returnSpeed:1.12,counterSpeed:1,arc:1.2}),drive:Object.freeze({returnSpeed:.78,counterSpeed:.85,arc:.75})})});
 })();

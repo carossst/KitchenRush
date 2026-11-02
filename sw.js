@@ -1,5 +1,5 @@
 /* Rally shell only. API requests and addresses are never cached. */
-const CACHE='kr-rally-8-retention4';
+const CACHE='kr-rally-9-court2';
 const FILES=['./','./index.html','./rally.css','./config.js','./players.js','./rally-config.js','./game.js','./rally-rules.js','./rally-view.js','./rally-app.js','./rally-progress.js','./manifest-us.json','./rally-feedback.js','./manifest.json','./icons/kr-favicon.svg','./privacy.html','./terms.html','./icons/kr-icon-192x192.png','./icons/kr-icon-512x512.png','./icons/kr-icon-192x192-maskable.png','./icons/kr-icon-512x512-maskable.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)));});
 self.addEventListener('message',event=>{if(event.data?.type==='ACTIVATE')void self.skipWaiting();});
