@@ -92,10 +92,13 @@
    *   side   : +1 paddle on the right of the screen, -1 on the left
    *   facing : "back" (player) or "front" (opponent)
    *   lookX  : -1..1, where the eyes look (front view only)
+   *   palette: optional colour overrides merged over the role palette
+ *   swingT : optional 0..1 swing progress
    *   lite   : skip gradients and small details (low perf tier)
    */
   function draw(ctx, opts) {
-    var pal = PALETTES[opts.role] || PALETTES.player;
+    var basePal = PALETTES[opts.role] || PALETTES.player;
+    var pal = opts.palette ? Object.assign({}, basePal, opts.palette) : basePal;
     var t = (opts.now || 0) / 1000;
     var state = String(opts.state || "idle");
     var side = opts.side < 0 ? -1 : 1;
@@ -106,7 +109,8 @@
     var cycle = running ? Math.sin(t * 15) : 0;
     var bob = running ? Math.abs(Math.cos(t * 15)) * 1.6 : Math.sin(t * 3.2) * 0.9;
     // Swing: fast ease-out sweep across the body.
-    var sp = swinging ? ((opts.now || 0) % 300) / 300 : 0;
+    // swingT (0..1) lets the caller drive the swing; otherwise it loops on a 300 ms clock.
+    var sp = swinging ? (opts.swingT != null ? Math.max(0, Math.min(1, opts.swingT)) : ((opts.now || 0) % 300) / 300) : 0;
     var sweep = swinging ? 1 - (1 - sp) * (1 - sp) : 0;
 
     ctx.save();

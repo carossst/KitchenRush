@@ -344,7 +344,7 @@
           var dailyCta = String(lw.ctaPlayDaily || "").trim() || dailyLabel;
           if (isFirstLanding) {
             dailyHtml = '<div class="kr-actions kr-actions--primary-zone">';
-            dailyHtml += '<button class="kr-btn kr-btn--primary" data-action="play-daily" aria-label="' + escapeHtml(dailyCta) + '">';
+            dailyHtml += '<button class="kr-btn ' + (window.KR_DUEL ? 'kr-btn--secondary' : 'kr-btn--primary') + '" data-action="play-daily" aria-label="' + escapeHtml(dailyCta) + '">';
             dailyHtml += '📅 ' + escapeHtml(dailyLabel);
             dailyHtml += '</button>';
             dailyHtml += '</div>';
@@ -405,6 +405,11 @@
             })(String((cfg && cfg.identity && cfg.identity.appName) || "Kitchen Rush")) +
             '<p class="kr-landing-tagline">' + escapeHtml(lw.tagline || "") + '</p>' +
             '<p class="kr-subtitle">' + escapeHtml(lw.subtitle || "") + '</p>' +
+            (window.KR_DUEL && String(lw.ctaDuel || "").trim()
+              ? '<div class="kr-actions kr-actions--primary-zone"><button class="kr-btn kr-btn--primary kr-btn--duel" data-action="play-duel">' + escapeHtml(lw.ctaDuel) + '</button></div>' +
+                (String(lw.duelExplain || "").trim() ? '<p class="kr-muted kr-landing-duel-explain">' + escapeHtml(lw.duelExplain) + '</p>' : '') +
+                (String(lw.arcadeLabel || "").trim() ? '<p class="kr-landing-divider">' + escapeHtml(lw.arcadeLabel) + '</p>' : '')
+              : '') +
             firstLandingHtml +
           '</div>' +
         '</div>';

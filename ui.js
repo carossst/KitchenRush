@@ -356,10 +356,25 @@ void function () {
 
 
   // ============================================
+  // Duel mode (duel.js): self-contained full-screen match, mounted on <body>
+  // ============================================
+  UI.prototype._startDuel = function () {
+    if (!window.KR_DUEL || this._duel) return;
+    var self = this;
+    this._duel = window.KR_DUEL.start({
+      wording: this.wording,
+      appName: (this.config.identity && this.config.identity.appName) || "",
+      sound: function (name) { self._playSound(name); },
+      onExit: function () { self._duel = null; }
+    });
+  };
+
+  // ============================================
   // Action dispatch
   // ============================================
   UI.prototype._dispatchAction = function (action) {
     switch (action) {
+      case "play-duel":         this._startDuel(); break;
       case "play":              this._handlePlay("classic"); break;
       case "play-again":        this._handlePlay("classic"); break;
       case "play-daily":        this._handlePlay("daily"); break;
