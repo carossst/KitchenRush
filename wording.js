@@ -152,6 +152,7 @@
 
       // V2: Canvas in-game labels (drawn on canvas, not DOM)
       kitchenLabel: "KITCHEN",
+      comboLabel: "STREAK",
       kitchenOpenLabel: "KITCHEN OPEN",
       waitLabel: "WAIT",
       nowLabel: "NOW!",

@@ -267,6 +267,16 @@
         self._startGameLoop();
       }
       node.addEventListener("pointerdown", dismiss, { once: true });
+      // Keyboard start (Space / Enter): the overlay was pointer-only.
+      var onStartKey = function (e) {
+        if (dismissed || !node.isConnected) { document.removeEventListener("keydown", onStartKey); return; }
+        if (e.key === " " || e.key === "Enter") {
+          e.preventDefault();
+          document.removeEventListener("keydown", onStartKey);
+          dismiss();
+        }
+      };
+      document.addEventListener("keydown", onStartKey);
 
       if (fastTrack && fastTrackMs > 0) {
         this._runtime.runStartOverlayTimerId = setTimeout(dismiss, fastTrackMs);
