@@ -14,21 +14,32 @@
   var STORE_KEY = "kr:duel";
 
   var LADDER = [
-    { name: "Rookie Rae", tag: "Just here for fun", speed: 10, react: 0.38, err: 2.6, aggr: 0.15, lobP: 0.05, dinkP: 0.15, volley: false, judge: 2, pace: 0.85,
+    { name: "Rookie Rae", tag: "Just here for fun", look: 3, speed: 10, react: 0.38, err: 2.6, aggr: 0.15, lobP: 0.05, dinkP: 0.15, volley: false, judge: 2, pace: 0.85,
       pal: { jerseyA: "#ffe27a", jerseyB: "#f5a524", shorts: "#7a4b12", hair: "#c9632b", band: "#ffffff", paddle: "#3fd0ff" } },
-    { name: "Dinking Dan", tag: "Soft hands, short balls", speed: 11.5, react: 0.3, err: 2, aggr: 0.35, lobP: 0.05, dinkP: 0.5, volley: false, judge: 1.4, pace: 0.9,
+    { name: "Dinking Dee", tag: "Soft hands, short balls", look: 1, speed: 11.5, react: 0.3, err: 2, aggr: 0.35, lobP: 0.05, dinkP: 0.5, volley: false, judge: 1.4, pace: 0.9,
       pal: { jerseyA: "#9af0c4", jerseyB: "#22b07d", shorts: "#0e4f3a", hair: "#2b1d12", band: "#ffd60a", paddle: "#ff5d8f" } },
-    { name: "Lobster Lou", tag: "Loves the high ball", speed: 12.5, react: 0.26, err: 1.7, aggr: 0.5, lobP: 0.35, dinkP: 0.2, volley: false, judge: 1, pace: 0.95,
+    { name: "Lobster Lou", tag: "Loves the high ball", look: 6, speed: 12.5, react: 0.26, err: 1.7, aggr: 0.5, lobP: 0.35, dinkP: 0.2, volley: false, judge: 1, pace: 0.95,
       pal: { jerseyA: "#ff9d8a", jerseyB: "#e2452f", shorts: "#6b1408", hair: "#f2e2c4", band: "#ffffff", paddle: "#ffd60a" } },
-    { name: "Banger Bea", tag: "Hits everything hard", speed: 13.5, react: 0.22, err: 1.5, aggr: 0.7, lobP: 0.05, dinkP: 0.1, volley: true, judge: 0.7, pace: 1.12,
+    { name: "Banger Bo", tag: "Hits everything hard", look: 5, speed: 13.5, react: 0.22, err: 1.5, aggr: 0.7, lobP: 0.05, dinkP: 0.1, volley: true, judge: 0.7, pace: 1.12,
       pal: { jerseyA: "#d5b4ff", jerseyB: "#7b4dff", shorts: "#2b1a5c", hair: "#20182e", band: "#ff5d8f", paddle: "#9bffb0" } },
-    { name: "Spin Sam", tag: "Finds every corner", speed: 14.5, react: 0.18, err: 1.2, aggr: 0.82, lobP: 0.15, dinkP: 0.35, volley: true, judge: 0.4, pace: 1.05,
+    { name: "Spin Sam", tag: "Finds every corner", look: 4, speed: 14.5, react: 0.18, err: 1.2, aggr: 0.82, lobP: 0.15, dinkP: 0.35, volley: true, judge: 0.4, pace: 1.05,
       pal: { jerseyA: "#8ad8ff", jerseyB: "#0f6fd6", shorts: "#06254d", hair: "#101018", band: "#ffffff", paddle: "#ff8a3d" } },
-    { name: "Kitchen King", tag: "Owns the line", speed: 15.5, react: 0.14, err: 0.9, aggr: 0.95, lobP: 0.2, dinkP: 0.4, volley: true, judge: 0.2, pace: 1.12,
+    { name: "Kitchen Ace", tag: "Owns the line", look: 7, speed: 15.5, react: 0.14, err: 0.9, aggr: 0.95, lobP: 0.2, dinkP: 0.4, volley: true, judge: 0.2, pace: 1.12,
       pal: { jerseyA: "#3a3a4a", jerseyB: "#11111a", shorts: "#000000", hair: "#101018", band: "#ffd60a", paddle: "#ffd60a", trim: "#ffd60a" } }
   ];
   var ALLY = { name: "Partner", speed: 12.5, react: 0.25, err: 1.6, aggr: 0.5, lobP: 0.08, dinkP: 0.25, volley: true, judge: 0.8, pace: 0.95,
     pal: { jerseyA: "#ffb3c7", jerseyB: "#ff5d8f", shorts: "#ffffff", hair: "#6b3a1e", band: "#3fd0ff", paddle: "#3fd0ff" } };
+  // Player looks: varied hair and skin so everyone can find themselves. Cycled from the match menu.
+  var LOOKS = [
+    { hairStyle: "ponytail", hair: "#4a2c17", skin: "#f4c7a1" },
+    { hairStyle: "curly", hair: "#1d1512", skin: "#8d5a3b" },
+    { hairStyle: "short", hair: "#20182e", skin: "#e2ab82" },
+    { hairStyle: "bob", hair: "#c9632b", skin: "#f7d7bd" },
+    { hairStyle: "bun", hair: "#101018", skin: "#c68c5e" },
+    { hairStyle: "long", hair: "#e8c66a", skin: "#f1c9a5" },
+    { hairStyle: "short", hair: "#d9d9e3", skin: "#6b4226" },
+    { hairStyle: "long", hair: "#15131c", skin: "#a8734d" }
+  ];
   var HUMAN_PAL = { jerseyA: "#ff8a8a", jerseyB: "#e0244f", shorts: "#ffffff", hair: "#4a2c17", band: "#ffd60a", paddle: "#3fd0ff", ring: "rgba(255,255,255,0.9)" };
 
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
@@ -49,6 +60,10 @@
     this.stage = clamp(Math.floor(Number(this.save.stage) || 0), 0, 999);
     this.mode = this.save.mode === "doubles" ? "doubles" : "singles";
     this.side = this.save.side === "left" ? "left" : "right";
+    this.look = clamp(Math.floor(Number(this.save.look) || 0), 0, LOOKS.length - 1);
+    this.timeScale = 1;
+    this.slowLeft = 0;
+    this.slowBallId = -1;
     this.fx = window.KR_FX ? window.KR_FX.create() : null;
     this.keys = {};
     this.pointers = {};
@@ -142,7 +157,8 @@
         opt("left", t.doublesLeft || "Doubles · Left", m === "doubles" && s === "left") +
         opt("right", t.doublesRight || "Doubles · Right", m === "doubles" && s === "right") +
       '</div>' +
-      '<p class="kr-duel-how">' + esc(touch ? (t.howTouch || "Left thumb: move. Right thumb: swipe toward where you want the ball.") : (t.howKeys || "Arrows / WASD: move. Space: hit — hold a direction to aim. Or click where you want the ball.")) + '</p>' +
+      '<button class="kr-btn kr-btn--secondary kr-duel-look" data-duel="look">' + esc(t.changeLook || "Change my look") + '</button>' +
+      '<p class="kr-duel-how">' + esc(touch ? (t.howTouch || "Drag to move. When time slows, swipe toward where you want the ball.") : (t.howKeys || "Arrows / WASD: move. Space: hit — hold a direction to aim. Or click where you want the ball.")) + '</p>' +
       '<p class="kr-duel-how">' + esc(t.rules || "First to 5. Serve and return must bounce. No volleys in the Kitchen.") + '</p>' +
       '<button class="kr-btn kr-btn--primary kr-duel-go" data-duel="go">' + esc(result ? (result === "win" ? (t.next || "Next opponent") : (t.retry || "Rematch")) : (t.start || "Start match")) + '</button>' +
       '<button class="kr-btn kr-btn--ghost" data-duel="exit">' + esc(t.home || "Back to menu") + '</button>' +
@@ -157,9 +173,10 @@
   Duel.prototype._panelAction = function (a) {
     if (a === "exit") { this.destroy(); return; }
     if (a === "go") { this._startMatch(); return; }
-    if (a === "singles") this.mode = "singles";
+    if (a === "look") this.look = (this.look + 1) % LOOKS.length;
+    else if (a === "singles") this.mode = "singles";
     else { this.mode = "doubles"; this.side = a; }
-    this.save.mode = this.mode; this.save.side = this.side; writeSave(this.save);
+    this.save.mode = this.mode; this.save.side = this.side; this.save.look = this.look; writeSave(this.save);
     this._showMenu(this._lastResult);
   };
 
@@ -172,14 +189,17 @@
         swingAnim: 0, swingUntil: 0, aimX: 0, aimY: 0, goalX: hx0, goalY: hy0, reactAt: 0, planId: -1, leave: false, side: 1 };
     }
     var A = [];
-    this.human = actor(0, true, hx, -15, null, HUMAN_PAL, dbl ? (hx < 0 ? [-99, 0] : [0, 99]) : [-99, 99]);
+    var oppPal = Object.assign({}, opp.pal, LOOKS[opp.look % LOOKS.length]);
+    var humanPal = Object.assign({}, HUMAN_PAL, LOOKS[this.look]);
+    var allyLook = LOOKS[(this.look + 3) % LOOKS.length];
+    this.human = actor(0, true, hx, -15, null, humanPal, dbl ? (hx < 0 ? [-99, 0] : [0, 99]) : [-99, 99]);
     A.push(this.human);
-    if (dbl) A.push(actor(0, false, -hx, -15, ALLY, ALLY.pal, hx < 0 ? [0, 99] : [-99, 0]));
+    if (dbl) A.push(actor(0, false, -hx, -15, ALLY, Object.assign({}, ALLY.pal, allyLook), hx < 0 ? [0, 99] : [-99, 0]));
     if (dbl) {
-      var pal2 = Object.assign({}, opp.pal, { band: opp.pal.paddle, hair: "#5a3b22" });
-      A.push(actor(1, false, -5, 15, opp, opp.pal, [-99, 0]));
+      var pal2 = Object.assign({}, opp.pal, { band: opp.pal.paddle }, LOOKS[(opp.look + 2) % LOOKS.length]);
+      A.push(actor(1, false, -5, 15, opp, oppPal, [-99, 0]));
       A.push(actor(1, false, 5, 15, opp, pal2, [0, 99]));
-    } else A.push(actor(1, false, 0, 15, opp, opp.pal, [-99, 99]));
+    } else A.push(actor(1, false, 0, 15, opp, oppPal, [-99, 99]));
     this.actors = A;
     this.ball = null;
     this.score = [0, 0];
@@ -245,7 +265,8 @@
       return;
     }
     try { this.canvas.setPointerCapture(e.pointerId); } catch (_) { }
-    if (p.x < this.W / 2 && !this.joy) this.joy = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
+    if (this.timeScale < 0.7 && !this.swipe) this.swipe = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
+    else if (p.x < this.W / 2 && !this.joy) this.joy = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
     else if (!this.swipe) this.swipe = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
   };
   Duel.prototype._pMove = function (e) {
@@ -298,12 +319,16 @@
     if (shot.loft) T = Math.max(T, 1.75);
     // Raise the arc until it clears the net. A stretched or rushed shot gets less margin, so it can clip the tape.
     var need = NET_H + 0.9 - badness * Math.random() * 1.7;
-    for (var i = 0; i < 60; i++) {
-      var vz = (0.5 * G * T * T - b.z) / T;
-      var tn = (0 - b.y) / (dy / T);
-      var zn = b.z + vz * tn - 0.5 * G * tn * tn;
-      if (zn >= need) break;
-      T *= 1.05;
+    // Only meaningful when the shot actually crosses the net. A ball struck just past the net toward
+    // the far side never "clears" it, which used to inflate T without bound (z ~ 1000, point never ends).
+    if (b.y * ty < 0 && Math.abs(dy) > 0.01) {
+      for (var i = 0; i < 40 && T < 3.2; i++) {
+        var vz = (0.5 * G * T * T - b.z) / T;
+        var tn = (0 - b.y) / (dy / T);
+        var zn = b.z + vz * tn - 0.5 * G * tn * tn;
+        if (zn >= need) break;
+        T *= 1.05;
+      }
     }
     b.vx = dx / T; b.vy = dy / T; b.vz = (0.5 * G * T * T - b.z) / T;
     b.live = true; b.held = false; b.lastHitTeam = a.team; b.bounces = 0; b.hits += 1; b.id = ++this.ballId;
@@ -327,7 +352,7 @@
     var b = this.ball;
     if (!b || !b.live || b.lastHitTeam === a.team) return false;
     if (a.team === 0 ? b.y > 0.6 : b.y < -0.6) return false;
-    var reach = a.human ? 3.9 : 3.4;
+    var reach = a.human ? 4.7 : 3.4;   // generous for the human: balls bouncing wide were hard to catch
     var d = Math.hypot(b.x - a.x, b.y - a.y);
     if (d > reach || b.z > 8.6) return false;
     var volley = b.bounces === 0;
@@ -470,7 +495,7 @@
     if (this.joy) { mx = clamp((this.joy.x - this.joy.ox) / 46, -1, 1); my = clamp((this.joy.oy - this.joy.y) / 46, -1, 1); }
     var ml = Math.hypot(mx, my); if (ml > 1) { mx /= ml; my /= ml; }
     if (this.phase === "serve" && this.server === h) { mx = 0; my = 0; }
-    h.vx = mx * 16; h.vy = my * 16;
+    h.vx = mx * 18; h.vy = my * 18;
     h.x = clamp(h.x + h.vx * dt, -CW - 2, CW + 2);
     h.y = clamp(h.y + h.vy * dt, -CL - 3, -0.9);
 
@@ -670,6 +695,47 @@
     g.restore();
   };
 
+  // ───────────────────────── Focus time (slow motion at contact) ─────────────────────────
+  Duel.prototype._slowScale = function () { return clamp(0.16 + this.stage * 0.035, 0.16, 0.4); };
+  Duel.prototype._slowBudget = function () { return clamp(1.1 - this.stage * 0.1, 0.5, 1.1); };   // real seconds per ball
+
+  Duel.prototype._wantSlow = function (realDt) {
+    var b = this.ball, h = this.human;
+    if (this.phase !== "rally" || !b || !b.live || b.dead || b.lastHitTeam !== 1 || b.y > 0.6) return false;
+    if (this.now < h.swingUntil) return false;                       // committed: play it out at full speed
+    if (!(b.bounces >= 1 || b.hits >= 3)) return false;              // never slow down on a ball that must still bounce
+    if (b.bounces === 0 && Math.abs(h.y) < KIT) return false;        // nor on an illegal kitchen volley
+    var d = Math.hypot(b.x - h.x, b.y - h.y);
+    if (d > 5.6 || b.z > 8.6) return false;
+    if (this.slowBallId !== b.id) { this.slowBallId = b.id; this.slowLeft = this._slowBudget(); }
+    if (this.slowLeft <= 0) return false;
+    this.slowLeft -= realDt;
+    return true;
+  };
+
+  Duel.prototype._drawFocus = function (g) {
+    var k = clamp((1 - this.timeScale) / 0.6, 0, 1);
+    if (k < 0.02) return;
+    var W = this.W, H = this.H;
+    var v = g.createRadialGradient(W / 2, H * 0.55, Math.min(W, H) * 0.32, W / 2, H * 0.55, Math.max(W, H) * 0.72);
+    v.addColorStop(0, "rgba(8,12,40,0)");
+    v.addColorStop(1, "rgba(8,12,40," + (0.62 * k).toFixed(3) + ")");
+    g.fillStyle = v; g.fillRect(0, 0, W, H);
+    // Remaining focus time, drawn as a shrinking ring around the ball
+    var p = this._ballScreen;
+    if (p) {
+      var frac = clamp(this.slowLeft / this._slowBudget(), 0, 1);
+      g.strokeStyle = "rgba(255,214,10," + (0.95 * k).toFixed(3) + ")"; g.lineWidth = 4; g.lineCap = "round";
+      g.beginPath(); g.arc(p.x, p.y, Math.max(18, 1.5 * p.s), -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac); g.stroke();
+    }
+    g.globalAlpha = k;
+    g.font = "800 " + Math.round(Math.min(W, H) * 0.045) + "px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.lineWidth = 5; g.strokeStyle = "rgba(8,12,40,0.8)"; g.fillStyle = "#ffd60a"; g.lineJoin = "round";
+    var label = String(this.t.focus || "AIM!");
+    g.strokeText(label, W / 2, H * 0.3); g.fillText(label, W / 2, H * 0.3);
+    g.globalAlpha = 1;
+  };
+
   Duel.prototype._drawTouchHints = function (g) {
     if (!(("ontouchstart" in window) || navigator.maxTouchPoints > 0) || this.phase === "menu") return;
     var W = this.W, H = this.H, t = this.t;
@@ -694,7 +760,13 @@
     var dt = this.lastTs ? clamp((ts - this.lastTs) / 1000, 0, 0.05) : 0.016;
     this.lastTs = ts;
     var frozen = this.freezeUntil && this.now < this.freezeUntil;
+    // Focus time: the world slows while the ball is in reach so the shot can be chosen.
+    var want = this._wantSlow(dt) ? this._slowScale() : 1;
+    this.timeScale += (want - this.timeScale) * Math.min(1, dt * 16);
+    var rdt = dt;
+    dt *= this.timeScale;
     this.now += dt;
+    this.realNow = (this.realNow || 0) + rdt;
     if (!frozen) this._update(dt);
 
     var g = this.ctx, W = this.W, H = this.H, self = this;
@@ -719,6 +791,7 @@
     if (b && !ballFar && !drawn) this._drawBall(g);
     if (this.fx) this.fx.draw(g, W, H, this.now * 1000, { combo: 0 });
     g.restore();
+    this._drawFocus(g);
     this._drawTouchHints(g);
   };
 

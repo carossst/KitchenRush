@@ -154,3 +154,35 @@ Useful debug handles: `window.storageManager`, `window.KR_CONFIG`, and on localh
 - Add a small automated smoke test (the Playwright flow above) and run it in CI.
 - Sound design and music are still basic (`audio.js`, synthesised).
 - More character variety (palettes live in `KR_CHARACTERS.palettes`), court skins per milestone.
+
+
+## Duel update (version 7) and TODO for the next agent
+
+Done in this update:
+- **Focus time**: in `duel.js`, `_wantSlow()` slows the world to 16-40% speed (`_slowScale()`, scales with
+  the opponent stage) while an incoming ball is in reach, for a per-ball real-time budget
+  (`_slowBudget()`, shrinks with stage). Any touch / held direction + Space / click then aims the shot.
+  It never triggers on a ball that must still bounce or on an illegal kitchen volley.
+- **Looks**: `LOOKS` in `duel.js` + `hairStyle` in `characters.js` (short, ponytail, bob, long, bun, curly)
+  with varied skin tones; "Change my look" button in the match menu; opponents renamed to neutral names.
+- **Fixed a stall**: `_launch()` could inflate flight time without bound for a ball struck just past the net
+  (ball at z~1000, point never ended; mostly visible in doubles). The net-clearance loop now only runs
+  when the shot actually crosses the net and is capped.
+- Human reach 3.9 -> 4.7 ft, speed 16 -> 18 ft/s, focus trigger radius widened, to make wide balls catchable.
+
+Verification used: a Playwright script that plays Duel matches with a bot and detects "phase/score/ball id
+unchanged for 7 s" as a stall (see "How to verify" above). Doubles idle, doubles bot and singles bot all finish.
+
+TODO, in priority order (written for a smaller model; do them one at a time, run the stall test after each):
+1. **Playtest balance with a human.** Opponent 1 should be easy but not free, opponent 6 hard. Tune only
+   `LADDER` numbers (`speed`, `react`, `err`, `aggr`) and `_slowScale()/_slowBudget()`.
+2. **Doubles polish**: add service rotation and side switching; make the AI partner poach balls that
+   cross the centre line; show which half is "mine" with a subtle floor marker.
+3. **Too simple?** Ideas, cheapest first: opponent stage modifiers (wind, a bonus ball, shorter focus time),
+   a spin/curve shot when swiping with a curve, combo score for consecutive winners, daily Duel opponent.
+4. **Arcade-style effects with celebrity players** (owner mentioned an earlier version with Arkanoid-like
+   effects and 10 US + 10 French famous pickleball players, one set per language version). Not found in this
+   repo; ask the owner where it lives before rebuilding. Do not use real names/likenesses of real people
+   without checking rights; fictional lookalike characters are safer.
+5. Payment is still not operational (see "Known issues"). Decide the architecture before launch.
+6. Real-device test (touch, low-end Android). Sound design for Duel (distinct paddle hit, crowd, ball bounce).

@@ -92,7 +92,8 @@
    *   side   : +1 paddle on the right of the screen, -1 on the left
    *   facing : "back" (player) or "front" (opponent)
    *   lookX  : -1..1, where the eyes look (front view only)
-   *   palette: optional colour overrides merged over the role palette
+   *   palette: optional overrides merged over the role palette; also `hairStyle`:
+   *            short | ponytail | bob | long | bun | curly
  *   swingT : optional 0..1 swing progress
    *   lite   : skip gradients and small details (low perf tier)
    */
@@ -193,6 +194,30 @@
     // ── Head ──
     var hy = -23 + (swinging ? 0.6 : 0);
     var hx = twist * 0.5;
+    var style = String(pal.hairStyle || (front ? "short" : "ponytail"));
+    var sway = running ? cycle * 2.4 : Math.sin(t * 3.2) * 0.8;
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = OUTLINE;
+    // Hair volume that sits behind the head (so the face stays readable in front view)
+    ctx.fillStyle = pal.hair;
+    if (style === "curly") {
+      ctx.beginPath();
+      for (var ci = 0; ci < 9; ci++) {
+        var ca = Math.PI * (0.92 + ci * 0.145);
+        ctx.moveTo(hx + Math.cos(ca) * 10.5 + 4.6, hy + Math.sin(ca) * 10.5);
+        ctx.arc(hx + Math.cos(ca) * 10.5, hy + Math.sin(ca) * 10.5, 4.6, 0, Math.PI * 2);
+      }
+      ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(hx, hy, 12, 0, Math.PI * 2); ctx.fill();
+    } else if (style === "bun") {
+      ctx.beginPath(); ctx.arc(hx, hy - 11.5, 4.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    } else if (front && (style === "bob" || style === "long")) {
+      roundRect(ctx, hx - 11.6, hy - 6, 23.2, style === "long" ? 22 : 15.5, 6);
+      ctx.fill(); ctx.stroke();
+    } else if (front && style === "ponytail") {
+      ctx.beginPath(); ctx.ellipse(hx + 10.5 + sway * 0.5, hy + 3, 3.2, 6, -0.35, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+
     // Neck
     ctx.fillStyle = pal.skin;
     ctx.fillRect(hx - 2.4, -15.5, 4.8, 3.5);
@@ -236,11 +261,19 @@
       ctx.arc(hx, hy, 10, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-      var sway = running ? cycle * 2.4 : Math.sin(t * 3.2) * 0.8;
-      ctx.beginPath();
-      ctx.ellipse(hx - sway, hy + 9.5, 3.4, 5, sway * 0.12, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      if (style === "ponytail") {
+        ctx.beginPath();
+        ctx.ellipse(hx - sway, hy + 9.5, 3.4, 5, sway * 0.12, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+      } else if (style === "bob" || style === "long") {
+        roundRect(ctx, hx - 10.8 - sway * 0.2, hy - 2, 21.6, style === "long" ? 21 : 13.5, 6);
+        ctx.fill(); ctx.stroke();
+      } else if (style === "short") {
+        // Nape of the neck shows under a short cut
+        ctx.fillStyle = pal.skin;
+        ctx.beginPath(); ctx.ellipse(hx, hy + 8.6, 5.2, 2.6, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = pal.hair;
+      }
       ctx.fillStyle = pal.band;
       roundRect(ctx, hx - 10.4, hy - 3.4, 20.8, 3.2, 1.5);
       ctx.fill();
