@@ -70,7 +70,7 @@
   window.KR_CONFIG = {
 
     // Product version (UI display, logs, SW cache key)
-    version: "3",
+    version: "4",
 
     // Storage schema version (localStorage).
     // Change ONLY if you accept a migration/wipe.
@@ -555,13 +555,13 @@
       // Canvas colors (non-DOM: CSS cannot style canvas content)
       colors: {
         // V2: Court colors (blue-night theme per briefing)
-        courtBg: "#0a1628",          // bleu-nuit profond
-        courtFarBg: "#102233",
-        courtNearBg: "#173f2c",
-        kitchenBg: "#2a1a0a",        // rouge-corail sombre (warm zone)
-        opponentKitchenBg: "rgba(255,124,74,0.2)",
-        kitchenLine: "#ff6b4a",      // corail vif — kitchen delimiter
-        kitchenLabelColor: "#ff6b4a44",
+        courtBg: "#070b1f",          // bleu-nuit profond
+        courtFarBg: "#0e6b5c",
+        courtNearBg: "#11805f",
+        kitchenBg: "#b8472a",        // rouge-corail sombre (warm zone)
+        opponentKitchenBg: "rgba(214,84,48,0.85)",
+        kitchenLine: "#ffb199",      // corail vif — kitchen delimiter
+        kitchenLabelColor: "#ffffff47",
         netColor: "#e0e0e0",         // blanc/gris clair
         opponentKitchenOverlay: "rgba(255,255,255,0.05)",
         serviceBoxTint: "rgba(255,255,255,0.05)",
@@ -590,10 +590,10 @@
         powerBadgeBg: "rgba(8,18,28,0.8)",
 
         // Score popup
-        scorePopup: "#06d6a0",
+        scorePopup: "#fff3b0",
 
         // "WAIT" indicator on kitchen balls
-        waitIndicator: "#ff6b4a",
+        waitIndicator: "#ffe08a",
         powerUpReady: "#9bffb0",
         powerUpShield: "#80ed99",
         powerUpSpeed: "#5ec8ff",
@@ -610,17 +610,17 @@
         ballHeavy: "#ffd166",
 
         // Court lines
-        courtLines: "#ffffff40",
-        courtLinesStrong: "#ffffff8f",
-        courtLinesSoft: "#ffffff46",
-        centerLine: "#ffffff66",
+        courtLines: "#ffffff80",
+        courtLinesStrong: "#ffffffe0",
+        courtLinesSoft: "#ffffffb0",
+        centerLine: "#ffffffa0",
 
         // V2: UI overlay colors (drawn on canvas)
         netMesh: "rgba(255,255,255,0.14)",
         controlZoneBg: "rgba(255,255,255,0.012)",
-        controlZoneBorder: "rgba(255,255,255,0.03)",
-        controlZoneHitBorder: "rgba(255,255,255,0.05)",
-        controlZoneText: "rgba(255,255,255,0.1)",
+        controlZoneBorder: "rgba(255,255,255,0.07)",
+        controlZoneHitBorder: "rgba(255,255,255,0.10)",
+        controlZoneText: "rgba(255,255,255,0.22)",
         bounceRingFlash: "#06d6a0",
         faultVignetteColor: "239,71,111",
         smashFlashColor: "6,214,160",

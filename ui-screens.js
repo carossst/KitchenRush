@@ -369,8 +369,12 @@
         '</div>';
       }
 
+      // First visit: Daily is the hero CTA, but Classic stays reachable (it is the main mode).
+      var firstClassicHtml = dailyHtml
+        ? '<div class="kr-actions"><button class="kr-btn kr-btn--secondary" data-action="play">' + ctaLabel + '</button></div>'
+        : classicHtml;
       var firstLandingPrimaryHtml = isFirstLanding
-        ? (dailyHtml || classicHtml)
+        ? (dailyHtml + firstClassicHtml)
         : classicHtml;
 
       var firstLandingHtml = isFirstLanding
@@ -393,7 +397,13 @@
             powerBallHtml +
           '</div></div>' +
           '<div class="kr-landing-body">' +
-            '<h1 class="kr-h1">' + escapeHtml(lw.tagline || "") + '</h1>' +
+            '<div class="kr-hero" aria-hidden="true"><div class="kr-hero-court"><span class="kr-hero-net"></span></div><span class="kr-hero-ball"></span></div>' +
+            (function (name) {
+              var parts = name.split(" ");
+              var last = parts.length > 1 ? parts.pop() : "";
+              return '<h1 class="kr-wordmark">' + escapeHtml(parts.join(" ")) + (last ? ' <span class="kr-wordmark-accent">' + escapeHtml(last) + '</span>' : '') + '</h1>';
+            })(String((cfg && cfg.identity && cfg.identity.appName) || "Kitchen Rush")) +
+            '<p class="kr-landing-tagline">' + escapeHtml(lw.tagline || "") + '</p>' +
             '<p class="kr-subtitle">' + escapeHtml(lw.subtitle || "") + '</p>' +
             firstLandingHtml +
           '</div>' +

@@ -713,6 +713,8 @@ void function () {
     juice.flashType = "";
     juice.flashUntil = 0;
     juice.shakeUntil = 0;
+    if (this._fx) this._fx.reset();
+    this._runtime._ballScreen = null;
     juice.sprintSuccessUntil = 0;
     juice.milestoneGlowUntil = 0;
     juice.firstKitchenPulseUntil = 0;
@@ -851,12 +853,16 @@ void function () {
     var ctx = this._ctx;
     if (!ctx) return;
 
-    var w = canvas.width;
-    var h = canvas.height;
+    // HiDPI: draw in logical (CSS) pixels on a devicePixelRatio-scaled backing store.
+    var dpr = this._dpr || 1;
+    var w = this._logicalW || canvas.width;
+    var h = this._logicalH || canvas.height;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var colors = this.config.canvas && this.config.canvas.colors;
     if (!colors || typeof colors !== "object") return;
     var perfCfg = this._getRenderPerfConfig();
     var perfTier = this._getRenderPerfTier();
+    var fx = this._fx || (this._fx = (window.KR_FX ? window.KR_FX.create() : null));
 
     var court = state.court;
     if (!court) return;
@@ -1001,11 +1007,17 @@ void function () {
     }
 
     ctx.save();
-    if (shakeX || shakeY) ctx.translate(shakeX, shakeY);
-
-    // Court background
+    // Court background (painted before the camera transform so shake/zoom never exposes edges)
     ctx.fillStyle = colors.courtBg;
     ctx.fillRect(0, 0, w, h);
+    if (shakeX || shakeY) ctx.translate(shakeX, shakeY);
+    var fxZoom = fx ? fx.getZoom(n) : 1;
+    if (fxZoom !== 1) {
+      ctx.translate(w / 2, h * 0.6);
+      ctx.scale(fxZoom, fxZoom);
+      ctx.translate(-w / 2, -h * 0.6);
+    }
+    if (fx && perfTier < 2) fx.drawBackdrop(ctx, w, h);
     drawQuad(worldOppBaselineYpx, worldNetYpx, colors.courtFarBg, farCourtAlpha);
     drawQuad(worldNetYpx, worldBaselineYpx, colors.courtNearBg, 1);
 
@@ -1014,6 +1026,19 @@ void function () {
 
     // Opponent kitchen zone (compressed but symmetric for a frontal read)
     drawQuad(worldOppKitchenLineYpx, worldNetYpx, colors.opponentKitchenBg, opponentKitchenAlpha);
+
+    // Depth shading: lit at the net, darker toward both baselines.
+    if (perfTier < 2) {
+      var sheenNear = ctx.createLinearGradient(0, projectCourtY(worldNetYpx), 0, projectCourtY(worldBaselineYpx));
+      sheenNear.addColorStop(0, "rgba(255,255,255,0.10)");
+      sheenNear.addColorStop(0.45, "rgba(255,255,255,0)");
+      sheenNear.addColorStop(1, "rgba(0,0,0,0.24)");
+      drawQuad(worldNetYpx, worldBaselineYpx, sheenNear, 1);
+      var sheenFar = ctx.createLinearGradient(0, projectCourtY(worldOppBaselineYpx), 0, projectCourtY(worldNetYpx));
+      sheenFar.addColorStop(0, "rgba(0,0,0,0.30)");
+      sheenFar.addColorStop(1, "rgba(255,255,255,0.06)");
+      drawQuad(worldOppBaselineYpx, worldNetYpx, sheenFar, 1);
+    }
 
     // Service boxes: very light tint to reinforce the frontal court layout.
     if (colors.serviceBoxTint) {
@@ -1088,7 +1113,9 @@ void function () {
     ctx.lineTo(playerKitchenEdges2.right, kitchenLineYpx);
     ctx.moveTo(oppKitchenEdges2.left, oppKitchenLineYpx);
     ctx.lineTo(oppKitchenEdges2.right, oppKitchenLineYpx);
+    if (perfTier === 0) { ctx.shadowColor = colors.kitchenLine; ctx.shadowBlur = 12; }
     ctx.stroke();
+    ctx.shadowBlur = 0;
 
     // Court lines (frontal)
     if (colors.courtLinesStrong && colors.courtLinesSoft && colors.centerLine) {
@@ -1183,6 +1210,16 @@ void function () {
       renderBall.worldTargetY = ball.targetY;
       renderBall.worldShadowY = groundY;
       renderBall.radius = Math.max(4, ball.radius * ballScreenScale);
+      this._runtime._ballScreen = { x: renderBall.x, y: renderBall.y };
+      if (fx) {
+        if (ball.state === BALL_STATES.FAULTED || ball.state === BALL_STATES.MISSED) fx.trailClear();
+        else {
+          var trailBallColor = (ball.state === BALL_STATES.HIT && colors.ballSmashed) ||
+            colors["ball" + String(ball.ballType || "").replace(/^./, function (c) { return c.toUpperCase(); })] || colors.ballDefault;
+          fx.trailPush(ball.id, renderBall.x, renderBall.y, renderBall.radius, trailBallColor);
+          fx.drawTrail(ctx, perfTier);
+        }
+      }
       if (ball.y <= worldNetYpx) {
         this._renderBallV2(ctx, renderBall, colors, w, h, gt, n, juice);
       }
@@ -1448,6 +1485,15 @@ void function () {
       ctx.textBaseline = "middle";
       var penText = String(this.wording?.sprint?.penaltyFlash || "").trim();
       if (penText) ctx.fillText(penText, w / 2, h * 0.3 - penP * 20);
+    }
+
+    if (fx) {
+      fx.draw(ctx, w, h, n, {
+        combo: (this._runtime.microFeedback && this._runtime.microFeedback.smashStreak) || 0,
+        comboMin: 3,
+        comboLabel: (this.wording && this.wording.ui && this.wording.ui.comboLabel) || "",
+        lowQuality: perfTier >= 1
+      });
     }
 
     ctx.restore();
@@ -2321,8 +2367,8 @@ void function () {
     if (!Number.isFinite(mouseX) || !Number.isFinite(mouseY)) return;
 
     var deadZone = requiredConfigNumber(this.config?.court?.desktopMouseDeadZonePx, "KR_CONFIG.court.desktopMouseDeadZonePx", { min: 0 });
-    var playerX = (this.game && this.game.run) ? this.game.run.playerX : canvas.width / 2;
-    var playerY = (this.game && this.game.run) ? this.game.run.playerY : canvas.height * 0.75;
+    var playerX = (this.game && this.game.run) ? this.game.run.playerX : (this._logicalW || canvas.width) / 2;
+    var playerY = (this.game && this.game.run) ? this.game.run.playerY : (this._logicalH || canvas.height) * 0.75;
     var diffX = mouseX - playerX;
     var diffY = mouseY - playerY;
 
@@ -2467,8 +2513,8 @@ void function () {
       this._mouseMoveHandler = function (e) {
         if (self.state !== STATES.PLAYING) return;
         var rect = canvas.getBoundingClientRect();
-        var mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
-        var mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+        var mouseX = (e.clientX - rect.left) * ((self._logicalW || canvas.width) / rect.width);
+        var mouseY = (e.clientY - rect.top) * ((self._logicalH || canvas.height) / rect.height);
         self._runtime._mouseActive = true;
         self._runtime._mouseTargetX = mouseX;
         self._runtime._mouseTargetY = mouseY;
@@ -2532,6 +2578,7 @@ void function () {
           variant: "success"
         });
         this._playSound("milestone");
+        if (this._fx && this._canvas) this._fx.confetti(this._logicalW || this._canvas.width, this._logicalH || this._canvas.height);
         this._runtime.microFeedback.endHighlight = dailyMsg;
         this._runtime.microFeedback.endHighlightVariant = "success";
         this._runtime.microFeedback.endHighlightPriority = Math.max(110, Number(this._runtime.microFeedback.endHighlightPriority || -1));
@@ -2569,7 +2616,17 @@ void function () {
         this._playSound("smash");
         juice.flashType = "smash";
         juice.flashUntil = n + requiredConfigNumber(this.config?.juice?.smashFlashMs, "juice.smashFlashMs", { min: 1, integer: true });
-        juice.flashX = ball.x; juice.flashY = ball.y;
+        var hitPos = this._runtime._ballScreen || { x: ball.x, y: ball.y };
+        juice.flashX = hitPos.x; juice.flashY = hitPos.y;
+        if (this._fx) {
+          var fxColors = (this.config.canvas && this.config.canvas.colors) || {};
+          var isPerfectHit = timingBonus > perfectThreshold;
+          this._fx.burst(hitPos.x, hitPos.y,
+            isPerfectHit ? [fxColors.ballDefault || "#ffd60a", "#ffffff", fxColors.ballSmashed || "#06d6a0"] : [fxColors.ballSmashed || "#06d6a0", "#ffffff"],
+            isPerfectHit ? 22 : 10, { speed: isPerfectHit ? 360 : 230, up: 60 });
+          this._fx.ring(hitPos.x, hitPos.y, isPerfectHit ? (fxColors.ballDefault || "#ffd60a") : (fxColors.ballSmashed || "#06d6a0"), isPerfectHit ? 84 : 44);
+          if (isPerfectHit) this._fx.punch(0.02, n);
+        }
         if (this._runtime.runMode === MODES.SPRINT) {
           var sprintSuccessPulseMs = Number(this.config?.juice?.sprintSuccessPulseMs);
           if (Number.isFinite(sprintSuccessPulseMs) && sprintSuccessPulseMs > 0) {
@@ -2577,15 +2634,23 @@ void function () {
           }
         }
         if (!juice.scorePopups) juice.scorePopups = [];
-        juice.scorePopups.push({ x: ball.x, y: ball.y, at: n, text: popupText, timingLabel: popupTimingLabel });
+        juice.scorePopups.push({ x: hitPos.x, y: hitPos.y, at: n, text: popupText, timingLabel: popupTimingLabel });
         this._handleMicroFeedback({ smash: true, fault: false, ball: ball });
+        var streakNow = (this._runtime.microFeedback && this._runtime.microFeedback.smashStreak) || 0;
+        if (this._fx && this._canvas && streakNow > 0 && streakNow % 10 === 0) this._fx.confetti(this._logicalW || this._canvas.width, this._logicalH || this._canvas.height);
       }
       if (curState === "FAULTED" && prevState !== "FAULTED") {
         this._haptic("fault");
         this._playSound("fault");
         juice.flashType = "fault";
         juice.flashUntil = n + requiredConfigNumber(this.config?.juice?.faultFlashMs, "juice.faultFlashMs", { min: 1, integer: true });
-        juice.flashX = ball.x; juice.flashY = ball.y;
+        var faultPos = this._runtime._ballScreen || { x: ball.x, y: ball.y };
+        juice.flashX = faultPos.x; juice.flashY = faultPos.y;
+        if (this._fx) {
+          var faultColor = (this.config.canvas && this.config.canvas.colors && this.config.canvas.colors.ballFaulted) || "#ef476f";
+          this._fx.burst(faultPos.x, faultPos.y, [faultColor, "#ffffff"], 14, { speed: 280, size: 3.5, rect: true });
+          this._fx.ring(faultPos.x, faultPos.y, faultColor, 60);
+        }
         juice.shakeUntil = n + requiredConfigNumber(this.config?.juice?.faultShakeMs, "juice.faultShakeMs", { min: 1, integer: true });
         juice.shakeIntensity = requiredConfigNumber(this.config?.juice?.faultShakeIntensity, "juice.faultShakeIntensity", { min: 0 });
         if (this._runtime.runMode === MODES.SPRINT) {
@@ -3161,14 +3226,23 @@ void function () {
     if (canvas) {
       var cw = this.appEl.clientWidth;
       var ch = this.appEl.clientHeight;
-      canvas.width = cw;
-      canvas.height = ch;
+      var self = this;
+      var sizeCanvas = function (lw, lh) {
+        // Cap at 2x: sharp on phones without tripling fill cost on 3x screens.
+        var ratio = Math.max(1, Math.min(2, Number(window.devicePixelRatio) || 1));
+        self._dpr = ratio;
+        self._logicalW = lw;
+        self._logicalH = lh;
+        canvas.width = Math.round(lw * ratio);
+        canvas.height = Math.round(lh * ratio);
+      };
+      sizeCanvas(cw, ch);
+      canvas.setAttribute("role", "img");
+      canvas.setAttribute("aria-label", String((this.config.identity && this.config.identity.appName) || "Game") + " court");
       canvas.style.width = "100%";
       canvas.style.height = "100%";
       this._canvas = canvas;
       this._ctx = canvas.getContext("2d");
-
-      var self = this;
 
       // V2: Setup touch zones + keyboard input system
       this._setupInputV2();
@@ -3180,9 +3254,8 @@ void function () {
             var entry = entries[i];
             var newW = Math.round(entry.contentRect.width);
             var newH = Math.round(entry.contentRect.height);
-            if (newW > 0 && newH > 0 && (canvas.width !== newW || canvas.height !== newH)) {
-              canvas.width = newW;
-              canvas.height = newH;
+            if (newW > 0 && newH > 0 && (self._logicalW !== newW || self._logicalH !== newH)) {
+              sizeCanvas(newW, newH);
               // Update game engine canvas dimensions
               if (self.game && self.game.run) {
                 self.game.run.canvasW = newW;
