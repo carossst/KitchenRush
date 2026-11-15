@@ -36,6 +36,7 @@ const ASSET_GROUPS = {
     "./audio.js",
     "./fx.js",
     "./characters.js",
+    "./duel.js",
     "./ui-overlays.js",
     "./ui-modals.js",
     "./ui-sharing.js",

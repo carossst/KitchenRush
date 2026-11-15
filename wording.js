@@ -101,10 +101,44 @@
     },
 
 
+    duel: {
+      canvasAria: "Duel court",
+      exit: "Exit match",
+      you: "YOU",
+      stageLabel: "Opponent {n}",
+      modeAria: "Match type",
+      singles: "Singles",
+      doublesLeft: "Doubles \u00b7 Left",
+      doublesRight: "Doubles \u00b7 Right",
+      howTouch: "Left thumb: move. Right thumb: swipe toward where you want the ball.",
+      howKeys: "Arrows / WASD: move. Space: hit \u2014 hold a direction to aim. Or click where you want the ball.",
+      rules: "First to 5. Serve and return must bounce. No volleys in the Kitchen.",
+      start: "Start match",
+      next: "Next opponent",
+      retry: "Rematch",
+      home: "Back to menu",
+      win: "You win!",
+      lose: "So close. Run it back.",
+      yourServe: "Your serve \u2014 swing to serve",
+      yourPoint: "Your point",
+      theirPoint: "Their point",
+      out: "Out!",
+      net: "Net!",
+      twoBounce: "It had to bounce!",
+      kitchen: "Kitchen fault!",
+      serveShort: "Serve too short!",
+      kitchen2: "KITCHEN",
+      hintMove: "MOVE",
+      hintHit: "SWIPE TO HIT"
+    },
+
     landing: {
       title: "Kitchen Rush",
       tagline: "Fast pickleball arcade.",
-      subtitle: "Move, time your hit, let Kitchen balls bounce. 3 lives.",
+      subtitle: "Aim your shots, own the Kitchen, climb the ladder.",
+      ctaDuel: "Play Duel",
+      duelExplain: "Singles or doubles against six opponents.",
+      arcadeLabel: "Arcade modes",
 
       // Daily challenge badge (shown when daily.enabled)
       dailyBadge: "Daily Challenge",
