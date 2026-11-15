@@ -236,6 +236,12 @@
           if (oldData.codes && Array.isArray(oldData.codes.accepted) && oldData.codes.accepted.length > 0) {
             this.data.codes.accepted = oldData.codes.accepted.slice();
           }
+          // Never drop a paid unlock on a schema bump.
+          if (oldData.isPremium === true) this.data.isPremium = true;
+          if (oldData.codes && typeof oldData.codes.code === "string" && oldData.codes.code) {
+            this.data.codes.code = oldData.codes.code;
+            this.data.codes.redeemedOnce = oldData.codes.redeemedOnce === true;
+          }
           if (oldData.personalBest && Number.isFinite(oldData.personalBest.bestSmashes) && oldData.personalBest.bestSmashes > 0) {
             this.data.personalBest = deepCopy(oldData.personalBest);
           }
@@ -254,9 +260,9 @@
       }
 
       // If success page already generated a code, keep it across wipes.
-      if (this._syncVanityCodeToCodes()) {
-        this._save();
-      }
+      // Always persist after a migration, otherwise migrated bests/premium live only in memory.
+      this._syncVanityCodeToCodes();
+      this._save();
 
       this._addStorageListener();
       this.initialized = true;

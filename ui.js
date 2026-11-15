@@ -79,6 +79,16 @@ void function () {
   // rules: [{ test: bool, key: string, vars: object|null }, ...]
   // wording: challenges wording object
   // Returns HTML string or ""
+  // Accuracy = balls returned / balls served. Never use `smashes` here: it is the SCORE
+  // (perfect hits are worth 2+, Smash Boost multiplies), which pushed accuracy above 100%.
+  function accuracyPct(run) {
+    var spawned = Number(run && run.totalSpawned || 0);
+    if (!(spawned > 0)) return 0;
+    var hits = Number(run.totalSmashed);
+    if (!Number.isFinite(hits)) hits = spawned - Number(run.totalFaulted || 0) - Number(run.totalMissed || 0);
+    return Math.round((Math.max(0, Math.min(spawned, hits)) / spawned) * 100);
+  }
+
   function pickChallenge(rules, wording) {
     for (var i = 0; i < rules.length; i++) {
       if (rules[i].test) {
@@ -779,7 +789,8 @@ void function () {
 
     function loop(ts) {
       if (self.state !== STATES.PLAYING) return;
-      var dtMs = ts - self._lastFrameTs;
+      // Clamp the step: a long frame (GC pause, slow device, debugger) must not teleport the ball.
+      var dtMs = Math.max(0, Math.min(100, ts - self._lastFrameTs));
       self._lastFrameTs = ts;
       self._updateRenderPerf(dtMs);
       self._syncDesktopPointerInput();
@@ -2010,6 +2021,15 @@ void function () {
     var stanceWidth = S(playerStanceWidthPx);
     var hipShift = isRunning ? runCycle * stanceWidth : 0;
 
+    // Modern cartoon athlete (characters.js). Legacy silhouette below is the fallback.
+    if (window.KR_CHARACTERS) {
+      window.KR_CHARACTERS.draw(ctx, {
+        x: x, y: y, scale: scale * 0.95, now: n, state: pState, side: swingSide,
+        facing: "back", role: "player", lite: this._getRenderPerfTier() >= 2
+      });
+      return;
+    }
+
     // Lean when running
     var lean = 0;
     if (pState === "runLeft") lean = S(playerRunLeanPx);
@@ -2207,6 +2227,15 @@ void function () {
     else if (ball && Number.isFinite(ball.x) && ball.x < x) racketSide = -1;
     var torsoTwist = isSwinging ? S(isBackhand ? opponentBackhandTwistPx : opponentForehandTwistPx) * racketSide : 0;
     var stanceWidth = S(opponentStanceWidthPx);
+
+    if (window.KR_CHARACTERS) {
+      window.KR_CHARACTERS.draw(ctx, {
+        x: x, y: y + S(opponentReadyOffsetPx) - S(6), scale: scale * 0.9, now: n, state: oState, side: racketSide,
+        facing: "front", role: "opponent", lite: this._getRenderPerfTier() >= 2,
+        lookX: (ball && Number.isFinite(ball.x)) ? (ball.x - x) / Math.max(1, w * 0.3) : 0
+      });
+      return;
+    }
 
     ctx.save();
     ctx.translate(x, y + S(opponentReadyOffsetPx) - S(isSwinging ? 0 : 0.6));
@@ -2894,6 +2923,7 @@ void function () {
         totalFaulted: result.totalFaulted || 0,
         totalMissed: result.totalMissed || 0,
         totalSpawned: result.totalSpawned || 0,
+        totalSmashed: result.totalSmashed || 0,
         elapsedMs: result.elapsedMs || 0,
         bestStreak: result.bestStreak || 0
       };
@@ -2915,6 +2945,7 @@ void function () {
       totalFaulted: result.totalFaulted || 0,
       totalMissed: result.totalMissed || 0,
       totalSpawned: result.totalSpawned || 0,
+      totalSmashed: result.totalSmashed || 0,
       elapsedMs: result.elapsedMs || 0,
       bestStreak: result.bestStreak || 0,
       dailyModifier: result.dailyModifier || null,
@@ -2925,8 +2956,8 @@ void function () {
     if (mode === MODES.RUN && previousRun && previousRun.mode === MODES.RUN && previousRun.totalSpawned > 0 && this._runtime && this._runtime.microFeedback) {
       var chCfg = this.config?.challenges || {};
       var mfw = (this.wording && this.wording.microFeedback) ? this.wording.microFeedback : {};
-      var currAccuracy = (result.totalSpawned > 0) ? Math.round((result.smashes / result.totalSpawned) * 100) : 0;
-      var prevAccuracy = (previousRun.totalSpawned > 0) ? Math.round((previousRun.smashes / previousRun.totalSpawned) * 100) : 0;
+      var currAccuracy = accuracyPct(result);
+      var prevAccuracy = accuracyPct(previousRun);
       var accuracyGain = currAccuracy - prevAccuracy;
       var fewerFaults = Number(previousRun.totalFaulted || 0) - Number(result.totalFaulted || 0);
       var betterStreak = Number(result.bestStreak || 0) - Number(previousRun.bestStreak || 0);
@@ -3059,7 +3090,12 @@ void function () {
     var url = (priceKey === "early")
       ? String(cfg.stripeEarlyPaymentUrl || "").trim()
       : String(cfg.stripeStandardPaymentUrl || "").trim();
-    if (!url || url.indexOf("REPLACE") !== -1) return;
+    if (!url || url.indexOf("REPLACE") !== -1) {
+      // Payment link not configured: tell the player instead of a dead button.
+      var unavailableMsg = String(this.wording?.system?.openFailed || "").trim();
+      if (unavailableMsg) this._toastNow(this.config, unavailableMsg);
+      return;
+    }
     this._store("markCheckoutStarted",priceKey);
     var opened = null;
     try { opened = window.open(url, "_blank", "noopener"); } catch (_) { opened = null; }
@@ -3338,6 +3374,7 @@ void function () {
   }
   window.KR_UI_SCREENS.install(UI, {
     escapeHtml: escapeHtml,
+    accuracyPct: accuracyPct,
     fillTemplate: fillTemplate,
     pickChallenge: pickChallenge,
     mmss: mmss,

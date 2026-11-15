@@ -7,6 +7,8 @@
     if (!UIModule || !UIModule.prototype) throw new Error("KR_UI_SCREENS.install(): UI constructor missing");
 
     var escapeHtml = deps && deps.escapeHtml;
+    var accuracyPct = deps && deps.accuracyPct;
+    if (typeof accuracyPct !== "function") throw new Error("KR_UI_SCREENS.install(): accuracyPct missing");
     var fillTemplate = deps && deps.fillTemplate;
     var pickChallenge = deps && deps.pickChallenge;
     var mmss = deps && deps.mmss;
@@ -33,6 +35,7 @@
         totalFaulted: Number(meta.totalFaulted || 0),
         totalMissed: Number(meta.totalMissed || 0),
         totalSpawned: Number(meta.totalSpawned || 0),
+        totalSmashed: Number.isFinite(Number(meta.totalSmashed)) ? Number(meta.totalSmashed) : undefined,
         elapsedMs: Number(meta.elapsedMs || 0),
         bestStreak: Number(meta.bestStreak || 0),
         newBest: false
@@ -40,10 +43,7 @@
     }
 
     function getAccuracyPct(run) {
-      var totalSpawned = Number(run && run.totalSpawned || 0);
-      var smashes = Number(run && run.smashes || 0);
-      if (totalSpawned <= 0) return 0;
-      return Math.round((smashes / totalSpawned) * 100);
+      return accuracyPct(run);
     }
 
     function getRunImprovement(current, previous, challengeCfg) {
@@ -451,7 +451,7 @@
 
       var debriefHtml = "";
       if (last.totalSpawned > 0) {
-        var accuracy = Math.round((last.smashes / last.totalSpawned) * 100);
+        var accuracy = accuracyPct(last);
         var faults = last.totalFaulted || 0;
         var misses = last.totalMissed || 0;
         var durationSec = Math.round((last.elapsedMs || 0) / 1000);
@@ -505,7 +505,7 @@
         ? this._runtime.previousRun : null;
       if (last.totalSpawned > 0 && canPlayAgain) {
         var cF = last.totalFaulted || 0;
-        var cA = Math.round((last.smashes / last.totalSpawned) * 100);
+        var cA = accuracyPct(last);
         var cS = last.bestStreak || 0;
         var improve = (!isSprint) ? getRunImprovement(last, previousRun, chCfg) : null;
         var sT = requiredConfigNumber(chCfg.streakThreshold, "KR_CONFIG.challenges.streakThreshold", { min: 1, integer: true });
