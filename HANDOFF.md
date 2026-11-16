@@ -1,5 +1,42 @@
 # Kitchen Rush — handoff notes
 
+## START HERE (state at version 16, 2026-11-16)
+
+**Where things are**
+- Everything is merged into `main` (PRs #2 to #8). Live site (GitHub Pages, deploys from `main`, takes 1-2 minutes):
+  https://carossst.github.io/KitchenRush/ (`?lang=fr` / `?lang=en`; poster: `poster.html?lang=fr|en`). Footer shows the version.
+- Start new work on a **new branch from `main`**, push it, open a **draft PR**. Do not merge or mark ready unless the owner says so.
+- Repo: `carossst/KitchenRush`. PR #1 (`improve/pickleball-rally`, another agent's rally game) is open on purpose and must NOT be merged:
+  it conflicts with `main` and replaces the UI. Treat it as a reference (see "What was taken from the rally branch").
+- Other owner repos seen read-only: `carossst/pickleballgame` = the Pickleball Rules Quiz (domain www.pickleballrulesquiz.com, has its own
+  `poster.html`; the owner once reported a font-colour bug there: question text white on a light box, not investigated),
+  `carossst/CoffeeGameGithub` = a coffee quiz. The owner's Arkanoid-style prototype with US/French players is NOT in any repo; it was hosted by the
+  other agent (ChatGPT "Sites"), address given by the owner but never opened (the owner only wanted the chat read). Don't use real player names.
+
+**What the game is now**: the original arcade (Classic / Daily / Power Run, in `ui.js` + `game.js`) plus **Duel** (`duel.js`), the main mode:
+aimed rallies against AI, singles or doubles, slow motion at contact, 7-opponent ladder with a final boss, worlds, 6 courts, powers and capsules,
+coins and 7 fictional players, daily duel, tutorial, FR/EN. Details in the sections below, newest last.
+
+**How to run and test** (no build; needs `python3`, `node`, and `playwright` for the browser tests)
+```bash
+python3 -m http.server 8123          # then open http://localhost:8123/
+node tests/wording.test.mjs          # texts: keys, placeholders (fast, no browser)
+node tests/duel-rules.mjs            # rules and features, drives the game directly (about 10 s)
+node tests/duel-smoke.mjs            # bot-played matches, catches stalls (about 5 min)
+```
+Run all three before every Duel change. Poster QR: `python3 tools/make-qr.py` (needs `pip install segno`).
+
+**Working agreements with the owner** (French speaker; replies in French; keep answers short, they are token-limited)
+- Ask before merging; "fusionne" means: mark the draft PR ready and merge it. Create PRs as drafts.
+- Soft currency only: no real money, no random paid packs (legal/ethical reasons, see the audit). Real athlete names need permission (legal).
+- Never publish a design claim you did not test; say what is unverified (nothing was playtested by humans or on a real phone).
+- This session widened the sandbox network allowlist once for a site and removed it again; nothing is left open.
+
+**Priorities next** (from the owner to-do list and the audit): 1) human playtest on real phones and read the exported playtest data
+(Progress tab "Copy my playtest data"); 2) sound design and haptics; 3) daily quests and coin sinks (cosmetics, upgrades), raise prices;
+4) colour-blind-safe power cues; 5) translate the remaining screens (paywall, share card, legal pages); 6) decide the payment architecture
+or remove it; 7) final domain, then regenerate the QR codes. Sections below are chronological: later sections supersede earlier details.
+
 Written for whoever (human or AI) picks this up next. Read `README.md` first for product
 intent; this file covers the state of the code, what was changed recently, what is known
 to be broken, and how to verify work.
@@ -15,21 +52,23 @@ Run locally:
 python3 -m http.server 8123
 ```
 
-Then open `http://localhost:8123/`. There is no bundler, no package.json, no test suite, no CI.
+Then open `http://localhost:8123/`. There is no bundler, no package.json and no CI; the browser tests live in `tests/` (see START HERE).
 
 ## File map
 
 | File | Role |
 | --- | --- |
 | `config.js` | Single source of truth for tuning, colours, pricing, version. `config-boot.js` validates it and throws on missing keys. |
-| `wording.js` / `wording-dom.js` | Every user-facing string. Never hardcode copy in UI code. |
+| `wording.js` / `wording-fr.js` / `wording-dom.js` | Every user-facing string (English base; `wording-fr.js` overrides it in French; `wording.duelFr` for Duel). Never hardcode copy in UI code. |
 | `game.js` | Pure game engine (`KR_Game.GameEngine`): ball state machine, scoring, power-ups, daily modifiers. No DOM. |
 | `ui.js` | Main UI class: state machine, canvas renderer (`_renderCanvasV2`), input, HUD, events, run recording. |
 | `ui-screens.js` | Landing, end and paywall screens (HTML strings). |
 | `ui-overlays.js`, `ui-modals.js`, `ui-sharing.js` | Start overlay/toasts, modals, share card. |
 | `fx.js` | **New.** Cosmetic effects: backdrop, particles, rings, ball trail, camera punch, combo meter, confetti. |
 | `characters.js` | **New.** Cartoon player (back view) and opponent (front view). Accepts `palette` and `swingT` overrides. |
-| `duel.js` | **New.** Duel mode: its own engine, 3D-projected renderer, input and DOM. See "Duel mode" below. |
+| `duel.js` | **New.** Duel mode: its own engine, 3D-projected renderer, input and DOM (about 2,000 lines, the main mode). See "Duel mode" below and the later version sections. |
+| `poster.html`, `icons/qr-*.svg`, `icons/poster-duel-*.jpg`, `tools/make-qr.py` | Printable FR/EN poster with QR codes. |
+| `tests/` | `wording.test.mjs`, `duel-rules.mjs`, `duel-smoke.mjs` (see START HERE). |
 | `storage*.js` | `StorageManager` over `localStorage`: runs balance, history, personal best, premium, codes. |
 | `success.html` / `success.js` | Post-payment page that displays the premium code. |
 | `sw.js` / `pwa.js` | Service worker (cache-first). Cache name derives from `KR_CONFIG.version`. |
@@ -41,7 +80,7 @@ Script order in `index.html` matters (all `defer`); a new script must also be ad
 ## Conventions that will bite you
 
 - **Bump `version` in `config.js` on every release.** The service worker is cache-first and
-  only refreshes when the version (passed as `?v=`) changes. Currently `"6"`.
+  only refreshes when the version (passed as `?v=`) changes. Currently `"16"`.
 - **Coordinates.** The engine works in *logical canvas pixels* (`run.canvasW/H`), in a flat
   "world" space. The renderer projects world → screen with `projectX` / `projectCourtY`
   inside `_renderCanvasV2`. Anything drawn at the ball must use the projected position
