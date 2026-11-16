@@ -1980,16 +1980,16 @@ a:focus-visible {
 }
 
 .kr-duel-power--ready {
-  background: rgb(var(--accent-warm));
-  border-color: rgb(var(--accent-warm));
+  background: var(--pw, rgb(var(--accent-warm)));
+  border-color: var(--pw, rgb(var(--accent-warm)));
   color: rgb(var(--on-primary));
   animation: krPulseHint var(--kr-anim-tease) ease-in-out infinite;
   cursor: pointer;
 }
 
 .kr-duel-power--on {
-  background: rgb(var(--primary));
-  border-color: rgb(var(--primary));
+  background: var(--pw, rgb(var(--primary)));
+  border-color: var(--pw, rgb(var(--primary)));
   color: rgb(var(--on-primary));
 }
 

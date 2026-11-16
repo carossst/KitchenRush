@@ -293,3 +293,15 @@ All four remaining port items are done:
 
 Remaining ideas: translate the sections listed above; make `DAILY_MODIFIERS` labels translatable; sound
 design for Duel; a server for rankings; balance after real playtests; real-device test; the payment flow.
+
+
+## Power visuals (version 11)
+
+Each power has its own look while active (`_drawPowerFx`, `_drawPowerTint`, plus hooks in `_drawBall`,
+`_drawAim`, `_powerHud`, colours in `POWER_RGB`): a coloured aura on the court with a shrinking time arc,
+a coloured vignette, a flash on activation and a ring when it ends, and the ball gets a glow and a trail in the
+power's colour. Per power: reach = dashed ring showing the real catch radius; touch = time ripples; power = rising
+embers; precision = crosshair on the aim marker; sprint = ground streaks behind the player; pass = the Kitchen
+lights up (volleys are legal there). The effects blink in the last 20% of the duration, and respect reduced
+motion (`fx.reduced`: no pulse, no flash, no embers). Test: "every power renders without errors" in
+`tests/duel-rules.mjs`.

@@ -64,6 +64,12 @@ const results = await page.evaluate(() => {
     return eq(xa, xb) === true && JSON.stringify(xa) !== JSON.stringify(xc) && xa.every((v) => v >= 0 && v < 1) ? true : "seed behaviour wrong";
   });
   t("daily info is well formed and stable within a day", () => { const a = T.dailyInfo(), b = T.dailyInfo(); return /^\d{4}-\d{2}-\d{2}$/.test(a.key) && a.idx >= 0 && a.idx < 6 && a.seed === b.seed ? true : "bad daily info"; });
+  t("every power renders without errors", () => {
+    fresh(); d.paused = true;
+    for (const key of T.POWERS) { d.power = { key, until: d.now + 5 }; d.flashUntil = d.now + 0.2; d._flashKey = key; d._drawPowerFx(d.ctx); d._drawPowerTint(d.ctx); d._powerHud(); }
+    d.power = null; d._powerHud(); d._drawPowerFx(d.ctx); d._drawPowerTint(d.ctx);
+    return true;
+  });
   t("corrupted saved data is sanitised", () => {
     d.destroy();
     localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999 }));

@@ -65,6 +65,7 @@
   // One signature power per opponent, earned by beating them (same index as LADDER). Charged by winning points.
   var POWERS = ["reach", "touch", "power", "precision", "sprint", "pass"];
   var POWER_SECONDS = 10, CHARGE_MAX = 3;
+  var POWER_RGB = { reach: "63,208,255", touch: "180,140,255", power: "255,122,46", precision: "255,214,10", sprint: "60,230,140", pass: "255,93,162" };
 
   // Stored data is untrusted (hand-edited, truncated, from an older version): clamp everything.
   function loadSave() {
@@ -280,6 +281,8 @@
     if (!key || this.daily || this.phase === "menu" || (this.charge || 0) < CHARGE_MAX || this._pw("any")) return;
     this.power = { key: key, until: this.now + POWER_SECONDS };
     this.charge = 0;
+    this.flashUntil = this.now + 0.3; this._flashKey = key;
+    if (this.fx) this.fx.punch(0.03, this.now * 1000);
     this._sound("milestone");
     this._banner(this._powerName(key) + "!", 900, "good");
     var p = this._project(this.human.x, this.human.y, 2);
@@ -289,6 +292,9 @@
   // Small HUD button: charge, ready (tap/E to fire) or active countdown. Re-rendered only when the text changes.
   Duel.prototype._powerHud = function () {
     var el = this.powerEl; if (!el) return;
+    var act = this._pw("any");
+    if (this._wasPw && !act && this.fx && this.human) { var q = this._project(this.human.x, this.human.y, 0); this.fx.ring(q.x, q.y, "rgb(" + POWER_RGB[this._wasPw] + ")", 56, 520); }
+    this._wasPw = act ? this.power.key : "";
     var key = this._equippedKey();
     if (!key || this.daily || this.phase === "menu") { if (this._phs !== "hide") { el.hidden = true; this._phs = "hide"; } return; }
     var t = this.t, name = this._powerName(key), state, txt;
@@ -297,7 +303,7 @@
     else { state = "charge"; txt = (t.powerCharge || "{name} {n}/3").replace("{name}", name).replace("{n}", this.charge || 0); }
     var sig = state + "|" + txt;
     if (sig === this._phs) return;
-    this._phs = sig; el.hidden = false; el.textContent = txt; el.disabled = state !== "ready";
+    this._phs = sig; el.style.setProperty("--pw", "rgb(" + POWER_RGB[key] + ")"); el.hidden = false; el.textContent = txt; el.disabled = state !== "ready";
     el.className = "kr-duel-power kr-duel-power--" + state;
   };
 
@@ -863,7 +869,14 @@
     var gp = this._project(b.x, b.y, 0), p = this._project(b.x, b.y, b.z + BALL_R), r = Math.max(4, 0.46 * p.s);
     g.fillStyle = "rgba(0,0,30," + clamp(0.42 - b.z * 0.02, 0.12, 0.42).toFixed(2) + ")";
     g.beginPath(); g.ellipse(gp.x, gp.y, r * 1.15, r * 0.48, 0, 0, 7); g.fill();
-    if (this.fx && b.live && !b.dead) { this.fx.trailPush(b.id, p.x, p.y, r, "#f4ff8a"); this.fx.drawTrail(g, 0); }
+    var boosted = this._pw("any") && b.lastHitTeam === 0 && b.live && !b.dead, prgb = boosted ? POWER_RGB[this.power.key] : "";
+    if (this.fx && b.live && !b.dead) { this.fx.trailPush(b.id, p.x, p.y, r, boosted ? "rgb(" + prgb + ")" : "#f4ff8a"); this.fx.drawTrail(g, 0); }
+    if (boosted) {
+      g.save(); g.globalCompositeOperation = "lighter";
+      var gl = g.createRadialGradient(p.x, p.y, r * 0.4, p.x, p.y, r * 2.8);
+      gl.addColorStop(0, "rgba(" + prgb + ",0.6)"); gl.addColorStop(1, "rgba(" + prgb + ",0)");
+      g.fillStyle = gl; g.beginPath(); g.arc(p.x, p.y, r * 2.8, 0, 7); g.fill(); g.restore();
+    }
     var gr = g.createRadialGradient(p.x - r * 0.35, p.y - r * 0.4, r * 0.1, p.x, p.y, r);
     gr.addColorStop(0, "#fdffb8"); gr.addColorStop(0.6, "#e6ff2e"); gr.addColorStop(1, "#a6c400");
     g.fillStyle = gr; g.beginPath(); g.arc(p.x, p.y, r, 0, 7); g.fill();
@@ -883,7 +896,82 @@
     g.strokeStyle = "rgba(255,255,255,0.95)"; g.lineWidth = 2.5; g.setLineDash([6, 5]);
     g.beginPath(); g.arc(0, 0, r * pulse, 0, 7); g.stroke(); g.setLineDash([]);
     g.fillStyle = "rgba(255,214,10,0.9)"; g.beginPath(); g.arc(0, 0, r * 0.28, 0, 7); g.fill();
+    if (this._pw("precision")) {
+      g.strokeStyle = "rgba(255,214,10,0.95)"; g.lineWidth = 2; g.setLineDash([]);
+      g.beginPath(); g.moveTo(-r * 1.6, 0); g.lineTo(r * 1.6, 0); g.moveTo(0, -r * 1.6); g.lineTo(0, r * 1.6); g.stroke();
+    }
     g.restore();
+  };
+
+  // ───────────────────────── Power visuals ─────────────────────────
+  // Polygon on the court plane (a circle in world feet), so rings follow the perspective.
+  Duel.prototype._ring = function (g, x, y, r, a0, a1, close) {
+    g.beginPath();
+    for (var i = 0; i <= 48; i++) {
+      var a = a0 + (a1 - a0) * i / 48, p = this._project(x + Math.cos(a) * r, y + Math.sin(a) * r, 0);
+      if (i) g.lineTo(p.x, p.y); else g.moveTo(p.x, p.y);
+    }
+    if (close) g.closePath();
+  };
+
+  // Under the actors: aura with a shrinking time arc, plus one signature effect per power.
+  Duel.prototype._drawPowerFx = function (g) {
+    var key = this._pw("any") ? this.power.key : "";
+    if (key !== "sprint") this._ghosts = null;
+    if (!key) return;
+    var h = this.human, now = this.now, rgb = POWER_RGB[key], col = "rgb(" + rgb + ")";
+    var left = clamp((this.power.until - now) / POWER_SECONDS, 0, 1);
+    var calm = !!(this.fx && this.fx.reduced), pulse = calm ? 0 : Math.sin(now * 7);
+    var blink = (left < 0.2 && !calm) ? (Math.sin(now * 24) > 0 ? 1 : 0.35) : 1, i;
+    g.save(); g.lineCap = "round"; g.lineJoin = "round";
+    this._ring(g, h.x, h.y, 2.4 + pulse * 0.12, 0, Math.PI * 2, true);
+    g.fillStyle = "rgba(" + rgb + "," + (0.22 * blink).toFixed(2) + ")"; g.fill();
+    g.strokeStyle = col; g.lineWidth = 3; g.globalAlpha = 0.9 * blink; g.stroke();
+    this._ring(g, h.x, h.y, 3.2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left, false);
+    g.lineWidth = 4; g.globalAlpha = 0.95; g.stroke();
+    g.globalAlpha = 1;
+    if (key === "reach") {
+      this._ring(g, h.x, h.y, 4.7 * 1.35, 0, Math.PI * 2, true);
+      g.setLineDash([8, 6]); g.lineWidth = 2.5; g.globalAlpha = 0.75 * blink; g.stroke(); g.setLineDash([]);
+    } else if (key === "touch") {
+      for (i = 0; i < 2; i++) {
+        var ph = (now * 0.8 + i * 0.5) % 1;
+        this._ring(g, h.x, h.y, 1.5 + ph * 6, 0, Math.PI * 2, true);
+        g.lineWidth = 2.5; g.globalAlpha = (1 - ph) * 0.55; g.stroke();
+      }
+    } else if (key === "pass") {
+      this._quad(g, -CW, -KIT, CW, 0, "rgba(" + rgb + "," + (0.2 + 0.09 * pulse).toFixed(2) + ")");
+      g.globalAlpha = 0.9; g.strokeStyle = col; this._line(g, -CW, -KIT, CW, -KIT, 0.35);
+    } else if (key === "sprint") {
+      var gp = this._project(h.x, h.y, 0), gh = this._ghosts || (this._ghosts = []);
+      if (!gh.length || Math.hypot(gp.x - gh[gh.length - 1].x, gp.y - gh[gh.length - 1].y) > 3) gh.push({ x: gp.x, y: gp.y });
+      if (gh.length > 12) gh.shift();
+      for (i = 0; i < gh.length; i++) {
+        var k = (i + 1) / gh.length;
+        g.globalAlpha = 0.34 * k * blink; g.fillStyle = col;
+        g.beginPath(); g.ellipse(gh[i].x, gh[i].y, 1.7 * gp.s * k, 0.55 * gp.s * k, 0, 0, 7); g.fill();
+      }
+    } else if (key === "power" && !calm && Math.random() < 0.6) {
+      var ep = this._project(h.x, h.y, 3.5);
+      this.fx.burst(ep.x + (Math.random() - 0.5) * 16, ep.y, [col, "#ffd60a"], 1, { speed: 40, up: 110, life: 520, gravity: -60, size: 2.4 });
+    }
+    g.restore();
+  };
+
+  // Over everything: a coloured vignette while a power runs, and a short flash when it fires.
+  Duel.prototype._drawPowerTint = function (g) {
+    var key = this._pw("any") ? this.power.key : "";
+    var fl = (this.flashUntil || 0) > this.now ? ((this.flashUntil - this.now) / 0.3) : 0;
+    if (!key && !fl) return;
+    var W = this.W, H = this.H, calm = !!(this.fx && this.fx.reduced);
+    if (key) {
+      var rgb = POWER_RGB[key], left = clamp((this.power.until - this.now) / POWER_SECONDS, 0, 1);
+      var a = 0.26 + (calm ? 0 : 0.06 * Math.sin(this.now * 5)), blink = (left < 0.2 && !calm) ? (Math.sin(this.now * 24) > 0 ? 1 : 0.4) : 1;
+      var v = g.createRadialGradient(W / 2, H * 0.55, Math.min(W, H) * 0.35, W / 2, H * 0.55, Math.max(W, H) * 0.75);
+      v.addColorStop(0, "rgba(" + rgb + ",0)"); v.addColorStop(1, "rgba(" + rgb + "," + (a * blink).toFixed(3) + ")");
+      g.fillStyle = v; g.fillRect(0, 0, W, H);
+    }
+    if (fl && !calm) { g.fillStyle = "rgba(" + POWER_RGB[this._flashKey || "power"] + "," + (0.38 * fl).toFixed(3) + ")"; g.fillRect(0, 0, W, H); }
   };
 
   // ───────────────────────── Focus time (slow motion at contact) ─────────────────────────
@@ -972,6 +1060,7 @@
     if (z !== 1) { g.translate(W / 2, H * 0.55); g.scale(z, z); g.translate(-W / 2, -H * 0.55); }
 
     this._drawAim(g);
+    this._drawPowerFx(g);
     var far = this.actors.filter(function (a) { return a.team === 1; }).sort(function (a, b) { return b.y - a.y; });
     var near = this.actors.filter(function (a) { return a.team === 0; }).sort(function (a, b) { return b.y - a.y; });
     var b = this.ball, ballFar = b && b.y > 0;
@@ -983,6 +1072,7 @@
     if (b && !ballFar && !drawn) this._drawBall(g);
     if (this.fx) this.fx.draw(g, W, H, this.now * 1000, { combo: 0 });
     g.restore();
+    this._drawPowerTint(g);
     this._drawFocus(g);
     this._drawTouchHints(g);
   };
