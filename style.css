@@ -1952,6 +1952,63 @@ a:focus-visible {
   margin-top: var(--gap-2);
 }
 
+.kr-lang-btn {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.kr-duel-power {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--gap-3) + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 5;
+  min-height: 44px;
+  padding: var(--space-6) var(--gap-3);
+  border-radius: var(--r-pill);
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--bg) / var(--kr-a-85));
+  color: rgb(var(--text));
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.kr-duel-power[hidden] {
+  display: none;
+}
+
+.kr-duel-power--ready {
+  background: rgb(var(--accent-warm));
+  border-color: rgb(var(--accent-warm));
+  color: rgb(var(--on-primary));
+  animation: krPulseHint var(--kr-anim-tease) ease-in-out infinite;
+  cursor: pointer;
+}
+
+.kr-duel-power--on {
+  background: rgb(var(--primary));
+  border-color: rgb(var(--primary));
+  color: rgb(var(--on-primary));
+}
+
+button.kr-duel-chip {
+  font: inherit;
+  font-size: var(--fs-xs);
+  background: transparent;
+  cursor: pointer;
+}
+
+.kr-duel-chip--eq {
+  background: rgb(var(--primary) / var(--kr-a-16));
+}
+
+.kr-duel-trait,
+.kr-duel-powerline {
+  margin: 0;
+}
+
 .kr-duel-final {
   margin-left: var(--gap-1);
   font-variant-numeric: tabular-nums;

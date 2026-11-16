@@ -146,7 +146,16 @@
       share: "Share",
       copied: "Copied!",
       copyFailed: "Copy failed",
-      shareText: "Kitchen Rush Daily Duel {date}: {you}\u2013{them} vs {name}"
+      shareText: "Kitchen Rush Daily Duel {date}: {you}\u2013{them} vs {name}",
+      powerNames: ["Reach", "Touch", "Power", "Precision", "Sprint", "Kitchen Pass"],
+      powerDescs: ["Bigger reach for 10 s", "Longer slow motion for 10 s", "Harder shots, easier smashes for 10 s", "Shots land closer to your target for 10 s", "Move faster for 10 s", "Volleys in the Kitchen are legal for 10 s"],
+      powerCharge: "{name} {n}/3",
+      powerReady: "{name} READY \u00b7 tap or E",
+      powerActive: "{name} {s}s",
+      powerEquip: "Power: {name} \u2014 {desc}",
+      powerNone: "Beat an opponent to earn a power. Win points to charge it.",
+      traitLabel: "Style: {x}",
+      traits: { centre: "mostly down the middle", sides: "goes wide", tempo: "mixes soft and hard", left: "favours your left", right: "favours your right" }
     },
 
     // French overrides for `duel` (keys missing here fall back to English).
@@ -196,6 +205,15 @@
       copied: "Copi\u00e9 !",
       copyFailed: "Copie impossible",
       shareText: "Kitchen Rush, Duel du jour {date} : {you}\u2013{them} contre {name}",
+      powerNames: ["Allonge", "Toucher", "Puissance", "Pr\u00e9cision", "Sprint", "Passe-cuisine"],
+      powerDescs: ["Port\u00e9e accrue pendant 10 s", "Ralenti plus long pendant 10 s", "Frappes plus fortes, smashs plus faciles pendant 10 s", "Vos frappes tombent plus pr\u00e8s de la cible pendant 10 s", "Courez plus vite pendant 10 s", "Les vol\u00e9es en cuisine sont permises pendant 10 s"],
+      powerCharge: "{name} {n}/3",
+      powerReady: "{name} PR\u00caT \u00b7 touchez ou E",
+      powerActive: "{name} {s} s",
+      powerEquip: "Pouvoir : {name} \u2014 {desc}",
+      powerNone: "Battez un adversaire pour gagner un pouvoir. Marquez pour le charger.",
+      traitLabel: "Style : {x}",
+      traits: { centre: "surtout au milieu", sides: "joue large", tempo: "alterne doux et fort", left: "pr\u00e9f\u00e8re votre gauche", right: "pr\u00e9f\u00e8re votre droite" },
       tags: ["L\u00e0 pour le plaisir", "Mains douces, balles courtes", "Adore la balle haute", "Frappe tout tr\u00e8s fort", "Trouve tous les coins", "Ma\u00eetre de la ligne"]
     },
 

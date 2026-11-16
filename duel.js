@@ -14,17 +14,17 @@
   var STORE_KEY = "kr:duel";
 
   var LADDER = [
-    { name: "Rookie Rae", tag: "Just here for fun", look: 3, speed: 10, react: 0.38, err: 2.6, aggr: 0.15, lobP: 0.05, dinkP: 0.15, volley: false, judge: 2, pace: 0.85,
+    { name: "Rookie Rae", tag: "Just here for fun", look: 3, trait: "centre", speed: 10, react: 0.38, err: 2.6, aggr: 0.15, lobP: 0.05, dinkP: 0.15, volley: false, judge: 2, pace: 0.85,
       pal: { jerseyA: "#ffe27a", jerseyB: "#f5a524", shorts: "#7a4b12", hair: "#c9632b", band: "#ffffff", paddle: "#3fd0ff" } },
-    { name: "Dinking Dee", tag: "Soft hands, short balls", look: 1, speed: 11.5, react: 0.3, err: 2, aggr: 0.35, lobP: 0.05, dinkP: 0.5, volley: false, judge: 1.4, pace: 0.9,
+    { name: "Dinking Dee", tag: "Soft hands, short balls", look: 1, trait: "tempo", speed: 11.5, react: 0.3, err: 2, aggr: 0.35, lobP: 0.05, dinkP: 0.5, volley: false, judge: 1.4, pace: 0.9,
       pal: { jerseyA: "#9af0c4", jerseyB: "#22b07d", shorts: "#0e4f3a", hair: "#2b1d12", band: "#ffd60a", paddle: "#ff5d8f" } },
-    { name: "Lobster Lou", tag: "Loves the high ball", look: 6, speed: 12.5, react: 0.26, err: 1.7, aggr: 0.5, lobP: 0.35, dinkP: 0.2, volley: false, judge: 1, pace: 0.95,
+    { name: "Lobster Lou", tag: "Loves the high ball", look: 6, trait: "sides", speed: 12.5, react: 0.26, err: 1.7, aggr: 0.5, lobP: 0.35, dinkP: 0.2, volley: false, judge: 1, pace: 0.95,
       pal: { jerseyA: "#ff9d8a", jerseyB: "#e2452f", shorts: "#6b1408", hair: "#f2e2c4", band: "#ffffff", paddle: "#ffd60a" } },
-    { name: "Banger Bo", tag: "Hits everything hard", look: 5, speed: 13.5, react: 0.22, err: 1.5, aggr: 0.7, lobP: 0.05, dinkP: 0.1, volley: true, judge: 0.7, pace: 1.12,
+    { name: "Banger Bo", tag: "Hits everything hard", look: 5, trait: "right", speed: 13.5, react: 0.22, err: 1.5, aggr: 0.7, lobP: 0.05, dinkP: 0.1, volley: true, judge: 0.7, pace: 1.12,
       pal: { jerseyA: "#d5b4ff", jerseyB: "#7b4dff", shorts: "#2b1a5c", hair: "#20182e", band: "#ff5d8f", paddle: "#9bffb0" } },
-    { name: "Spin Sam", tag: "Finds every corner", look: 4, speed: 14.5, react: 0.18, err: 1.2, aggr: 0.82, lobP: 0.15, dinkP: 0.35, volley: true, judge: 0.4, pace: 1.05,
+    { name: "Spin Sam", tag: "Finds every corner", look: 4, trait: "left", speed: 14.5, react: 0.18, err: 1.2, aggr: 0.82, lobP: 0.15, dinkP: 0.35, volley: true, judge: 0.4, pace: 1.05,
       pal: { jerseyA: "#8ad8ff", jerseyB: "#0f6fd6", shorts: "#06254d", hair: "#101018", band: "#ffffff", paddle: "#ff8a3d" } },
-    { name: "Kitchen Ace", tag: "Owns the line", look: 7, speed: 15.5, react: 0.14, err: 0.9, aggr: 0.95, lobP: 0.2, dinkP: 0.4, volley: true, judge: 0.2, pace: 1.12,
+    { name: "Kitchen Ace", tag: "Owns the line", look: 7, trait: "tempo", speed: 15.5, react: 0.14, err: 0.9, aggr: 0.95, lobP: 0.2, dinkP: 0.4, volley: true, judge: 0.2, pace: 1.12,
       pal: { jerseyA: "#3a3a4a", jerseyB: "#11111a", shorts: "#000000", hair: "#101018", band: "#ffd60a", paddle: "#ffd60a", trim: "#ffd60a" } }
   ];
   var ALLY = { name: "Partner", speed: 12.5, react: 0.25, err: 1.6, aggr: 0.5, lobP: 0.08, dinkP: 0.25, volley: true, judge: 0.8, pace: 0.95,
@@ -62,6 +62,9 @@
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
 
   var HISTORY_MAX = 20;
+  // One signature power per opponent, earned by beating them (same index as LADDER). Charged by winning points.
+  var POWERS = ["reach", "touch", "power", "precision", "sprint", "pass"];
+  var POWER_SECONDS = 10, CHARGE_MAX = 3;
 
   // Stored data is untrusted (hand-edited, truncated, from an older version): clamp everything.
   function loadSave() {
@@ -78,6 +81,7 @@
     var beaten = {};
     if (d.beaten && typeof d.beaten === "object") Object.keys(d.beaten).forEach(function (k) { var i = Number(k); if (i >= 0 && i < 999 && d.beaten[k] === true) beaten[Math.floor(i)] = true; });
     d.beaten = beaten;
+    d.equipped = POWERS.indexOf(d.equipped) >= 0 ? d.equipped : "";
     d.bestMargin = clamp(Math.floor(Number(d.bestMargin) || 0), 0, 99);
     d.lang = (d.lang === "fr" || d.lang === "en") ? d.lang : "";
     var dd = d.daily;
@@ -90,7 +94,7 @@
   function Duel(opts) {
     this.opts = opts || {};
     this.save = loadSave();
-    this.lang = this.save.lang || (/^fr/i.test(navigator.language || "") ? "fr" : "en");
+    this.lang = this.save.lang || window.KR_LANG || (/^fr/i.test(navigator.language || "") ? "fr" : "en");
     this.t = this._dict();
     this.stage = clamp(Math.floor(Number(this.save.stage) || 0), 0, 999);
     this.mode = this.save.mode === "doubles" ? "doubles" : "singles";
@@ -126,6 +130,7 @@
       '<div class="kr-duel-hud"><button class="kr-btn-icon kr-duel-exit" aria-label="' + esc(this.t.exit || "Exit") + '">✕</button>' +
       '<div class="kr-duel-score" aria-live="polite"></div><span class="kr-duel-spacer"></span></div>' +
       '<div class="kr-duel-banner" aria-live="polite"></div>' +
+      '<button class="kr-duel-power" hidden></button>' +
       '<div class="kr-duel-panel"></div>';
     document.body.appendChild(root);
     this.root = root;
@@ -134,6 +139,7 @@
     this.scoreEl = root.querySelector(".kr-duel-score");
     this.bannerEl = root.querySelector(".kr-duel-banner");
     this.panelEl = root.querySelector(".kr-duel-panel");
+    this.powerEl = root.querySelector(".kr-duel-power");
 
     var self = this;
     this._onResize = function () { self._resize(); };
@@ -145,6 +151,7 @@
     document.addEventListener("keyup", this._onKeyUp);
     document.addEventListener("visibilitychange", this._onVis);
     root.querySelector(".kr-duel-exit").addEventListener("click", function () { self.destroy(); });
+    this.powerEl.addEventListener("click", function () { self._activatePower(); });
     this.panelEl.addEventListener("click", function (e) {
       var b = e.target.closest("[data-duel]");
       if (b) self._panelAction(b.getAttribute("data-duel"));
@@ -196,6 +203,7 @@
       '<p class="kr-duel-kicker">' + esc((t.stageLabel || "Opponent {n}").replace("{n}", this.stage + 1)) + '</p>' +
       '<h2 class="kr-duel-name">' + esc(opp.name) + '</h2>' +
       '<p class="kr-muted">' + esc((t.tags && t.tags[Math.min(this.stage, LADDER.length - 1)]) || opp.tag || "") + '</p>' +
+      (opp.trait && t.traits ? '<p class="kr-muted kr-duel-trait">' + esc((t.traitLabel || "Style: {x}").replace("{x}", t.traits[opp.trait] || "")) + '</p>' : "") +
       this._statsHtml(result) +
       '<div class="kr-duel-opts" role="group" aria-label="' + esc(t.modeAria || "Match type") + '">' +
         opt("singles", t.singles || "Singles", m === "singles") +
@@ -219,7 +227,7 @@
   // Progress block of the match menu: last results, record, goal for the next match, opponents beaten.
   Duel.prototype._statsHtml = function (result) {
     var t = this.t, sv = this.save, h = sv.history || [], opp = this._opp(), sc = this._lastScore;
-    var wl = String(t.winLetter || "W"), ll = String(t.loseLetter || "L");
+    var self = this, wl = String(t.winLetter || "W"), ll = String(t.loseLetter || "L");
     var goal;
     if (result && this._lastDailyIdx != null && sc) goal = (t.dailyGoal || "Daily Duel: {you}\u2013{them} vs {name}. Back tomorrow!").replace("{you}", sc[0]).replace("{them}", sc[1]).replace("{name}", LADDER[this._lastDailyIdx].name);
     else if (result === "lose" && sc) goal = (t.goalLose || "Lost {you}\u2013{them}. Beat {name} to move up.").replace("{you}", sc[0]).replace("{them}", sc[1]).replace("{name}", opp.name);
@@ -236,9 +244,61 @@
     out += this._dailyHtml();
     out += '<div class="kr-duel-chips" aria-label="' + esc(t.collection || "Opponents beaten") + '">' + LADDER.map(function (o, i) {
       var on = sv.beaten && sv.beaten[i];
-      return '<span class="kr-duel-chip' + (on ? " kr-duel-chip--on" : "") + '">' + (on ? "\u2713 " + esc(o.name) : "?") + '</span>';
-    }).join("") + '</div>';
+      if (!on) return '<span class="kr-duel-chip">?</span>';
+      var eq = POWERS[i] === self._equippedKey();
+      return '<button class="kr-duel-chip kr-duel-chip--on' + (eq ? " kr-duel-chip--eq" : "") + '" data-duel="eq-' + i + '" aria-pressed="' + (eq ? "true" : "false") + '" title="' + esc((t.powerDescs || [])[i] || "") + '">' + (eq ? "\u2605 " : "\u2713 ") + esc(o.name) + '</button>';
+    }).join("") + '</div>' + this._powerLine();
     return '<div class="kr-duel-stats">' + out + '</div>';
+  };
+
+  // ───────────────────────── Powers ─────────────────────────
+  Duel.prototype._pw = function (key) {
+    var p = this.power;
+    if (!p || this.now >= p.until) return false;
+    return key === "any" || p.key === key;
+  };
+
+  // Equipped power if owned, else the most recently earned one, else "".
+  Duel.prototype._equippedKey = function () {
+    var sv = this.save, owned = function (key) { return !!(sv.beaten && sv.beaten[POWERS.indexOf(key)]); };
+    if (sv.equipped && owned(sv.equipped)) return sv.equipped;
+    for (var i = POWERS.length - 1; i >= 0; i--) if (owned(POWERS[i])) return POWERS[i];
+    return "";
+  };
+
+  Duel.prototype._powerName = function (key) { var i = POWERS.indexOf(key); return (this.t.powerNames || [])[i] || key; };
+
+  Duel.prototype._powerLine = function () {
+    var t = this.t, key = this._equippedKey();
+    if (!key) return '<p class="kr-muted kr-duel-powerline">' + esc(t.powerNone || "Beat an opponent to earn a power.") + '</p>';
+    var i = POWERS.indexOf(key);
+    return '<p class="kr-muted kr-duel-powerline">' + esc((t.powerEquip || "Power: {name} \u2014 {desc}").replace("{name}", this._powerName(key)).replace("{desc}", (t.powerDescs || [])[i] || "")) + '</p>';
+  };
+
+  Duel.prototype._activatePower = function () {
+    var key = this._equippedKey();
+    if (!key || this.daily || this.phase === "menu" || (this.charge || 0) < CHARGE_MAX || this._pw("any")) return;
+    this.power = { key: key, until: this.now + POWER_SECONDS };
+    this.charge = 0;
+    this._sound("milestone");
+    this._banner(this._powerName(key) + "!", 900, "good");
+    var p = this._project(this.human.x, this.human.y, 2);
+    if (this.fx) { this.fx.burst(p.x, p.y, ["#ffd60a", "#ffffff", "#3fd0ff"], 16, { speed: 300, up: 90 }); this.fx.ring(p.x, p.y, "#ffd60a", 60); }
+  };
+
+  // Small HUD button: charge, ready (tap/E to fire) or active countdown. Re-rendered only when the text changes.
+  Duel.prototype._powerHud = function () {
+    var el = this.powerEl; if (!el) return;
+    var key = this._equippedKey();
+    if (!key || this.daily || this.phase === "menu") { if (this._phs !== "hide") { el.hidden = true; this._phs = "hide"; } return; }
+    var t = this.t, name = this._powerName(key), state, txt;
+    if (this._pw("any")) { state = "on"; txt = (t.powerActive || "{name} {s}s").replace("{name}", name).replace("{s}", Math.max(1, Math.ceil(this.power.until - this.now))); }
+    else if ((this.charge || 0) >= CHARGE_MAX) { state = "ready"; txt = (t.powerReady || "{name} READY").replace("{name}", name); }
+    else { state = "charge"; txt = (t.powerCharge || "{name} {n}/3").replace("{name}", name).replace("{n}", this.charge || 0); }
+    var sig = state + "|" + txt;
+    if (sig === this._phs) return;
+    this._phs = sig; el.hidden = false; el.textContent = txt; el.disabled = state !== "ready";
+    el.className = "kr-duel-power kr-duel-power--" + state;
   };
 
   Duel.prototype._dailyHtml = function () {
@@ -266,6 +326,11 @@
 
   Duel.prototype._panelAction = function (a) {
     if (a === "exit") { this.destroy(); return; }
+    if (a.indexOf("eq-") === 0) {
+      var qi = Number(a.slice(3));
+      if (this.save.beaten && this.save.beaten[qi] && POWERS[qi]) { this.save.equipped = POWERS[qi]; writeSave(this.save); }
+      this._showMenu(this._lastResult); return;
+    }
     if (a === "go") { this.daily = null; this._startMatch(); return; }
     if (a === "daily") { var di = dailyInfo(); this.daily = di; this.mode = "singles"; this._startMatch(); return; }
     if (a === "share") { this._share(); return; }
@@ -306,6 +371,8 @@
     this.panelEl.classList.remove("kr-duel-panel--on");
     this._lastResult = null;
     this._lastDailyIdx = null;
+    this.charge = 0;
+    this.power = null;
     RNG = this.daily ? seeded(this.daily.seed) : Math.random;
     this._setupActors();
     this.serverTeam = 0;
@@ -347,6 +414,7 @@
     var map = { ArrowLeft: "l", a: "l", ArrowRight: "r", d: "r", ArrowUp: "u", w: "u", ArrowDown: "d", s: "d" };
     if (k === "Escape" && down) { this.destroy(); return; }
     if (this.phase === "menu") return;
+    if (k === "e" && down && !e.repeat) { this._activatePower(); return; }
     if (map[k]) { this.keys[map[k]] = down; e.preventDefault(); }
     if (k === " " && down && !e.repeat) { e.preventDefault(); this._swing((this.keys.r ? 1 : 0) - (this.keys.l ? 1 : 0), (this.keys.u ? 1 : 0) - (this.keys.d ? 1 : 0)); }
     if (k === " ") e.preventDefault();
@@ -409,8 +477,10 @@
 
   Duel.prototype._launch = function (a, shot, sigma, badness) {
     var b = this.ball, dir = a.team === 0 ? 1 : -1;
-    var smash = !shot.loft && b.z > 5.4 && Math.abs(shot.ty) > 8 && !b.held;
-    var speed = smash ? 58 : shot.speed;
+    var pw = a.human && this._pw("power");
+    var smash = !shot.loft && b.z > (pw ? 4.2 : 5.4) && Math.abs(shot.ty) > 8 && !b.held;
+    var speed = (smash ? 58 : shot.speed) * (pw ? 1.15 : 1);
+    if (a.human && this._pw("precision")) sigma *= 0.45;
     var tx = shot.tx + gauss() * sigma, ty = shot.ty + gauss() * sigma * 1.3;
     var dx = tx - b.x, dy = ty - b.y;
     var D = Math.max(1, Math.hypot(dx, dy));
@@ -452,12 +522,12 @@
     // A dead ball (point already awarded, e.g. into the net) must never be hit: that restarted the rally phase and froze the match.
     if (!b || !b.live || b.dead || b.lastHitTeam === a.team) return false;
     if (a.team === 0 ? b.y > 0.6 : b.y < -0.6) return false;
-    var reach = a.human ? 4.7 : 3.4;   // generous for the human: balls bouncing wide were hard to catch
+    var reach = a.human ? 4.7 * (this._pw("reach") ? 1.35 : 1) : 3.4;   // generous for the human: balls bouncing wide were hard to catch
     var d = Math.hypot(b.x - a.x, b.y - a.y);
     if (d > reach || b.z > 8.6) return false;
     var volley = b.bounces === 0;
     if (volley && b.hits < 3) { this._point(1 - a.team, "twoBounce"); return true; }
-    if (volley && Math.abs(a.y) < KIT) { this._point(1 - a.team, "kitchen"); return true; }
+    if (volley && Math.abs(a.y) < KIT && !(a.human && this._pw("pass"))) { this._point(1 - a.team, "kitchen"); return true; }
     var badness = clamp((d - 1.4) / (reach - 1.4), 0, 1);
     this._launch(a, shot, sigma + badness * 2.6, badness);
     return true;
@@ -488,8 +558,14 @@
       var tx = xs[i], ty = dir * ds[j];
       var open = Math.min.apply(null, foes.map(function (f) { return Math.hypot(f.x - tx, (f.y - ty) * 0.8); }));
       var s = open * k.aggr + rand() * 9 * (1 - k.aggr) + (j === 0 ? k.dinkP * 6 - 3 : 0) + (j === 1 ? 1.5 * (1 - k.aggr) : 0);
+      var tr = k.trait;
+      if (tr === "centre") s += (6 - Math.abs(tx)) * 0.5;
+      else if (tr === "sides") s += Math.abs(tx) * 0.45;
+      else if (tr === "left") s += (tx < 0 ? 2.5 : 0);
+      else if (tr === "right") s += (tx > 0 ? 2.5 : 0);
       if (s > bestS) { bestS = s; best = { tx: tx, ty: ty, speed: (j === 0 ? 20 : j === 1 ? 32 : 43) * k.pace }; }
     }
+    if (k.trait === "tempo") { this._tempo = !this._tempo; best.speed *= this._tempo ? 1.25 : 0.78; }
     return best;
   };
 
@@ -529,6 +605,7 @@
     this.phase = "point";
     this.phaseAt = this.now;
     this.score[team] += 1;
+    if (team === 0 && !this.daily && !this._pw("any")) this.charge = Math.min(CHARGE_MAX, (this.charge || 0) + 1);
     this.serveTurn[team] += (this.serverTeam === team) ? 0 : 1;
     this.serverTeam = team;
     this._updateScore();
@@ -606,7 +683,8 @@
     if (this.joy) { mx = clamp((this.joy.x - this.joy.ox) / 46, -1, 1); my = clamp((this.joy.oy - this.joy.y) / 46, -1, 1); }
     var ml = Math.hypot(mx, my); if (ml > 1) { mx /= ml; my /= ml; }
     if (this.phase === "serve" && this.server === h) { mx = 0; my = 0; }
-    h.vx = mx * 18; h.vy = my * 18;
+    var spd = this._pw("sprint") ? 23 : 18;
+    h.vx = mx * spd; h.vy = my * spd;
     h.x = clamp(h.x + h.vx * dt, -CW - 2, CW + 2);
     h.y = clamp(h.y + h.vy * dt, -CL - 3, -0.9);
 
@@ -809,8 +887,8 @@
   };
 
   // ───────────────────────── Focus time (slow motion at contact) ─────────────────────────
-  Duel.prototype._slowScale = function () { return clamp(0.16 + this.stage * 0.035, 0.16, 0.4); };
-  Duel.prototype._slowBudget = function () { return clamp(1.1 - this.stage * 0.1, 0.5, 1.1); };   // real seconds per ball
+  Duel.prototype._slowScale = function () { var v = clamp(0.16 + this.stage * 0.035, 0.16, 0.4); return this._pw("touch") ? v * 0.7 : v; };
+  Duel.prototype._slowBudget = function () { return clamp(1.1 - this.stage * 0.1, 0.5, 1.1) * (this._pw("touch") ? 1.8 : 1); };   // real seconds per ball
 
   Duel.prototype._wantSlow = function (realDt) {
     var b = this.ball, h = this.human;
@@ -880,7 +958,8 @@
     dt *= this.timeScale;
     this.now += dt;
     this.realNow = (this.realNow || 0) + rdt;
-    if (!frozen) this._update(dt);
+    if (!frozen && !this.paused) this._update(dt);
+    this._powerHud();
 
     var g = this.ctx, W = this.W, H = this.H, self = this;
     if (!this._bg) this._drawBackground();
@@ -910,6 +989,7 @@
 
   window.KR_DUEL = {
     start: function (opts) { return new Duel(opts || {}); },
-    ladder: LADDER
+    ladder: LADDER,
+    _test: { seeded: seeded, dailyInfo: dailyInfo, aimToShot: aimToShot, POWERS: POWERS }
   };
 })();

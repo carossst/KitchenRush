@@ -266,3 +266,30 @@ seeded RNG (6; `duel.js` uses `Math.random`), FR for the rest of the app, determ
 
 Still to port: one power per opponent, round profiles as opponent traits, French for the rest of the app,
 deterministic unit tests of the rules.
+
+
+## Powers, opponent styles, full French, rule tests (version 10)
+
+All four remaining port items are done:
+- **One power per opponent**: beating opponent i earns `POWERS[i]` (reach, touch, power, precision, sprint, pass).
+  Win points to charge (3 points), then tap the HUD button or press E to fire it for 10 s. Choose which earned
+  power is equipped by tapping its chip in the match menu. Disabled in the Daily Duel (same conditions for all).
+  Effects live in `_launch` (power, precision), `_tryHit` (reach, pass), the move speed in `_update` (sprint),
+  `_slowScale/_slowBudget` (touch). Names and descriptions: `wording.duel.powerNames/powerDescs` (+ `duelFr`).
+- **Opponent styles**: `trait` on each `LADDER` entry (centre, sides, tempo, left, right) biases `_aiShot`;
+  shown in the menu as "Style: ...".
+- **French for the whole app**: `wording-fr.js` overrides `wording.js` when the language is French
+  (`localStorage["kr:lang"]`, else the browser language; the FR/EN button on the landing switches and reloads).
+  Covered: system, landing, in-game labels, end screen, first-run, how-to. NOT translated: paywall, share card,
+  stats sharing, house ad, waitlist, install prompt, support, micro-feedback, challenges, notFound, the daily
+  modifier names in `game.js` (`DAILY_MODIFIERS` labels are hard-coded English), `privacy.html`, `terms.html`.
+  To translate more: add the section to the `FR` object in `wording-fr.js` and run `node tests/wording.test.mjs`
+  (it rejects unknown keys and changed `{placeholders}`).
+- **Rule tests**: `tests/duel-rules.mjs` (19 checks: net, out, serve, double bounce, kitchen volley, dead ball,
+  net clearance, powers, seeded RNG, sanitised storage) and `tests/wording.test.mjs` (616 checks, no browser).
+  `Duel.paused` freezes the loop so tests can drive methods directly; `KR_DUEL._test` exposes helpers.
+- Test commands (server on 8123, `playwright` installed): `node tests/wording.test.mjs`,
+  `node tests/duel-rules.mjs`, `node tests/duel-smoke.mjs` (about 5 minutes).
+
+Remaining ideas: translate the sections listed above; make `DAILY_MODIFIERS` labels translatable; sound
+design for Duel; a server for rankings; balance after real playtests; real-device test; the payment flow.
