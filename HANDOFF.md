@@ -392,3 +392,40 @@ First version of a progression economy, deliberately **soft-currency only**: no 
   coins accumulate versus prices, and whether any skill is clearly best.
 - Not done / decisions needed: paid currency or random packs (legal review needed: loot-box rules in France and Belgium,
   minors, refunds; also needs the payment flow and a server), choosing your doubles partner, upgrading players, cosmetics shop.
+
+## Expert audit (2026-11-16, version 15) - design, math, UX, live-ops, using Hearthstone as the reference
+
+Method: code reading plus calculations (no human playtest, no real device). Hearthstone lessons used: rules simple, depth grows
+(pre-made decks, visual cues); fast pace; juicy feedback (board shakes, stingers); free-to-play with earnable currency and daily
+quests; no trading; rotation to avoid power creep; beta used to rebalance; experimental weekly mode; AND the criticism: pay-to-win
+perception and a 2022 class action about minors buying packs (reason we avoid random paid packs).
+
+Numbers (see the calculation in this section's tables):
+- Coins: a perfect clear of one world (7 wins) pays 361 / 431 / 501 coins in worlds 1 / 2 / 3; the whole roster costs 1190 =
+  about 3 perfect worlds = about 23 wins = roughly 35-45 minutes of play. Too fast for retention, and nothing to spend on afterwards.
+- AI coverage model (reach after the flight time, T = 0.9 s, rate 1.0): Rookie 8.6 ft, Dee 10.3, Lou 11.4, Bo 12.6, Sam 13.8, Ace 15.2,
+  Boss 17.0 (half-court width is 10 ft). With the rally ramp (rate 1.3) they drop to 6.5 / 7.9 / 8.8 / 9.8 / 10.8 / 12.0 / 13.5.
+  Hypothesis to verify with an instrumented bot: from opponent 3 on, placement alone cannot beat the AI; points come from AI error
+  (`err`), the ramp and short balls. If true, aiming matters less at high stages and the game drifts toward luck.
+- Ramp: rate = 1 + 0.035 x (hits - 1), capped at +30% from the 10th shot.
+
+Findings, by priority:
+P0 (before showing it to the public)
+1. No tutorial or guided first match; the aim + slow-motion idea is not self-explanatory (Hearthstone: "depth grows as you go").
+2. The match menu is overloaded (stats, daily, collection, power, courts, coins, players, mode, look, rules). Split into tabs: Play /
+   Players / Courts / Stats.
+3. Touch controls and performance are untested on real phones; chip buttons are about 28 px high (guideline 44 px); skills and prices
+   of locked players are only in `title` tooltips, invisible on touch: show a detail panel on tap.
+4. Difficulty and economy are unvalidated by humans; there is no telemetry to tune them (Hearthstone rebalanced in beta).
+P1
+5. Economy: add sinks (cosmetics, ball trails, court themes, player upgrades), raise prices 2-3x or add content, add daily quests
+   (win 2 matches, catch 3 capsules, reach a 10-shot rally) and a weekly twist mode.
+6. Sound design (hit, capsule, rally milestones, boss rage, music), haptics. Hearthstone sells the "feel" with sound and shake.
+7. Capsules give a random power: fine for fun, but telegraph it (icon is shown) and keep it out of competitive/daily modes (done).
+8. Colour-only power effects: add shapes/labels for colour-blind players; honour reduced motion (done).
+9. The Daily Duel uses the device date, so changing the clock repeats it (and its coins): fine for a free currency, not for rankings.
+P2
+10. Content cadence and rotation (new courts/players per season, skills as side-grades, no strict upgrades) to avoid power creep.
+11. Social: friend challenge by link (seeded match), async leaderboard (needs a server).
+12. Monetisation, if ever: cosmetics only, fixed prices, no random packs, no pay-to-win; server-held balance; legal review for minors.
+13. Architecture: `duel.js` is large and untyped; split rendering, rules and UI before adding more features.
