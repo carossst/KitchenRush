@@ -44,7 +44,21 @@
 
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function lerp(a, b, t) { return a + (b - a) * t; }
-  function gauss() { return (Math.random() + Math.random() + Math.random() - 1.5) / 0.75; }
+  // Gameplay randomness goes through rand() so a Daily Duel can run on a shared, date-derived seed.
+  var RNG = Math.random;
+  function rand() { return RNG(); }
+  function hash32(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function seeded(seed) {
+    var a = seed >>> 0;
+    return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+  function dailyInfo() {
+    var d = new Date(), p2 = function (n) { return n < 10 ? "0" + n : "" + n; };
+    var key = d.getUTCFullYear() + "-" + p2(d.getUTCMonth() + 1) + "-" + p2(d.getUTCDate());
+    var h = hash32("kr-duel-" + key);
+    return { key: key, seed: h, idx: h % LADDER.length };
+  }
+  function gauss() { return (rand() + rand() + rand() - 1.5) / 0.75; }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
 
   var HISTORY_MAX = 20;
@@ -66,6 +80,9 @@
     d.beaten = beaten;
     d.bestMargin = clamp(Math.floor(Number(d.bestMargin) || 0), 0, 99);
     d.lang = (d.lang === "fr" || d.lang === "en") ? d.lang : "";
+    var dd = d.daily;
+    d.daily = (dd && typeof dd === "object" && /^\d{4}-\d{2}-\d{2}$/.test(String(dd.key)))
+      ? { key: String(dd.key), you: clamp(Math.floor(Number(dd.you) || 0), 0, 99), them: clamp(Math.floor(Number(dd.them) || 0), 0, 99), idx: clamp(Math.floor(Number(dd.idx) || 0), 0, 99) } : null;
     return d;
   }
   function writeSave(d) { try { localStorage.setItem(STORE_KEY, JSON.stringify(d)); } catch (_) { } }
@@ -142,6 +159,7 @@
   };
 
   Duel.prototype.destroy = function () {
+    RNG = Math.random;
     cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this._onResize);
     document.removeEventListener("keydown", this._onKey);
@@ -154,6 +172,7 @@
   Duel.prototype._sound = function (name) { try { if (this.opts.sound) this.opts.sound(name); } catch (_) { } };
 
   Duel.prototype._opp = function () {
+    if (this.daily) return LADDER[this.daily.idx];
     var base = LADDER[Math.min(this.stage, LADDER.length - 1)];
     var extra = Math.max(0, this.stage - (LADDER.length - 1));
     if (!extra) return base;
@@ -202,7 +221,8 @@
     var t = this.t, sv = this.save, h = sv.history || [], opp = this._opp(), sc = this._lastScore;
     var wl = String(t.winLetter || "W"), ll = String(t.loseLetter || "L");
     var goal;
-    if (result === "lose" && sc) goal = (t.goalLose || "Lost {you}\u2013{them}. Beat {name} to move up.").replace("{you}", sc[0]).replace("{them}", sc[1]).replace("{name}", opp.name);
+    if (result && this._lastDailyIdx != null && sc) goal = (t.dailyGoal || "Daily Duel: {you}\u2013{them} vs {name}. Back tomorrow!").replace("{you}", sc[0]).replace("{them}", sc[1]).replace("{name}", LADDER[this._lastDailyIdx].name);
+    else if (result === "lose" && sc) goal = (t.goalLose || "Lost {you}\u2013{them}. Beat {name} to move up.").replace("{you}", sc[0]).replace("{them}", sc[1]).replace("{name}", opp.name);
     else if (result === "win") goal = (t.goalNext || "Next: beat {name}").replace("{name}", opp.name);
     else goal = (t.goalFirst || "Beat {name} to move up the ladder.").replace("{name}", opp.name);
     var out = '<p class="kr-duel-goal">' + esc(goal) + '</p>';
@@ -213,6 +233,7 @@
       }).join("") + '</div>';
       out += '<p class="kr-muted">' + esc((t.record || "Wins {w} \u00b7 Best margin +{m}").replace("{w}", Number(sv.wins) || 0).replace("{m}", sv.bestMargin || 0)) + '</p>';
     }
+    out += this._dailyHtml();
     out += '<div class="kr-duel-chips" aria-label="' + esc(t.collection || "Opponents beaten") + '">' + LADDER.map(function (o, i) {
       var on = sv.beaten && sv.beaten[i];
       return '<span class="kr-duel-chip' + (on ? " kr-duel-chip--on" : "") + '">' + (on ? "\u2713 " + esc(o.name) : "?") + '</span>';
@@ -220,9 +241,34 @@
     return '<div class="kr-duel-stats">' + out + '</div>';
   };
 
+  Duel.prototype._dailyHtml = function () {
+    var t = this.t, di = dailyInfo(), d = this.save.daily;
+    if (d && d.key === di.key) {
+      var line = (t.dailyDone || "Daily Duel today: {you}\u2013{them} vs {name}").replace("{you}", d.you).replace("{them}", d.them).replace("{name}", LADDER[d.idx % LADDER.length].name);
+      return '<p class="kr-muted kr-duel-daily-line">' + esc(line) + '</p>' +
+        '<button class="kr-btn kr-btn--secondary kr-duel-share" data-duel="share">' + esc(t.share || "Share") + '</button>';
+    }
+    return '<button class="kr-btn kr-btn--secondary kr-duel-daily" data-duel="daily">' + esc((t.dailyBtn || "Daily Duel \u00b7 vs {name}").replace("{name}", LADDER[di.idx].name)) + '</button>';
+  };
+
+  // Copy / share today's result (text only: score and opponent, no personal data).
+  Duel.prototype._share = function () {
+    var t = this.t, di = dailyInfo(), d = this.save.daily;
+    if (!d || d.key !== di.key) return;
+    var text = (t.shareText || "Kitchen Rush Daily Duel {date}: {you}\u2013{them} vs {name}").replace("{date}", d.key).replace("{you}", d.you).replace("{them}", d.them).replace("{name}", LADDER[d.idx % LADDER.length].name) + "\n" + location.origin + location.pathname;
+    var btn = this.panelEl.querySelector('[data-duel="share"]'), self = this;
+    function done(ok) { if (btn) { btn.textContent = ok ? (t.copied || "Copied!") : (t.copyFailed || "Copy failed"); setTimeout(function () { if (btn && self.root) btn.textContent = t.share || "Share"; }, 1600); } }
+    try {
+      if (navigator.share) { navigator.share({ text: text }).catch(function () { }); return; }
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+    } catch (_) { done(false); }
+  };
+
   Duel.prototype._panelAction = function (a) {
     if (a === "exit") { this.destroy(); return; }
-    if (a === "go") { this._startMatch(); return; }
+    if (a === "go") { this.daily = null; this._startMatch(); return; }
+    if (a === "daily") { var di = dailyInfo(); this.daily = di; this.mode = "singles"; this._startMatch(); return; }
+    if (a === "share") { this._share(); return; }
     if (a === "lang") { this.lang = this.lang === "fr" ? "en" : "fr"; this.save.lang = this.lang; this.t = this._dict(); this._bg = null; }
     else if (a === "look") this.look = (this.look + 1) % LOOKS.length;
     else if (a === "singles") this.mode = "singles";
@@ -259,6 +305,8 @@
   Duel.prototype._startMatch = function () {
     this.panelEl.classList.remove("kr-duel-panel--on");
     this._lastResult = null;
+    this._lastDailyIdx = null;
+    RNG = this.daily ? seeded(this.daily.seed) : Math.random;
     this._setupActors();
     this.serverTeam = 0;
     this.serveTurn = [0, 0];
@@ -369,7 +417,7 @@
     var T = D / speed;
     if (shot.loft) T = Math.max(T, 1.75);
     // Raise the arc until it clears the net. A stretched or rushed shot gets less margin, so it can clip the tape.
-    var need = NET_H + 0.9 - badness * Math.random() * 1.7;
+    var need = NET_H + 0.9 - badness * rand() * 1.7;
     // Only meaningful when the shot actually crosses the net. A ball struck just past the net toward
     // the far side never "clears" it, which used to inflate T without bound (z ~ 1000, point never ends).
     if (b.y * ty < 0 && Math.abs(dy) > 0.01) {
@@ -433,13 +481,13 @@
   Duel.prototype._aiShot = function (a) {
     var k = a.skill, dir = a.team === 0 ? 1 : -1, foes = this._teamActors(1 - a.team);
     var atNet = foes.some(function (f) { return Math.abs(f.y) < KIT + 2; });
-    if (atNet && Math.random() < k.lobP) return { tx: (Math.random() - 0.5) * 12, ty: dir * 18, speed: 30, loft: true };
+    if (atNet && rand() < k.lobP) return { tx: (rand() - 0.5) * 12, ty: dir * 18, speed: 30, loft: true };
     var best = null, bestS = -1;
     var xs = [-7.6, -4, 0, 4, 7.6], ds = [3.8, 13, 18.6];
     for (var i = 0; i < xs.length; i++) for (var j = 0; j < ds.length; j++) {
       var tx = xs[i], ty = dir * ds[j];
       var open = Math.min.apply(null, foes.map(function (f) { return Math.hypot(f.x - tx, (f.y - ty) * 0.8); }));
-      var s = open * k.aggr + Math.random() * 9 * (1 - k.aggr) + (j === 0 ? k.dinkP * 6 - 3 : 0) + (j === 1 ? 1.5 * (1 - k.aggr) : 0);
+      var s = open * k.aggr + rand() * 9 * (1 - k.aggr) + (j === 0 ? k.dinkP * 6 - 3 : 0) + (j === 1 ? 1.5 * (1 - k.aggr) : 0);
       if (s > bestS) { bestS = s; best = { tx: tx, ty: ty, speed: (j === 0 ? 20 : j === 1 ? 32 : 43) * k.pace }; }
     }
     return best;
@@ -456,10 +504,10 @@
         var mineSide = a.team === 0 ? bo.y < 0 : bo.y > 0;
         var outBy = Math.max(Math.abs(bo.x) - CW, Math.abs(bo.y) - CL);
         a.mine = mineSide && bo.x >= a.zone[0] && bo.x < a.zone[1];
-        a.leave = !mineSide || outBy > k.judge * (0.4 + Math.random() * 0.8);
+        a.leave = !mineSide || outBy > k.judge * (0.4 + rand() * 0.8);
         a.goalX = pr.after.x;
         a.goalY = clamp(pr.after.y + dir * 1.2, a.team === 0 ? -CL - 5 : 1, a.team === 0 ? -1 : CL + 5);
-        a.reactAt = this.now + k.react * (0.8 + Math.random() * 0.5);
+        a.reactAt = this.now + k.react * (0.8 + rand() * 0.5);
       }
     }
     var gx = a.homeX, gy = a.homeY;
@@ -495,11 +543,19 @@
   Duel.prototype._afterPoint = function () {
     var s = this.score, lead = Math.abs(s[0] - s[1]);
     if ((s[0] >= WIN_SCORE || s[1] >= WIN_SCORE) && lead >= 1) {
-      var won = s[0] > s[1], sv = this.save, idx = Math.min(this.stage, LADDER.length - 1);
+      var won = s[0] > s[1], sv = this.save, idx = Math.min(this.stage, LADDER.length - 1), isDaily = !!this.daily;
       this._lastScore = [s[0], s[1]];
-      sv.history = (sv.history || []).concat([{ d: Date.now(), stage: this.stage, mode: this.mode, you: s[0], them: s[1] }]).slice(-HISTORY_MAX);
-      if (won) { sv.beaten = sv.beaten || {}; sv.beaten[idx] = true; sv.bestMargin = Math.max(Number(sv.bestMargin) || 0, s[0] - s[1]); }
-      if (won) { this.stage += 1; this.save.stage = this.stage; this.save.wins = (Number(this.save.wins) || 0) + 1; if (this.fx) this.fx.confetti(this.W, this.H); this._sound("newBest"); }
+      if (isDaily) {
+        // Daily Duel never touches the ladder; only the first attempt of the day is recorded.
+        this._lastDailyIdx = this.daily.idx;
+        if (!sv.daily || sv.daily.key !== this.daily.key) sv.daily = { key: this.daily.key, you: s[0], them: s[1], idx: this.daily.idx };
+        this.daily = null; RNG = Math.random;
+      } else {
+        sv.history = (sv.history || []).concat([{ d: Date.now(), stage: this.stage, mode: this.mode, you: s[0], them: s[1] }]).slice(-HISTORY_MAX);
+        if (won) { sv.beaten = sv.beaten || {}; sv.beaten[idx] = true; sv.bestMargin = Math.max(Number(sv.bestMargin) || 0, s[0] - s[1]); }
+        if (won) { this.stage += 1; this.save.stage = this.stage; this.save.wins = (Number(this.save.wins) || 0) + 1; }
+      }
+      if (won) { if (this.fx) this.fx.confetti(this.W, this.H); this._sound("newBest"); }
       else this._sound("gameOver");
       writeSave(this.save);
       this._lastResult = won ? "win" : "lose";
@@ -560,7 +616,7 @@
       if (srv.human) {
         if (this.now < h.swingUntil && !h.swung) { var sh = aimToShot(h.aimX, Math.max(-0.1, h.aimY), dir); sh.ty = dir * Math.max(10.5, Math.abs(sh.ty)); this._launch(h, sh, 0.7, 0.1); }
       } else if (this.now - this.phaseAt > 1.1) {
-        this._launch(srv, { tx: (Math.random() - 0.5) * 13, ty: dir * (12 + Math.random() * 6), speed: 34 * srv.skill.pace }, srv.skill.err * 0.6, 0.1);
+        this._launch(srv, { tx: (rand() - 0.5) * 13, ty: dir * (12 + rand() * 6), speed: 34 * srv.skill.pace }, srv.skill.err * 0.6, 0.1);
       }
       this.actors.forEach(function (a) { if (!a.human && a !== srv) self._ai(a, dt); });
       return;

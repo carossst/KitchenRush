@@ -139,7 +139,14 @@
       collection: "Opponents beaten",
       goalFirst: "Beat {name} to move up the ladder.",
       goalNext: "Next: beat {name}",
-      goalLose: "Lost {you}\u2013{them}. Beat {name} to move up."
+      goalLose: "Lost {you}\u2013{them}. Beat {name} to move up.",
+      dailyBtn: "Daily Duel \u00b7 vs {name}",
+      dailyDone: "Daily Duel today: {you}\u2013{them} vs {name}",
+      dailyGoal: "Daily Duel: {you}\u2013{them} vs {name}. Back tomorrow!",
+      share: "Share",
+      copied: "Copied!",
+      copyFailed: "Copy failed",
+      shareText: "Kitchen Rush Daily Duel {date}: {you}\u2013{them} vs {name}"
     },
 
     // French overrides for `duel` (keys missing here fall back to English).
@@ -182,6 +189,13 @@
       goalFirst: "Battez {name} pour monter dans l'\u00e9chelle.",
       goalNext: "Prochain objectif : battre {name}",
       goalLose: "Perdu {you}\u2013{them}. Battez {name} pour monter.",
+      dailyBtn: "Duel du jour \u00b7 contre {name}",
+      dailyDone: "Duel du jour : {you}\u2013{them} contre {name}",
+      dailyGoal: "Duel du jour : {you}\u2013{them} contre {name}. \u00c0 demain !",
+      share: "Partager",
+      copied: "Copi\u00e9 !",
+      copyFailed: "Copie impossible",
+      shareText: "Kitchen Rush, Duel du jour {date} : {you}\u2013{them} contre {name}",
       tags: ["L\u00e0 pour le plaisir", "Mains douces, balles courtes", "Adore la balle haute", "Frappe tout tr\u00e8s fort", "Trouve tous les coins", "Ma\u00eetre de la ligne"]
     },
 

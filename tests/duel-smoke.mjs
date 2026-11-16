@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)("playwright");
 
 const BASE = process.env.BASE_URL || "http://localhost:8123";
-const SCENARIOS = (process.env.DUEL_SCENARIOS || "singles:bot,left:bot,right:idle").split(",");
+const SCENARIOS = (process.env.DUEL_SCENARIOS || "singles:bot,left:bot,right:idle,daily:bot").split(",");
 let failed = 0;
 const fail = (m) => { failed++; console.error("FAIL", m); };
 
@@ -22,8 +22,8 @@ async function run(browser, mode, who) {
   await page.evaluate(() => { const o = KR_UI.prototype._startDuel; KR_UI.prototype._startDuel = function () { window.__ui = this; return o.call(this); }; });
   await page.click('[data-action="play-duel"]');
   await page.waitForTimeout(300);
-  if (mode !== "singles") await page.click('[data-duel="' + mode + '"]');
-  await page.click('[data-duel="go"]');
+  if (mode === "daily") await page.click('[data-duel="daily"]');
+  else { if (mode !== "singles") await page.click('[data-duel="' + mode + '"]'); await page.click('[data-duel="go"]'); }
   let last = "", lastAt = Date.now(), ended = null;
   const t0 = Date.now();
   while (Date.now() - t0 < 110000) {
@@ -57,7 +57,12 @@ async function run(browser, mode, who) {
       const first = document.querySelector(".kr-duel-start, .kr-duel-go")?.textContent;
       return { hist: (s.history || []).length, hasStats: !!document.querySelector(".kr-duel-stats"), first };
     });
-    if (info.hist < 1) fail(mode + ":" + who + " no match history saved");
+    if (mode === "daily") {
+      const dly = await page.evaluate(() => JSON.parse(localStorage.getItem("kr:duel") || "{}").daily);
+      if (!dly || !dly.key) fail("daily: result not saved");
+      if (info.hist !== 0) fail("daily: a Daily Duel must not add ladder history");
+      if (!(await page.$('[data-duel="share"]'))) fail("daily: share button missing after the match");
+    } else if (info.hist < 1) fail(mode + ":" + who + " no match history saved");
     if (!info.hasStats) fail(mode + ":" + who + " stats block missing on the match menu");
     const before = await page.evaluate(() => document.querySelector(".kr-duel-go").textContent);
     await page.click('[data-duel="lang"]');

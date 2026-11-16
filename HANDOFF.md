@@ -248,3 +248,21 @@ Ported from the rally branch into `main` (no real athlete names, see the legal n
 
 Still to port, in order: one power per opponent (4), round profiles as opponent traits (5), Daily Duel with a
 seeded RNG (6; `duel.js` uses `Math.random`), FR for the rest of the app, deterministic unit tests of the rules.
+
+
+## Daily Duel (version 9)
+
+- **Daily Duel** (item 6 of the port list): a "Daily Duel" button in the match menu plays today's opponent
+  (picked from the UTC date: `dailyInfo()`), singles, on a seeded RNG (`seeded()`, mulberry32). All gameplay
+  randomness goes through `rand()` in `duel.js`; only the screen shake still uses `Math.random`. It never
+  touches the ladder (no stage, wins, beaten list or history); only the first attempt of the day is stored
+  in `kr:duel.daily`. A result line and a Share button (Web Share, else clipboard; text = date, score,
+  opponent, link) replace the button once played.
+- Limits: the seed is shared but the match is not fully deterministic (it depends on frame timing and on
+  the player), so two players do not get identical rallies. There is no ranking: that needs a server
+  (see the rally branch's `server/`, replay verification and per-day boards). Daily and Share strings are
+  in `wording.duel` / `wording.duelFr`.
+- `tests/duel-smoke.mjs` now has four scenarios (singles bot, doubles-left bot, doubles idle, daily bot).
+
+Still to port: one power per opponent, round profiles as opponent traits, French for the rest of the app,
+deterministic unit tests of the rules.
