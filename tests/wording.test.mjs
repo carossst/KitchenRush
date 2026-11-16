@@ -38,7 +38,7 @@ for (const k of Object.keys(duel)) {
     else if (duel[k] && typeof duel[k] === "object") ok(Object.keys(duel[k]).every((s) => s in duelFr[k]), "duelFr sub-keys missing in " + k);
   }
 }
-ok(Array.isArray(duelFr.tags) && duelFr.tags.length === 6, "duelFr.tags must list the 6 opponents");
+ok(Array.isArray(duelFr.tags) && duelFr.tags.length === 7, "duelFr.tags must list the 7 opponents (6 + boss)");
 ok(duel.powerNames.length === 6 && duel.powerDescs.length === 6, "6 power names and descriptions expected");
 
 ok(en.KR_WORDING.landing.ctaPlay === "Play Classic", "English must stay the default");

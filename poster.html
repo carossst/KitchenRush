@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kitchen Rush - Poster</title>
+<meta name="robots" content="noindex">
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  :root { --bg: #070b1f; --ink: #ffffff; --muted: #a8b4d8; --gold: #ffcc5c; --green: #3ce68c; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #03050f; color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 16px 0 24px; }
+  .bar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; padding: 0 16px; }
+  .bar button { font: inherit; font-weight: 700; min-height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid #3e4e8a; background: #121a3a; color: var(--ink); cursor: pointer; }
+  .bar button[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: #1a1200; }
+  .bar button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  .sheet { container-type: inline-size; width: min(100vw - 32px, 210mm); aspect-ratio: 210 / 297; position: relative; overflow: hidden; border-radius: 1cqw;
+    background: radial-gradient(60% 40% at 12% 0%, rgba(88,160,255,.35), transparent 70%), radial-gradient(60% 40% at 90% 0%, rgba(255,120,90,.25), transparent 70%), linear-gradient(180deg, #0a1030, #070b1f 60%, #0b1a2e);
+    display: flex; flex-direction: column; align-items: center; padding: 7cqw 7cqw 6cqw; text-align: center; }
+  h1 { margin: 0; font-size: 15cqw; line-height: .92; font-weight: 800; font-style: italic; letter-spacing: -.03em; text-transform: uppercase; text-shadow: 0 .6cqw 3cqw rgba(88,160,255,.45); }
+  h1 span { display: block; background: linear-gradient(90deg, var(--green), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; }
+  .tag { margin: 2.4cqw 0 0; font-size: 4.2cqw; font-weight: 700; }
+  .sub { margin: 1cqw 0 0; font-size: 3.2cqw; color: var(--muted); }
+  .mid { display: flex; align-items: center; justify-content: center; gap: 4cqw; margin: 3.5cqw 0; width: 100%; flex: 1; min-height: 0; }
+  .shot { height: 100%; max-height: 100%; aspect-ratio: 390 / 844; object-fit: cover; border-radius: 3cqw; border: .7cqw solid #1b2a5c; box-shadow: 0 2cqw 6cqw rgba(0,0,0,.55), 0 0 6cqw rgba(60,230,140,.18); }
+  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2.6cqw; text-align: left; max-width: 52cqw; }
+  li { font-size: 3.5cqw; line-height: 1.25; font-weight: 600; padding-left: 5.2cqw; position: relative; }
+  li::before { content: ""; position: absolute; left: 0; top: .55cqw; width: 2.6cqw; height: 2.6cqw; border-radius: 50%; background: var(--green); box-shadow: 0 0 1.6cqw var(--green); }
+  li small { display: block; font-weight: 500; color: var(--muted); font-size: 2.7cqw; margin-top: .4cqw; }
+  .cta { display: flex; align-items: center; gap: 4cqw; background: rgba(255,255,255,.07); border: .3cqw solid rgba(255,255,255,.18); border-radius: 3cqw; padding: 3cqw 4cqw; }
+  .qr { width: 24cqw; height: 24cqw; border-radius: 1.6cqw; background: #fff; }
+  .cta div { text-align: left; }
+  .scan { margin: 0; font-size: 5.4cqw; font-weight: 800; color: var(--gold); }
+  .url { margin: .8cqw 0 0; font-size: 3.2cqw; font-weight: 700; word-break: break-all; }
+  .note { margin: .6cqw 0 0; font-size: 2.6cqw; color: var(--muted); }
+  @media print { body { padding: 0; background: none; gap: 0; } .bar { display: none; } .sheet { width: 210mm; height: 297mm; border-radius: 0; } html, body { background: none; } }
+</style>
+</head>
+<body>
+<div class="bar" role="group" aria-label="Language / Langue">
+  <button data-l="fr" aria-pressed="true">Fran&ccedil;ais</button>
+  <button data-l="en" aria-pressed="false">English</button>
+  <button id="print">Imprimer / Print</button>
+</div>
+<main class="sheet" id="sheet">
+  <h1>Kitchen<span>Rush</span></h1>
+  <p class="tag" id="tag"></p>
+  <p class="sub" id="sub"></p>
+  <div class="mid">
+    <img class="shot" id="shot" alt="" width="390" height="844">
+    <ul id="feat"></ul>
+  </div>
+  <div class="cta">
+    <img class="qr" id="qr" alt="" width="240" height="240">
+    <div><p class="scan" id="scan"></p><p class="url">carossst.github.io/KitchenRush</p><p class="note" id="note"></p></div>
+  </div>
+</main>
+<script>
+(function () {
+  var T = {
+    fr: { tag: "L'arcade du pickleball", sub: "Visez vos coups, maîtrisez la cuisine, grimpez l'échelle.", scan: "Scannez pour jouer", note: "Dans le navigateur, sur téléphone ou ordinateur.", qrAlt: "QR code pour ouvrir Kitchen Rush", shotAlt: "Capture d'un match de Kitchen Rush",
+      feat: [["Duel en simple ou en double", "Choisissez votre côté et votre partenaire IA"], ["Ralenti à la frappe", "Vous choisissez où va la balle"], ["6 adversaires, 6 pouvoirs", "Battez-les pour gagner leurs pouvoirs"], ["Le duel du jour", "Un adversaire pour tout le monde, à partager"]] },
+    en: { tag: "The pickleball arcade", sub: "Aim your shots, own the Kitchen, climb the ladder.", scan: "Scan to play", note: "In your browser, on phone or computer.", qrAlt: "QR code to open Kitchen Rush", shotAlt: "Screenshot of a Kitchen Rush match",
+      feat: [["Singles or doubles Duel", "Pick your side and your AI partner"], ["Slow motion at contact", "You choose where the ball goes"], ["6 opponents, 6 powers", "Beat them to earn their powers"], ["The Daily Duel", "One opponent for everyone, shareable"]] }
+  };
+  var q = ""; try { q = new URLSearchParams(location.search).get("lang") || ""; } catch (e) { }
+  var lang = (q === "en" || q === "fr") ? q : (/^fr/i.test(navigator.language || "") ? "fr" : "en");
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
+  function apply(l) {
+    var t = T[l]; lang = l; document.documentElement.lang = l;
+    document.getElementById("tag").textContent = t.tag; document.getElementById("sub").textContent = t.sub;
+    document.getElementById("scan").textContent = t.scan; document.getElementById("note").textContent = t.note;
+    document.getElementById("feat").innerHTML = t.feat.map(function (f) { return "<li>" + esc(f[0]) + "<small>" + esc(f[1]) + "</small></li>"; }).join("");
+    var qr = document.getElementById("qr"); qr.src = "icons/qr-" + l + ".svg"; qr.alt = t.qrAlt;
+    var sh = document.getElementById("shot"); sh.src = "icons/poster-duel-" + l + ".jpg"; sh.alt = t.shotAlt;
+    document.querySelectorAll(".bar [data-l]").forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-l") === l ? "true" : "false"); });
+    document.title = "Kitchen Rush - Poster (" + l.toUpperCase() + ")";
+  }
+  document.querySelectorAll(".bar [data-l]").forEach(function (b) { b.addEventListener("click", function () { apply(b.getAttribute("data-l")); }); });
+  document.getElementById("print").addEventListener("click", function () { window.print(); });
+  apply(lang);
+})();
+</script>
+</body>
+</html>

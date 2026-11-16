@@ -305,3 +305,147 @@ embers; precision = crosshair on the aim marker; sprint = ground streaks behind 
 lights up (volleys are legal there). The effects blink in the last 20% of the duration, and respect reduced
 motion (`fx.reduced`: no pulse, no flash, no embers). Test: "every power renders without errors" in
 `tests/duel-rules.mjs`.
+
+
+## Language URLs and poster (version 12)
+
+- **One address per language**: `https://carossst.github.io/KitchenRush/?lang=fr` and `...?lang=en`. The parameter
+  is read in `wording-fr.js` (`pickLang`) and remembered in `localStorage["kr:lang"]`; without it the saved choice,
+  then the browser language, decide. The Daily Duel share text already carries `?lang=`.
+- **Poster** (`poster.html`, FR and EN, one A4 page, QR code + Duel screenshot): `poster.html?lang=fr` or `?lang=en`,
+  then "Imprimer / Print" (save as PDF). Text lives in the `T` object inside the page. QR codes:
+  `icons/qr-fr.svg` / `icons/qr-en.svg`, regenerated with `python3 tools/make-qr.py [BASE_URL]` (needs `pip install segno`).
+  **If the public address changes, regenerate the QR codes and reprint.** Screenshots: `icons/poster-duel-{fr,en}.jpg`
+  (taken from a paused Duel with the Power effect on; retake after big visual changes).
+
+## What was taken from the rally branch, and what was not
+
+Taken (adapted to the Duel): French/English, match history and end screen, tests, Daily mode with a date seed,
+one power per opponent (own design), opponent styles (like round profiles), deferred update prompt.
+Not taken: 18 real-athlete identities (legal), server leaderboard with replay verification, drop/drive and
+Pillar/Creator tactics, ball capture and precision challenge, GoatCounter / Kit email, FR/US manifests.
+Not found anywhere in the repos: the Arkanoid-style effects with 10 US + 10 French players.
+
+## Owner to-do list (things only the owner can do or decide)
+
+1. **Playtest** on a real phone and a computer; report difficulty (too easy/hard), controls, power balance.
+2. **Have the French (and English) copy read by a native speaker**; tests only check keys and placeholders.
+3. **Payment**: decide to launch or remove it. Needs Stripe payment links in `config.js`, something that creates
+   premium codes (`success.html` only reads one), and ideally a small server to verify them.
+4. **Real player names**: get written permission or a lawyer's opinion before using any; until then keep fictional names.
+5. **Legal pages**: `privacy.html` and `terms.html` are English only; check they match what the game actually
+   stores and shares (local storage, optional analytics/email), and translate them.
+6. **Final address**: decide the public domain (`kitchenrush.app` is a placeholder in `config.js` and the meta tags);
+   then update them, regenerate the QR codes and reprint the poster.
+7. **Rally branch / PR #1**: close it (recommended) or keep it as a reference; tell the next agent where the
+   Arkanoid prototype with the US/French player sets lives (repo `carossst/pickleballgame` is a candidate, unread).
+8. **Server** (only if rankings are wanted): HTTPS hosting, persistence and secrets; the rally branch has a starting point.
+9. **Optional**: contact email setup (`email.js`), a social-share image (the current one is the app icon),
+   analytics choice, translating the remaining screens listed in the French section above.
+
+
+## Capsules, rally ramp, final boss (version 13)
+
+Arkanoid-inspired additions to the Duel (ideas from the original game, not from any other repo):
+- **Capsules** (`_spawnCapsule`, `_capsules`, `_collectCapsule`, `_drawCapsule`): during a rally a capsule falls onto the
+  player's half; running over it grants one of the six powers for 7 s (`CAPSULE_SECONDS`), it vanishes after 8 s
+  (`CAPSULE_LIFE`). One at a time, 6-11 s apart, never in the Daily Duel. Icons are drawn (`capIcon`), not text.
+- **Rally ramp**: each shot of a rally makes the ball clock run 3.5% faster, up to +30% (`b.rate`, applied in
+  `_stepBall`), with a "RALLY n" counter (`_drawRally`). Speeding up the shot itself does NOT work: the arc must
+  still clear the net, which fixes the flight time. The rate resets with every point.
+- **Final boss**: `LADDER[6]` "Captain Kitchen" (`boss: true`): 30% bigger, red aura, intro banner, "RAGE" when he
+  reaches 3 points (faster and harder shots, embers), no power reward, a normal partner in doubles. After the boss
+  the ladder keeps scaling his stats. `wording.duelFr.tags` must have 7 entries (tested).
+- Tests: 25 rule checks (capsule spawn/catch/expiry, ramp rate, boss and rage, rendering of capsules and counter).
+- Ideas not done: target "bricks" on the opponent's court (Arkanoid's core idea), multiball (only one ball here),
+  a laser/catch capsule, boss patterns beyond rage.
+
+
+## Worlds and courts (version 14)
+
+- **Worlds**: the ladder (6 opponents + boss) is one world. Beating the boss starts world 2: the same opponents again,
+  tougher (`_opp()` scales speed, error, reaction and pace per world), with a "World n" label and a "World n
+  unlocked" note. `_oppIdx()` = `stage % 7`, `_world()` = `floor(stage / 7) + 1`. The slow-motion budget still depends on the raw `stage`.
+- **Courts** (`VENUES`, `AUTO`, `VENUE_ORDER` in `duel.js`): park, beach, night arena, gym, rooftop, stadium, each with its own
+  sky/scenery, stands and crowd, ground, boards, court and line colours (`_drawBackground`, `_scene`). The court follows the
+  ladder step by default (`AUTO`), and you can pick one in the match menu like a fighting game's stage select; a court unlocks
+  when you reach its opponent (`unlock`). The Daily Duel always uses its opponent's court. The choice is saved in
+  `kr:duel.venue` (sanitised). Adding a court = one entry in `VENUES` (+ `AUTO`/`VENUE_ORDER` and the two `venues` word lists).
+- Scenery behind the stands (sea, skyline, floodlights, beams) is mostly visible in landscape; in portrait the colours carry it.
+- Tests: 28 rule checks (worlds, court choice rules, every court renders, sanitised `venue`).
+
+
+## Coins, shop and players (version 15)
+
+First version of a progression economy, deliberately **soft-currency only**: no real money, no random packs.
+- **Coins** are earned by playing (`_afterPoint`): win = 20 + 6 x opponent index + 10 x (world - 1) + 60 for a boss kill,
+  plus 1 per point scored; a loss pays 6 + points scored; the Daily Duel pays 25 (win) or 10 (loss) once a day, first attempt only.
+- **Players** (`PLAYERS` in `duel.js`, fictional names): Alex (free, balanced), Sasha (+12% speed, starts with 1 charge, 120),
+  Wen (+15% reach, 150), Tomi (+40% slow motion, 200), Priya (easier, faster smashes, 220), Lola (capsules sooner/longer/easier, 240),
+  Chen (power needs 2 points instead of 3, 260). Each also sets the jersey colours; hair and skin stay your own "look".
+  Skills are read through `_player()`, `_pstat()`, `_chargeMax()`, `_capDelay()`. The Daily Duel always uses Alex (equal terms).
+- **UI**: the match menu shows the coin balance and one chip per player (tap to equip; tap an affordable locked one to buy it;
+  unaffordable ones are greyed with the price in the tooltip). Result lines show "+n coins".
+- **Save** (`kr:duel`): `coins`, `owned`, `player`, all sanitised on load. It is client-side only, so a user can edit it:
+  fine for a free soft currency, NOT acceptable if coins ever become purchasable (that needs a server holding the balance).
+- Tests: 31 rule checks (earnings, shop rules, skills, sanitising). Balance is untested with real players: watch how fast
+  coins accumulate versus prices, and whether any skill is clearly best.
+- Not done / decisions needed: paid currency or random packs (legal review needed: loot-box rules in France and Belgium,
+  minors, refunds; also needs the payment flow and a server), choosing your doubles partner, upgrading players, cosmetics shop.
+
+## Expert audit (2026-11-16, version 15) - design, math, UX, live-ops, using Hearthstone as the reference
+
+Method: code reading plus calculations (no human playtest, no real device). Hearthstone lessons used: rules simple, depth grows
+(pre-made decks, visual cues); fast pace; juicy feedback (board shakes, stingers); free-to-play with earnable currency and daily
+quests; no trading; rotation to avoid power creep; beta used to rebalance; experimental weekly mode; AND the criticism: pay-to-win
+perception and a 2022 class action about minors buying packs (reason we avoid random paid packs).
+
+Numbers (see the calculation in this section's tables):
+- Coins: a perfect clear of one world (7 wins) pays 361 / 431 / 501 coins in worlds 1 / 2 / 3; the whole roster costs 1190 =
+  about 3 perfect worlds = about 23 wins = roughly 35-45 minutes of play. Too fast for retention, and nothing to spend on afterwards.
+- AI coverage model (reach after the flight time, T = 0.9 s, rate 1.0): Rookie 8.6 ft, Dee 10.3, Lou 11.4, Bo 12.6, Sam 13.8, Ace 15.2,
+  Boss 17.0 (half-court width is 10 ft). With the rally ramp (rate 1.3) they drop to 6.5 / 7.9 / 8.8 / 9.8 / 10.8 / 12.0 / 13.5.
+  Hypothesis to verify with an instrumented bot: from opponent 3 on, placement alone cannot beat the AI; points come from AI error
+  (`err`), the ramp and short balls. If true, aiming matters less at high stages and the game drifts toward luck.
+- Ramp: rate = 1 + 0.035 x (hits - 1), capped at +30% from the 10th shot.
+
+Findings, by priority:
+P0 (before showing it to the public)
+1. No tutorial or guided first match; the aim + slow-motion idea is not self-explanatory (Hearthstone: "depth grows as you go").
+2. The match menu is overloaded (stats, daily, collection, power, courts, coins, players, mode, look, rules). Split into tabs: Play /
+   Players / Courts / Stats.
+3. Touch controls and performance are untested on real phones; chip buttons are about 28 px high (guideline 44 px); skills and prices
+   of locked players are only in `title` tooltips, invisible on touch: show a detail panel on tap.
+4. Difficulty and economy are unvalidated by humans; there is no telemetry to tune them (Hearthstone rebalanced in beta).
+P1
+5. Economy: add sinks (cosmetics, ball trails, court themes, player upgrades), raise prices 2-3x or add content, add daily quests
+   (win 2 matches, catch 3 capsules, reach a 10-shot rally) and a weekly twist mode.
+6. Sound design (hit, capsule, rally milestones, boss rage, music), haptics. Hearthstone sells the "feel" with sound and shake.
+7. Capsules give a random power: fine for fun, but telegraph it (icon is shown) and keep it out of competitive/daily modes (done).
+8. Colour-only power effects: add shapes/labels for colour-blind players; honour reduced motion (done).
+9. The Daily Duel uses the device date, so changing the clock repeats it (and its coins): fine for a free currency, not for rankings.
+P2
+10. Content cadence and rotation (new courts/players per season, skills as side-grades, no strict upgrades) to avoid power creep.
+11. Social: friend challenge by link (seeded match), async leaderboard (needs a server).
+12. Monetisation, if ever: cosmetics only, fixed prices, no random packs, no pay-to-win; server-held balance; legal review for minors.
+13. Architecture: `duel.js` is large and untyped; split rendering, rules and UI before adding more features.
+
+
+## Audit fixes: tutorial, tabs, touch, local playtest log (version 16)
+
+Done from the audit's P0 list:
+- **Tutorial**: the first match (stage 0, `save.coached` false) uses a gentler opponent (`_opp()`: speed x0.8, error x1.4, reaction x1.4,
+  aggression x0.6), 60% longer slow-motion, and a coach box (`_coachTick`) with one hint at a time: serve, get to the ball, aim while
+  time slows, "nice". It ends after 4 of your shots or at the end of the match (`save.coached = true`). "Replay the tutorial" is in the
+  Play tab. Touch and keyboard wordings are separate (`coachServeTouch/Keys`, `coachAimTouch/Keys`).
+- **Menu tabs**: Play / Players / Courts / Progress (`_showMenu`, `panel()`); Start / Back / language buttons stay visible. Tab switches
+  toggle `hidden` without re-rendering (`tab-` action). The result and the opponent header stay on top.
+- **Touch**: chips and tabs are at least 44 px high; tapping a player previews it (skill, price, status) and a separate button equips
+  or buys it (`pl-` previews, `act-` acts), so purchases need two deliberate taps; locked courts are `aria-disabled` and explain
+  themselves when tapped instead of relying on `title` tooltips.
+- **Local playtest log** (`kr:duel-stats`, last 60 matches, never sent anywhere): day, version, stage, world, opponent, mode, score,
+  duration, longest rally, capsules, powers used, player, court and the cause of every point (`team:reason`). The Progress tab shows
+  win rate and average duration and has "Copy my playtest data" so testers can paste their data to the owner. This is what is needed to
+  verify the AI-coverage hypothesis (how points are won) and to tune coins and difficulty.
+- Tests: 37 rule checks (tutorial, coach, tabs, preview/buy, locked court, log and export), 686 wording checks.
+Still open from the audit: real-device test, sound design, daily quests and coin sinks, colour-blind shapes, seasons, server.

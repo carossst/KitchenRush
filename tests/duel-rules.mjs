@@ -19,7 +19,7 @@ const results = await page.evaluate(() => {
   const out = [], d0 = window.__ui._duel, T = KR_DUEL._test;
   const t = (name, fn) => { try { const r = fn(); out.push([name, r === true, r === true ? "" : String(r)]); } catch (e) { out.push([name, false, "threw " + e.message]); } };
   const d = d0;
-  const fresh = () => { d._startMatch(); d.paused = true; d.phase = "rally"; d.power = null; d.charge = 0; d.score = [0, 0]; };
+  const fresh = () => { d.save.coached = true; d._startMatch(); d.paused = true; d.phase = "rally"; d.power = null; d.charge = 0; d.score = [0, 0]; };
   const ball = (o) => Object.assign({ x: 0, y: 0, z: 1, vx: 0, vy: 0, vz: 0, live: true, held: false, dead: false, lastHitTeam: 0, bounces: 0, hits: 2, isServe: false, id: ++d.ballId }, o);
   const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b) || ("got " + JSON.stringify(a) + " expected " + JSON.stringify(b));
   const hitter = (x, y) => { d.human.x = x; d.human.y = y; return d.human; };
@@ -63,7 +63,101 @@ const results = await page.evaluate(() => {
     for (let i = 0; i < 20; i++) { xa.push(a()); xb.push(b()); xc.push(c()); }
     return eq(xa, xb) === true && JSON.stringify(xa) !== JSON.stringify(xc) && xa.every((v) => v >= 0 && v < 1) ? true : "seed behaviour wrong";
   });
-  t("daily info is well formed and stable within a day", () => { const a = T.dailyInfo(), b = T.dailyInfo(); return /^\d{4}-\d{2}-\d{2}$/.test(a.key) && a.idx >= 0 && a.idx < 6 && a.seed === b.seed ? true : "bad daily info"; });
+  t("daily info is well formed and stable within a day", () => { const a = T.dailyInfo(), b = T.dailyInfo(); return /^\d{4}-\d{2}-\d{2}$/.test(a.key) && a.idx >= 0 && a.idx < 7 && a.seed === b.seed ? true : "bad daily info"; });
+  t("rally ramp: later shots are faster (max +30%)", () => {
+    const rate = (hits) => { fresh(); const h = hitter(0, -12); d.ball = ball({ x: 0, y: -12, z: 2, lastHitTeam: 1, bounces: 1, hits }); d._launch(h, { tx: 0, ty: 15, speed: 30 }, 0, 0); return d.ball.rate; };
+    const r1 = rate(1), r12 = rate(12), r40 = rate(40);
+    // and the faster clock really moves the ball further per step
+    fresh(); d.ball = ball({ x: 0, y: -12, z: 5, vy: 10, rate: 1 }); d._stepBall(0.01); const slow = d.ball.y + 12;
+    fresh(); d.ball = ball({ x: 0, y: -12, z: 5, vy: 10, rate: 1.3 }); d._stepBall(0.01); const fast = d.ball.y + 12;
+    return (r1 < 1.05 && r12 > 1.25 && r12 <= 1.3001 && r40 === r12 && fast > slow * 1.25) ? true : "rates " + r1 + " / " + r12 + " / " + r40 + " moves " + slow + " vs " + fast;
+  });
+  t("a capsule spawns in a rally, on the player's half, and not in the Daily", () => {
+    fresh(); d.capsule = null; d.capSpawnIn = 0; d.ball = ball({ hits: 3 }); d._capsules(0.016);
+    const c = d.capsule; const okSpawn = !!c && c.y < -8 && c.y > -18 && T.POWERS.includes(c.kind);
+    fresh(); d.daily = { key: "2026-01-01", idx: 0, seed: 1 }; d.capsule = null; d.capSpawnIn = 0; d.ball = ball({ hits: 3 }); d._capsules(0.016); const none = d.capsule === null; d.daily = null;
+    return eq([okSpawn, none], [true, true]);
+  });
+  t("catching a capsule grants its power; an old capsule vanishes", () => {
+    fresh(); const h = hitter(3, -12); d.capsule = { x: 3, y: -12, kind: "sprint", born: d.now - 2, until: d.now + 5 }; d._capsules(0.016);
+    const got = [d._pw("sprint"), d.capsule === null];
+    fresh(); d.capsule = { x: 3, y: -12, kind: "sprint", born: d.now - 20, until: d.now - 1 }; d._capsules(0.016);
+    return eq([got, d.capsule === null, d._pw("any")], [[true, true], true, false]);
+  });
+  t("the boss: stage 7 is the boss, rage triggers at 3 points", () => {
+    d.stage = 6; const boss = d._opp(); d._startMatch(); d.paused = true;
+    for (let i = 0; i < 3; i++) { d.phase = "rally"; d._point(1, "winner"); }
+    const r = d._rage; d.stage = 0;
+    return eq([boss.boss === true, boss.name, r], [true, "Captain Kitchen", true]);
+  });
+  t("coins: a win vs opponent 1 pays 25, a loss little, the Daily once a day", () => {
+    fresh(); d.save.coins = 0; d.score = [5, 2]; d._afterPoint(); const win = d.save.coins; d.stage = 0;
+    fresh(); d.save.coins = 0; d.score = [3, 5]; d._afterPoint(); const lose = d.save.coins; d.stage = 0;
+    fresh(); d.save.coins = 0; d.save.daily = null; d.daily = { key: "2099-01-01", idx: 0, seed: 1 }; d.score = [5, 1]; d._afterPoint(); const d1 = d.save.coins;
+    fresh(); d.save.coins = 0; d.daily = { key: "2099-01-01", idx: 0, seed: 1 }; d.score = [5, 1]; d._afterPoint(); const d2 = d.save.coins; d.save.daily = null; d.stage = 0;
+    return eq([win, lose, d1, d2], [25, 9, 25, 0]);
+  });
+  t("shop: no purchase without coins, one purchase, equip only what you own", () => {
+    fresh(); d.save.coins = 100; d.save.owned = {}; d.save.player = "alex";
+    d._panelAction("act-sasha"); const a1 = [d.save.coins, !!d.save.owned.sasha, d.save.player];
+    d.save.coins = 130; d._panelAction("act-sasha"); const a2 = [d.save.coins, !!d.save.owned.sasha, d.save.player];
+    d.save.player = "alex"; d._panelAction("act-sasha"); const a3 = [d.save.coins, d.save.player];
+    d._panelAction("act-nobody"); d.save.player = "alex"; d.save.owned = {};
+    return eq([a1, a2, a3], [[100, false, "alex"], [10, true, "sasha"], [10, "sasha"]]);
+  });
+  t("player skills apply; the Daily always uses the base player", () => {
+    fresh(); d.save.owned = { chen: true, sasha: true }; d.save.player = "sasha"; const sp = d._pstat("speed"); d._startMatch(); d.paused = true; const start = d.charge;
+    d.save.player = "chen"; const need = d._chargeMax();
+    d.daily = { key: "2099-01-01", idx: 0, seed: 1 }; const dly = d._player().id; d.daily = null; d.save.player = "alex"; d.save.owned = {};
+    return eq([sp, start, need, dly], [1.12, 1, 2, "alex"]);
+  });
+  t("tutorial: the first match is gentler and completes the tutorial", () => {
+    d.save.coached = false; d.stage = 0; const easy = d._opp(), base = KR_DUEL.ladder[0];
+    const a = [easy.speed < base.speed, easy.err > base.err];
+    d._startMatch(); d.paused = true; d.phase = "rally"; d.score = [5, 1]; d._afterPoint(); d.stage = 0;
+    const done = d.save.coached, back = d._opp().speed === base.speed; d.save.coached = true;
+    return eq([a, done, back], [[true, true], true, true]);
+  });
+  t("tutorial coach shows the right hint and is off once done", () => {
+    d.save.coached = false; d._startMatch(); d.paused = true;
+    d._coachKey = ""; d._coachTick(); const serve = d.coachEl.hidden === false && d.coachEl.textContent.length > 5;
+    d.save.coached = true; d._coachKey = "x"; d._coachTick(); const off = d.coachEl.hidden === true;
+    return eq([serve, off], [true, true]);
+  });
+  t("menu tabs switch panels without re-rendering", () => {
+    d.tab = "play"; d._showMenu(); d._panelAction("tab-players");
+    const sel = [...d.panelEl.querySelectorAll(".kr-duel-tab")].map((b) => b.getAttribute("aria-selected"));
+    const vis = [...d.panelEl.querySelectorAll("[data-tabpanel]")].map((p) => !p.hidden);
+    d._panelAction("tab-nope"); d._panelAction("tab-play");
+    return eq([sel, vis, d.tab], [["false", "true", "false", "false"], [false, true, false, false], "play"]);
+  });
+  t("player preview: tapping explains, the action button buys only when affordable", () => {
+    d.save.owned = {}; d.save.coins = 0; d.save.player = "alex"; d._showMenu(); d._panelAction("pl-lola");
+    const b1 = d.panelEl.querySelector('[data-duel="act-lola"]'), r1 = [d.previewPlayer, b1 && b1.disabled, d.save.coins];
+    d.save.coins = 300; d._panelAction("pl-lola"); const b2 = d.panelEl.querySelector('[data-duel="act-lola"]'), r2 = b2 && b2.disabled;
+    d._panelAction("act-lola"); const r3 = [!!d.save.owned.lola, d.save.coins, d.save.player];
+    d.save.owned = {}; d.save.coins = 0; d.save.player = "alex"; d.previewPlayer = null;
+    return eq([r1, r2, r3], [["lola", true, 0], false, [true, 60, "lola"]]);
+  });
+  t("a locked court explains itself when tapped and is not selected", () => {
+    d.stage = 0; d.save.venue = "auto"; d._showMenu(); d._panelAction("venue-stadium");
+    const msg = d.panelEl.textContent.includes("7 to unlock"), kept = d.save.venue;
+    d._panelAction("venue-auto"); return eq([msg, kept], [true, "auto"]);
+  });
+  t("playtest log: one entry per match, exportable, capped", () => {
+    localStorage.removeItem("kr:duel-stats"); fresh(); d.score = [5, 2]; d._afterPoint(); d.stage = 0;
+    const log = JSON.parse(localStorage.getItem("kr:duel-stats")), ex = JSON.parse(d._exportData());
+    return eq([log.length, log[0].you, log[0].them, Array.isArray(log[0].pts), ex.matches.length, ex.app], [1, 5, 2, true, 1, "kitchen-rush-duel"]);
+  });
+  t("worlds: stage 7 restarts the ladder, tougher", () => { d.stage = 7; const o = d._opp(), w = d._world(); d.stage = 0; return eq([w, o.name, o.speed > KR_DUEL.ladder[0].speed], [2, KR_DUEL.ladder[0].name, true]); });
+  t("venues follow the stage; locked or invalid choices are ignored", () => {
+    const at = (stage, sel) => { d.stage = stage; d.save.venue = sel; d.daily = null; return d._venueId(); };
+    const r = [at(0, "auto"), at(2, "auto"), at(6, "auto"), at(7, "auto"), at(0, "gym"), at(5, "gym"), at(5, "constructor")];
+    d.stage = 0; d.save.venue = "auto";
+    return eq(r, ["park", "beach", "stadium", "park", "park", "gym", "rooftop"]);
+  });
+  t("every venue renders", () => { d.stage = 6; for (const id of ["park", "beach", "night", "gym", "rooftop", "stadium"]) { d.save.venue = id; d._bg = null; d._drawBackground(); if (d._bgVenue !== id) return "venue not applied: " + id; } d.stage = 0; d.save.venue = "auto"; d._bg = null; return true; });
+  t("every capsule kind renders", () => { fresh(); for (const key of T.POWERS) { d.capsule = { x: 0, y: -12, kind: key, born: d.now - 2, until: d.now + 5 }; d._drawCapsule(d.ctx); } d.capsule = null; d.ball = ball({ hits: 8 }); d._drawRally(d.ctx); return true; });
   t("every power renders without errors", () => {
     fresh(); d.paused = true;
     for (const key of T.POWERS) { d.power = { key, until: d.now + 5 }; d.flashUntil = d.now + 0.2; d._flashKey = key; d._drawPowerFx(d.ctx); d._drawPowerTint(d.ctx); d._powerHud(); }
@@ -72,9 +166,9 @@ const results = await page.evaluate(() => {
   });
   t("corrupted saved data is sanitised", () => {
     d.destroy();
-    localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999 }));
+    localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999, venue: "../x", coached: "yes", coins: -5, owned: { chen: true, hacker: true }, player: "hacker" }));
     window.__ui._startDuel(); const s = window.__ui._duel.save;
-    return eq([Array.isArray(s.history), Object.keys(s.beaten), s.equipped, s.daily, s.lang, s.bestMargin], [true, ["2"], "", null, "", 99]);
+    return eq([Array.isArray(s.history), Object.keys(s.beaten), s.equipped, s.daily, s.lang, s.bestMargin, s.venue, s.coins, Object.keys(s.owned), s.player, s.coached], [true, ["2"], "", null, "", 99, "auto", 0, ["chen"], "alex", false]);
   });
   return out;
 });
