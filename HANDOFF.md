@@ -359,3 +359,17 @@ Arkanoid-inspired additions to the Duel (ideas from the original game, not from 
 - Tests: 25 rule checks (capsule spawn/catch/expiry, ramp rate, boss and rage, rendering of capsules and counter).
 - Ideas not done: target "bricks" on the opponent's court (Arkanoid's core idea), multiball (only one ball here),
   a laser/catch capsule, boss patterns beyond rage.
+
+
+## Worlds and courts (version 14)
+
+- **Worlds**: the ladder (6 opponents + boss) is one world. Beating the boss starts world 2: the same opponents again,
+  tougher (`_opp()` scales speed, error, reaction and pace per world), with a "World n" label and a "World n
+  unlocked" note. `_oppIdx()` = `stage % 7`, `_world()` = `floor(stage / 7) + 1`. The slow-motion budget still depends on the raw `stage`.
+- **Courts** (`VENUES`, `AUTO`, `VENUE_ORDER` in `duel.js`): park, beach, night arena, gym, rooftop, stadium, each with its own
+  sky/scenery, stands and crowd, ground, boards, court and line colours (`_drawBackground`, `_scene`). The court follows the
+  ladder step by default (`AUTO`), and you can pick one in the match menu like a fighting game's stage select; a court unlocks
+  when you reach its opponent (`unlock`). The Daily Duel always uses its opponent's court. The choice is saved in
+  `kr:duel.venue` (sanitised). Adding a court = one entry in `VENUES` (+ `AUTO`/`VENUE_ORDER` and the two `venues` word lists).
+- Scenery behind the stands (sea, skyline, floodlights, beams) is mostly visible in landscape; in portrait the colours carry it.
+- Tests: 28 rule checks (worlds, court choice rules, every court renders, sanitised `venue`).

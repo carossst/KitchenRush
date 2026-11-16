@@ -90,6 +90,14 @@ const results = await page.evaluate(() => {
     const r = d._rage; d.stage = 0;
     return eq([boss.boss === true, boss.name, r], [true, "Captain Kitchen", true]);
   });
+  t("worlds: stage 7 restarts the ladder, tougher", () => { d.stage = 7; const o = d._opp(), w = d._world(); d.stage = 0; return eq([w, o.name, o.speed > KR_DUEL.ladder[0].speed], [2, KR_DUEL.ladder[0].name, true]); });
+  t("venues follow the stage; locked or invalid choices are ignored", () => {
+    const at = (stage, sel) => { d.stage = stage; d.save.venue = sel; d.daily = null; return d._venueId(); };
+    const r = [at(0, "auto"), at(2, "auto"), at(6, "auto"), at(7, "auto"), at(0, "gym"), at(5, "gym"), at(5, "constructor")];
+    d.stage = 0; d.save.venue = "auto";
+    return eq(r, ["park", "beach", "stadium", "park", "park", "gym", "rooftop"]);
+  });
+  t("every venue renders", () => { d.stage = 6; for (const id of ["park", "beach", "night", "gym", "rooftop", "stadium"]) { d.save.venue = id; d._bg = null; d._drawBackground(); if (d._bgVenue !== id) return "venue not applied: " + id; } d.stage = 0; d.save.venue = "auto"; d._bg = null; return true; });
   t("every capsule kind renders", () => { fresh(); for (const key of T.POWERS) { d.capsule = { x: 0, y: -12, kind: key, born: d.now - 2, until: d.now + 5 }; d._drawCapsule(d.ctx); } d.capsule = null; d.ball = ball({ hits: 8 }); d._drawRally(d.ctx); return true; });
   t("every power renders without errors", () => {
     fresh(); d.paused = true;
@@ -99,9 +107,9 @@ const results = await page.evaluate(() => {
   });
   t("corrupted saved data is sanitised", () => {
     d.destroy();
-    localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999 }));
+    localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999, venue: "../x" }));
     window.__ui._startDuel(); const s = window.__ui._duel.save;
-    return eq([Array.isArray(s.history), Object.keys(s.beaten), s.equipped, s.daily, s.lang, s.bestMargin], [true, ["2"], "", null, "", 99]);
+    return eq([Array.isArray(s.history), Object.keys(s.beaten), s.equipped, s.daily, s.lang, s.bestMargin, s.venue], [true, ["2"], "", null, "", 99, "auto"]);
   });
   return out;
 });

@@ -30,6 +30,18 @@
     { name: "Captain Kitchen", tag: "Final boss: never misses a dink", look: 2, trait: "tempo", boss: true, speed: 17, react: 0.1, err: 0.7, aggr: 1, lobP: 0.25, dinkP: 0.45, volley: true, judge: 0.1, pace: 1.18,
       pal: { jerseyA: "#ffd66e", jerseyB: "#b8860b", shorts: "#1a1a1a", hair: "#101018", band: "#ff3b3b", paddle: "#ff3b3b", trim: "#ff3b3b" } }
   ];
+  // Courts ("levels" you can also pick from the menu). `unlock` = opponent index you must have reached.
+  var VENUE_ORDER = ["park", "beach", "night", "gym", "rooftop", "stadium"];
+  var AUTO = ["park", "park", "beach", "night", "gym", "rooftop", "stadium"];   // venue per ladder step (same length as LADDER)
+  var VENUES = {
+    park:    { unlock: 0, sky: ["#2f8cff", "#aee4ff"], glow: [0.82, 0.25, "255,240,170", 0.5], clouds: true, stand: ["#24407a", "#16264f"], crowd: ["#ff5d8f", "#ffd60a", "#3fd0ff", "#ffffff", "#9bffb0", "#ff8a3d", "#c9a6ff"], ground: ["#2fa862", "#37b36b"], board: ["#0e1b3d", "#ffd60a"], apron: "#1f7fd1", court: "#2f6fed", kitN: "#ff7a45", kitF: "#ff8d5c", line: "#ffffff" },
+    beach:   { unlock: 2, sky: ["#ff8a5c", "#ffe0a8"], glow: [0.5, 0.62, "255,214,140", 0.7], scene: "sea", stand: ["#7a4b2a", "#5a361d"], crowd: ["#ffffff", "#ffcf6b", "#ff6b6b", "#2ec4b6", "#ffe8b0"], ground: ["#dcbc78", "#e6c98a"], board: ["#2a1a10", "#ffcf6b"], apron: "#0c8f91", court: "#14b8b2", kitN: "#ff6b4a", kitF: "#ff8466", line: "#ffffff" },
+    night:   { unlock: 3, sky: ["#050818", "#1b1f55"], glow: [0.2, 0.3, "200,220,255", 0.35], stars: true, scene: "lights", stand: ["#1a1440", "#0d0a26"], crowd: ["#ff2fa0", "#3fd0ff", "#9bffb0", "#ffffff", "#c9a6ff"], ground: ["#0f2a3a", "#12313f"], board: ["#05060f", "#3fd0ff"], apron: "#1a2f7a", court: "#2b3fd9", kitN: "#ff2fa0", kitF: "#ff4db3", line: "#9ff0ff" },
+    gym:     { unlock: 4, sky: ["#4a4f63", "#2d3142"], scene: "gym", stand: ["#3a2f2a", "#241c18"], crowd: ["#e9c46a", "#ffffff", "#e76f51", "#2a9d8f"], ground: ["#bd8745", "#c8924f"], board: ["#1b1f2e", "#ff9d3c"], apron: "#1f5a3d", court: "#2e8b57", kitN: "#e9c46a", kitF: "#f0d27f", line: "#ffffff" },
+    rooftop: { unlock: 5, sky: ["#3a1c71", "#ff9f68"], glow: [0.7, 0.8, "255,180,120", 0.6], scene: "skyline", stand: ["#1e1b3a", "#14122b"], crowd: ["#ffffff", "#ff9f68", "#c9a6ff", "#ff7a9c"], ground: ["#6b6f80", "#737788"], board: ["#14122b", "#ff7a9c"], apron: "#2f2e63", court: "#3d6fb5", kitN: "#ff9f43", kitF: "#ffb26b", line: "#ffffff" },
+    stadium: { unlock: 6, sky: ["#0a0a14", "#2a1a05"], stars: true, scene: "beams", stand: ["#2b2108", "#14100a"], crowd: ["#ffd23f", "#ffffff", "#ff9f1c", "#f4f1de"], ground: ["#1b1b24", "#20202b"], board: ["#14100a", "#ffd23f"], apron: "#7a5c12", court: "#1d3a8a", kitN: "#c0392b", kitF: "#d9503f", line: "#ffd23f" }
+  };
+  function hasVenue(id) { return Object.prototype.hasOwnProperty.call(VENUES, id); }
   var ALLY = { name: "Partner", speed: 12.5, react: 0.25, err: 1.6, aggr: 0.5, lobP: 0.08, dinkP: 0.25, volley: true, judge: 0.8, pace: 0.95,
     pal: { jerseyA: "#ffb3c7", jerseyB: "#ff5d8f", shorts: "#ffffff", hair: "#6b3a1e", band: "#3fd0ff", paddle: "#3fd0ff" } };
   // Player looks: varied hair and skin so everyone can find themselves. Cycled from the match menu.
@@ -87,6 +99,7 @@
     if (d.beaten && typeof d.beaten === "object") Object.keys(d.beaten).forEach(function (k) { var i = Number(k); if (i >= 0 && i < 999 && d.beaten[k] === true) beaten[Math.floor(i)] = true; });
     d.beaten = beaten;
     d.equipped = POWERS.indexOf(d.equipped) >= 0 ? d.equipped : "";
+    d.venue = (d.venue === "auto" || (typeof d.venue === "string" && hasVenue(d.venue))) ? d.venue : "auto";
     d.bestMargin = clamp(Math.floor(Number(d.bestMargin) || 0), 0, 99);
     d.lang = (d.lang === "fr" || d.lang === "en") ? d.lang : "";
     var dd = d.daily;
@@ -185,12 +198,23 @@
 
   Duel.prototype._opp = function () {
     if (this.daily) return LADDER[this.daily.idx];
-    var base = LADDER[Math.min(this.stage, LADDER.length - 1)];
-    var extra = Math.max(0, this.stage - (LADDER.length - 1));
+    var base = LADDER[this._oppIdx()], extra = this._world() - 1;   // each new world: the same six + boss, tougher
     if (!extra) return base;
     var o = Object.assign({}, base);
-    o.speed += extra * 0.5; o.err = Math.max(0.5, o.err - extra * 0.08); o.react = Math.max(0.08, o.react - extra * 0.01);
+    o.speed += extra * 1.2; o.err = Math.max(0.4, o.err - extra * 0.15); o.react = Math.max(0.07, o.react - extra * 0.02); o.pace *= 1 + extra * 0.05;
     return o;
+  };
+
+  // The ladder is one "world" long (6 opponents + the boss). Beating the boss starts the next, tougher world.
+  Duel.prototype._oppIdx = function () { return this.daily ? this.daily.idx : this.stage % LADDER.length; };
+  Duel.prototype._world = function () { return this.daily ? 1 : Math.floor(this.stage / LADDER.length) + 1; };
+
+  // Court for the current match: the one you picked (if unlocked), else the one that goes with the ladder step.
+  Duel.prototype._venueId = function () {
+    if (this.daily) return AUTO[this.daily.idx % AUTO.length];
+    var sel = this.save.venue;
+    if (sel && sel !== "auto" && hasVenue(sel) && this.stage >= VENUES[sel].unlock) return sel;
+    return AUTO[this.stage % AUTO.length];
   };
 
   Duel.prototype._showMenu = function (result) {
@@ -200,16 +224,18 @@
     var sc = this._lastScore, fin = (result && sc) ? ' <span class="kr-duel-final">' + sc[0] + '\u2013' + sc[1] + '</span>' : "";
     if (result === "win") head = '<p class="kr-duel-result kr-duel-result--win">' + esc((this._lastBoss && t.bossWin) || t.win || "You win!") + fin + '</p>';
     if (result === "lose") head = '<p class="kr-duel-result kr-duel-result--lose">' + esc(t.lose || "So close. Run it back.") + fin + '</p>';
+    if (result === "win" && this._lastBoss) head += '<p class="kr-muted">' + esc((t.worldUp || "World {w} unlocked: tougher opponents").replace("{w}", this._world())) + '</p>';
     var m = this.mode, s = this.side;
     function opt(id, label, on) { return '<button class="kr-duel-opt' + (on ? " kr-duel-opt--on" : "") + '" data-duel="' + id + '" aria-pressed="' + (on ? "true" : "false") + '">' + esc(label) + '</button>'; }
     var touch = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
     this.panelEl.innerHTML =
       '<div class="kr-duel-card">' + head +
-      '<p class="kr-duel-kicker">' + esc(opp.boss ? (t.bossLabel || "FINAL BOSS") : (t.stageLabel || "Opponent {n}").replace("{n}", this.stage + 1)) + '</p>' +
+      '<p class="kr-duel-kicker">' + esc((this._world() > 1 && !this.daily ? (t.worldLabel || "World {w}").replace("{w}", this._world()) + " \u00b7 " : "") + (opp.boss ? (t.bossLabel || "FINAL BOSS") : (t.stageLabel || "Opponent {n}").replace("{n}", this._oppIdx() + 1))) + '</p>' +
       '<h2 class="kr-duel-name">' + esc(opp.name) + '</h2>' +
-      '<p class="kr-muted">' + esc((t.tags && t.tags[Math.min(this.stage, LADDER.length - 1)]) || opp.tag || "") + '</p>' +
+      '<p class="kr-muted">' + esc((t.tags && t.tags[this._oppIdx()]) || opp.tag || "") + '</p>' +
       (opp.trait && t.traits ? '<p class="kr-muted kr-duel-trait">' + esc((t.traitLabel || "Style: {x}").replace("{x}", t.traits[opp.trait] || "")) + '</p>' : "") +
       this._statsHtml(result) +
+      this._venueHtml() +
       '<div class="kr-duel-opts" role="group" aria-label="' + esc(t.modeAria || "Match type") + '">' +
         opt("singles", t.singles || "Singles", m === "singles") +
         opt("left", t.doublesLeft || "Doubles · Left", m === "doubles" && s === "left") +
@@ -337,6 +363,11 @@
 
   Duel.prototype._panelAction = function (a) {
     if (a === "exit") { this.destroy(); return; }
+    if (a.indexOf("venue-") === 0) {
+      var vid = a.slice(6);
+      if (vid === "auto" || (hasVenue(vid) && this.stage >= VENUES[vid].unlock)) { this.save.venue = vid; writeSave(this.save); this._bg = null; }
+      this._showMenu(this._lastResult); return;
+    }
     if (a.indexOf("eq-") === 0) {
       var qi = Number(a.slice(3));
       if (this.save.beaten && this.save.beaten[qi] && POWERS[qi]) { this.save.equipped = POWERS[qi]; writeSave(this.save); }
@@ -639,7 +670,7 @@
   Duel.prototype._afterPoint = function () {
     var s = this.score, lead = Math.abs(s[0] - s[1]);
     if ((s[0] >= WIN_SCORE || s[1] >= WIN_SCORE) && lead >= 1) {
-      var won = s[0] > s[1], sv = this.save, idx = Math.min(this.stage, LADDER.length - 1), isDaily = !!this.daily;
+      var won = s[0] > s[1], sv = this.save, idx = this._oppIdx(), isDaily = !!this.daily;
       this._lastScore = [s[0], s[1]];
       this._lastBoss = won && !isDaily && !!this._opp().boss;
       if (isDaily) {
@@ -770,59 +801,114 @@
     g.lineWidth = Math.max(1.5, w * (a.s + b.s) / 2); g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
   };
 
+  Duel.prototype._venueHtml = function () {
+    var t = this.t, sv = this.save, self = this, names = t.venues || {}, cur = this._venueId();
+    var sel = (sv.venue && (sv.venue === "auto" || hasVenue(sv.venue))) ? sv.venue : "auto";
+    function chip(id, label, locked, title, on, sw) {
+      return '<button class="kr-duel-chip' + (on ? " kr-duel-chip--eq" : "") + '" data-duel="venue-' + id + '" aria-pressed="' + (on ? "true" : "false") + '"' + (locked ? " disabled" : "") + (title ? ' title="' + esc(title) + '"' : "") + ">" + (sw || "") + esc(label) + "</button>";
+    }
+    var chips = chip("auto", t.venueAuto || "Auto", false, "", sel === "auto", "");
+    VENUE_ORDER.forEach(function (id) {
+      var V = VENUES[id], locked = self.stage < V.unlock;
+      chips += chip(id, names[id] || id, locked, locked ? (t.venueLocked || "Reach opponent {n} to unlock").replace("{n}", V.unlock + 1) : "", sel === id,
+        '<i class="kr-duel-swatch" style="background:linear-gradient(135deg,' + V.sky[0] + "," + V.court + ')"></i>');
+    });
+    return '<div class="kr-duel-venues" role="group" aria-label="' + esc(t.venueLabel || "Court") + '">' + chips + "</div>" +
+      '<p class="kr-muted kr-duel-venuenow">' + esc((t.venueNow || "Playing at: {name}").replace("{name}", names[cur] || cur)) + "</p>";
+  };
+
+  // Scenery behind the stands (mostly visible in landscape and on tall screens).
+  Duel.prototype._scene = function (g, V, W, H, horizon, rnd) {
+    var i, k;
+    if (V.scene === "skyline") {
+      var bx = 0;
+      while (bx < W) {
+        var bw = 14 + rnd() * 30, bh = 18 + rnd() * horizon * 0.5;
+        g.fillStyle = "#1a1038"; g.fillRect(bx, horizon - bh, bw, bh + 6);
+        g.fillStyle = "rgba(255,210,120,0.85)";
+        for (var wy = horizon - bh + 4; wy < horizon - 6; wy += 7) for (var wx = bx + 3; wx < bx + bw - 3; wx += 6) if (rnd() < 0.35) g.fillRect(wx, wy, 2.5, 3.5);
+        bx += bw + 2;
+      }
+    } else if (V.scene === "sea") {
+      g.fillStyle = "#1c8fc7"; g.fillRect(0, horizon * 0.7, W, horizon * 0.3 + 4);
+      g.fillStyle = "rgba(255,230,170,0.6)";
+      for (k = 0; k < 10; k++) { var sw = 70 - k * 5; g.fillRect(W / 2 - sw / 2, horizon * 0.72 + k * horizon * 0.028, sw, 2.5); }
+    } else if (V.scene === "lights") {
+      [[0.1, "180,210,255"], [0.9, "255,190,150"]].forEach(function (L) {
+        var lx = W * L[0], cone = g.createRadialGradient(lx, 0, 0, lx, 0, H * 0.7);
+        cone.addColorStop(0, "rgba(" + L[1] + ",0.5)"); cone.addColorStop(1, "rgba(" + L[1] + ",0)");
+        g.fillStyle = cone; g.fillRect(0, 0, W, H);
+      });
+    } else if (V.scene === "beams") {
+      for (i = 0; i < 4; i++) {
+        var x0 = W * (0.15 + 0.23 * i), dx = i % 2 ? 50 : -50;
+        g.fillStyle = "rgba(255,214,90,0.12)"; g.beginPath(); g.moveTo(x0 - 6, 0); g.lineTo(x0 + 6, 0); g.lineTo(x0 + dx + 60, horizon + 60); g.lineTo(x0 + dx - 60, horizon + 60); g.closePath(); g.fill();
+      }
+    } else if (V.scene === "gym") {
+      g.strokeStyle = "rgba(255,255,255,0.06)"; g.lineWidth = 1;
+      for (k = 6; k < horizon + 40; k += 14) { g.beginPath(); g.moveTo(0, k); g.lineTo(W, k); g.stroke(); }
+      for (i = 0; i < 4; i++) {
+        var lx = W * (0.1 + 0.22 * i), lg = g.createLinearGradient(0, 0, 0, horizon * 0.9);
+        lg.addColorStop(0, "rgba(255,244,200,0.55)"); lg.addColorStop(1, "rgba(255,244,200,0)");
+        g.fillStyle = lg; g.fillRect(lx, 0, W * 0.16, horizon * 0.9); g.fillStyle = "rgba(255,248,220,0.95)"; g.fillRect(lx, 3, W * 0.16, 4);
+      }
+    }
+  };
+
   Duel.prototype._drawBackground = function () {
-    var W = this.W, H = this.H, dpr = this.dpr;
+    var id = this._venueId(), V = VENUES[id] || VENUES.park, W = this.W, H = this.H, dpr = this.dpr;
     var c = document.createElement("canvas"); c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
     var g = c.getContext("2d"); g.scale(dpr, dpr);
-    var horizon = this._project(0, CL + 16, 0).y;
-    // Sky
+    var horizon = this._project(0, CL + 16, 0).y, i;
+    var seed = 7; function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    // Sky (or the wall, in the gym)
     var sky = g.createLinearGradient(0, 0, 0, Math.max(60, horizon));
-    sky.addColorStop(0, "#2f8cff"); sky.addColorStop(1, "#aee4ff");
+    sky.addColorStop(0, V.sky[0]); sky.addColorStop(1, V.sky[1]);
     g.fillStyle = sky; g.fillRect(0, 0, W, H);
-    // Sun glow + clouds
-    var sun = g.createRadialGradient(W * 0.82, horizon * 0.25, 4, W * 0.82, horizon * 0.25, W * 0.5);
-    sun.addColorStop(0, "rgba(255,246,200,0.95)"); sun.addColorStop(0.12, "rgba(255,240,170,0.5)"); sun.addColorStop(1, "rgba(255,240,170,0)");
-    g.fillStyle = sun; g.fillRect(0, 0, W, horizon + 10);
-    g.fillStyle = "rgba(255,255,255,0.85)";
-    [[0.18, 0.3, 1], [0.55, 0.16, 0.7], [0.36, 0.55, 0.55]].forEach(function (cl) {
-      var cx = W * cl[0], cy = horizon * cl[1], r = W * 0.055 * cl[2];
-      g.beginPath(); g.ellipse(cx, cy, r * 1.9, r * 0.62, 0, 0, 7); g.ellipse(cx - r * 0.9, cy + r * 0.12, r, r * 0.5, 0, 0, 7); g.ellipse(cx + r * 0.8, cy - r * 0.3, r * 1.1, r * 0.7, 0, 0, 7); g.fill();
-    });
+    if (V.glow) {
+      var gx = W * V.glow[0], gy = horizon * V.glow[1], gl = g.createRadialGradient(gx, gy, 4, gx, gy, W * V.glow[3]);
+      gl.addColorStop(0, "rgba(" + V.glow[2] + ",0.95)"); gl.addColorStop(0.12, "rgba(" + V.glow[2] + ",0.5)"); gl.addColorStop(1, "rgba(" + V.glow[2] + ",0)");
+      g.fillStyle = gl; g.fillRect(0, 0, W, horizon + 10);
+    }
+    if (V.stars) { g.fillStyle = "#ffffff"; for (i = 0; i < 60; i++) { g.globalAlpha = 0.3 + rnd() * 0.7; g.fillRect(rnd() * W, rnd() * horizon * 0.9, 1.4, 1.4); } g.globalAlpha = 1; }
+    if (V.clouds) {
+      g.fillStyle = "rgba(255,255,255,0.85)";
+      [[0.18, 0.3, 1], [0.55, 0.16, 0.7], [0.36, 0.55, 0.55]].forEach(function (cl) {
+        var cx = W * cl[0], cy = horizon * cl[1], r = W * 0.055 * cl[2];
+        g.beginPath(); g.ellipse(cx, cy, r * 1.9, r * 0.62, 0, 0, 7); g.ellipse(cx - r * 0.9, cy + r * 0.12, r, r * 0.5, 0, 0, 7); g.ellipse(cx + r * 0.8, cy - r * 0.3, r * 1.1, r * 0.7, 0, 0, 7); g.fill();
+      });
+    }
+    this._scene(g, V, W, H, horizon, rnd);
     // Grandstand behind the far baseline
     var st0 = this._project(-CW - 14, CL + 9, 0), st1 = this._project(CW + 14, CL + 9, 0), sh = Math.max(46, 15 * st0.s);
     var sg = g.createLinearGradient(0, st0.y - sh, 0, st0.y);
-    sg.addColorStop(0, "#24407a"); sg.addColorStop(1, "#16264f");
+    sg.addColorStop(0, V.stand[0]); sg.addColorStop(1, V.stand[1]);
     g.fillStyle = sg; g.beginPath(); g.roundRect ? g.roundRect(st0.x, st0.y - sh, st1.x - st0.x, sh, 10) : g.rect(st0.x, st0.y - sh, st1.x - st0.x, sh); g.fill();
-    var seed = 7; function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
-    var cols = ["#ff5d8f", "#ffd60a", "#3fd0ff", "#ffffff", "#9bffb0", "#ff8a3d", "#c9a6ff"];
-    var rows = 7, dot = Math.max(1.8, sh / 24);
+    var cols = V.crowd, rows = 7, dot = Math.max(1.8, sh / 24);
     for (var r = 0; r < rows; r++) for (var x = st0.x + dot * 2; x < st1.x - dot * 2; x += dot * 2.7) {
       g.fillStyle = cols[Math.floor(rnd() * cols.length)];
       g.beginPath(); g.arc(x + (r % 2) * dot * 1.3, st0.y - sh + dot * 2 + r * (sh - dot * 3) / rows + rnd() * 2, dot, 0, 7); g.fill();
     }
-    // Ground (striped turf), wide enough to cover the screen edges
-    for (var i = 0; i < 14; i++) {
-      var ya = -CL - 14 + i * 5, yb = ya + 5;
-      this._quad(g, -90, ya, 90, yb, i % 2 ? "#37b36b" : "#2fa862");
-    }
+    // Ground (striped), wide enough to cover the screen edges
+    for (i = 0; i < 14; i++) { var ya = -CL - 14 + i * 5; this._quad(g, -90, ya, 90, ya + 5, V.ground[i % 2]); }
     // Sponsor boards
     var bd0 = this._project(-CW - 9, CL + 7, 0), bd1 = this._project(CW + 9, CL + 7, 0), bh = Math.max(12, 2.6 * bd0.s);
-    g.fillStyle = "#0e1b3d"; g.fillRect(bd0.x, bd0.y - bh, bd1.x - bd0.x, bh);
-    g.fillStyle = "#ffd60a"; g.font = "800 " + Math.round(bh * 0.62) + "px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillStyle = V.board[0]; g.fillRect(bd0.x, bd0.y - bh, bd1.x - bd0.x, bh);
+    g.fillStyle = V.board[1]; g.font = "800 " + Math.round(bh * 0.62) + "px system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
     var name = String(this.opts.appName || "KITCHEN RUSH").toUpperCase();
     for (var bi = -1; bi <= 1; bi++) g.fillText(name, W / 2 + bi * (bd1.x - bd0.x) / 3, bd0.y - bh / 2);
     // Court apron + playing surface
-    this._quad(g, -CW - 3, -CL - 4.5, CW + 3, CL + 4.5, "#1f7fd1");
-    this._quad(g, -CW, -CL, CW, CL, "#2f6fed");
-    this._quad(g, -CW, -KIT, CW, 0, "#ff7a45");
-    this._quad(g, -CW, 0, CW, KIT, "#ff8d5c");
+    this._quad(g, -CW - 3, -CL - 4.5, CW + 3, CL + 4.5, V.apron);
+    this._quad(g, -CW, -CL, CW, CL, V.court);
+    this._quad(g, -CW, -KIT, CW, 0, V.kitN);
+    this._quad(g, -CW, 0, CW, KIT, V.kitF);
     // Soft light falloff toward the far end
     var a = this._project(0, -CL, 0), b = this._project(0, CL, 0);
     var sheen = g.createLinearGradient(0, b.y, 0, a.y);
     sheen.addColorStop(0, "rgba(10,20,60,0.22)"); sheen.addColorStop(0.5, "rgba(255,255,255,0)"); sheen.addColorStop(1, "rgba(255,255,255,0.10)");
     this._quad(g, -CW - 3, -CL - 4.5, CW + 3, CL + 4.5, sheen);
     // Lines
-    g.strokeStyle = "#ffffff"; g.lineCap = "round";
+    g.strokeStyle = V.line; g.lineCap = "round";
     var L = 0.28;
     this._line(g, -CW, -CL, CW, -CL, L); this._line(g, -CW, CL, CW, CL, L);
     this._line(g, -CW, -CL, -CW, CL, L); this._line(g, CW, -CL, CW, CL, L);
@@ -833,6 +919,7 @@
     var kl = this._project(0, -KIT / 2, 0);
     g.font = "800 " + Math.round(2.1 * kl.s) + "px system-ui, sans-serif";
     g.fillText(String(this.t.kitchen2 || "KITCHEN"), kl.x, kl.y);
+    this._bgVenue = id;
     this._bg = c;
   };
 
@@ -1151,7 +1238,7 @@
     this._powerHud();
 
     var g = this.ctx, W = this.W, H = this.H, self = this;
-    if (!this._bg) this._drawBackground();
+    if (!this._bg || this._bgVenue !== this._venueId()) this._drawBackground();
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.drawImage(this._bg, 0, 0);
     g.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
