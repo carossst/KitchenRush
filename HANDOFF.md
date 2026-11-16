@@ -6,7 +6,7 @@
 - Everything is merged into `main` (PRs #2 to #8). Live site (GitHub Pages, deploys from `main`, takes 1-2 minutes):
   https://carossst.github.io/KitchenRush/ (`?lang=fr` / `?lang=en`; poster: `poster.html?lang=fr|en`). Footer shows the version.
 - Start new work on a **new branch from `main`**, push it, open a **draft PR**. Do not merge or mark ready unless the owner says so.
-- Repo: `carossst/KitchenRush`. PR #1 (`improve/pickleball-rally`, another agent's rally game) is open on purpose and must NOT be merged:
+- Repo: `carossst/KitchenRush`. PR #1 (`improve/pickleball-rally`, another agent's rally game) was **closed without merging** by the owner on 2026-11-16; the branch is kept as a read-only reference and must NOT be merged:
   it conflicts with `main` and replaces the UI. Treat it as a reference (see "What was taken from the rally branch").
 - Other owner repos seen read-only: `carossst/pickleballgame` = the Pickleball Rules Quiz (domain www.pickleballrulesquiz.com, has its own
   `poster.html`; the owner once reported a font-colour bug there: question text white on a light box, not investigated),
@@ -388,7 +388,7 @@ Not found anywhere in the repos: the Arkanoid-style effects with 10 US + 10 Fren
    stores and shares (local storage, optional analytics/email), and translate them.
 6. **Final address**: decide the public domain (`kitchenrush.app` is a placeholder in `config.js` and the meta tags);
    then update them, regenerate the QR codes and reprint the poster.
-7. **Rally branch / PR #1**: close it (recommended) or keep it as a reference; tell the next agent where the
+7. **Rally branch / PR #1**: PR closed on 2026-11-16 (branch kept as a reference). Still open: tell the next agent where the
    Arkanoid prototype with the US/French player sets lives (repo `carossst/pickleballgame` is a candidate, unread).
 8. **Server** (only if rankings are wanted): HTTPS hosting, persistence and secrets; the rally branch has a starting point.
 9. **Optional**: contact email setup (`email.js`), a social-share image (the current one is the app icon),
