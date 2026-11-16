@@ -41,6 +41,18 @@ Written for whoever (human or AI) picks this up next. Read `README.md` first for
 intent; this file covers the state of the code, what was changed recently, what is known
 to be broken, and how to verify work.
 
+**Practical rules (found by a cold-start test of this document)**
+- **Which tests when**: `wording.test.mjs` and `duel-rules.mjs` after every change. `duel-smoke.mjs` (about 5 minutes, 4 bot-played scenarios: singles
+  bot, doubles-left bot, doubles idle, daily bot) before opening any PR that touches Duel gameplay, physics, the render loop or the menu; skip it for
+  copy-only, CSS-only or docs-only changes.
+- **Version bump**: increase `version` in `config.js` once per PR that changes shipped files (so the service worker refreshes); not for docs-only PRs.
+- **Numbering**: `unlock` in `VENUES` is a 0-based opponent index; the UI shows `unlock + 1` ("Reach opponent 5" means `unlock: 4`). `VENUE_ORDER` is the order
+  of the court picker; `AUTO` maps each ladder step to a court (7 entries, same length as `LADDER`) and is a separate decision.
+- **Adding a court**: entry in `VENUES`; id in `VENUE_ORDER`; English and French names in `wording.duel.venues` and `wording.duelFr.venues` (both in `wording.js`);
+  the id in the "every venue renders" list of `tests/duel-rules.mjs`; look at portrait and landscape screenshots (colours are only verified by eye).
+- **Where French lives**: app screens in `wording-fr.js`; the Duel's French is `duelFr` inside `wording.js`.
+- **Playwright**: preinstalled in the original cloud sandbox; elsewhere run `npm i -D playwright && npx playwright install chromium` (the tests `require("playwright")`).
+
 ## What this is
 
 A static, no-build, no-backend browser game (vanilla JS, one `<canvas>`, PWA). Open
@@ -172,7 +184,7 @@ bot only (a perfect bot beats opponent 1 about 5–1) — real-player difficulty
 
 ## How to verify changes
 
-No test suite exists. What was used:
+The automated tests are in `tests/` (see START HERE). Two older, lighter checks that are still useful:
 
 ```bash
 for f in *.js; do node --check "$f"; done
