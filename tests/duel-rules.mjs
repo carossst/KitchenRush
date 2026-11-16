@@ -63,7 +63,34 @@ const results = await page.evaluate(() => {
     for (let i = 0; i < 20; i++) { xa.push(a()); xb.push(b()); xc.push(c()); }
     return eq(xa, xb) === true && JSON.stringify(xa) !== JSON.stringify(xc) && xa.every((v) => v >= 0 && v < 1) ? true : "seed behaviour wrong";
   });
-  t("daily info is well formed and stable within a day", () => { const a = T.dailyInfo(), b = T.dailyInfo(); return /^\d{4}-\d{2}-\d{2}$/.test(a.key) && a.idx >= 0 && a.idx < 6 && a.seed === b.seed ? true : "bad daily info"; });
+  t("daily info is well formed and stable within a day", () => { const a = T.dailyInfo(), b = T.dailyInfo(); return /^\d{4}-\d{2}-\d{2}$/.test(a.key) && a.idx >= 0 && a.idx < 7 && a.seed === b.seed ? true : "bad daily info"; });
+  t("rally ramp: later shots are faster (max +30%)", () => {
+    const rate = (hits) => { fresh(); const h = hitter(0, -12); d.ball = ball({ x: 0, y: -12, z: 2, lastHitTeam: 1, bounces: 1, hits }); d._launch(h, { tx: 0, ty: 15, speed: 30 }, 0, 0); return d.ball.rate; };
+    const r1 = rate(1), r12 = rate(12), r40 = rate(40);
+    // and the faster clock really moves the ball further per step
+    fresh(); d.ball = ball({ x: 0, y: -12, z: 5, vy: 10, rate: 1 }); d._stepBall(0.01); const slow = d.ball.y + 12;
+    fresh(); d.ball = ball({ x: 0, y: -12, z: 5, vy: 10, rate: 1.3 }); d._stepBall(0.01); const fast = d.ball.y + 12;
+    return (r1 < 1.05 && r12 > 1.25 && r12 <= 1.3001 && r40 === r12 && fast > slow * 1.25) ? true : "rates " + r1 + " / " + r12 + " / " + r40 + " moves " + slow + " vs " + fast;
+  });
+  t("a capsule spawns in a rally, on the player's half, and not in the Daily", () => {
+    fresh(); d.capsule = null; d.capSpawnIn = 0; d.ball = ball({ hits: 3 }); d._capsules(0.016);
+    const c = d.capsule; const okSpawn = !!c && c.y < -8 && c.y > -18 && T.POWERS.includes(c.kind);
+    fresh(); d.daily = { key: "2026-01-01", idx: 0, seed: 1 }; d.capsule = null; d.capSpawnIn = 0; d.ball = ball({ hits: 3 }); d._capsules(0.016); const none = d.capsule === null; d.daily = null;
+    return eq([okSpawn, none], [true, true]);
+  });
+  t("catching a capsule grants its power; an old capsule vanishes", () => {
+    fresh(); const h = hitter(3, -12); d.capsule = { x: 3, y: -12, kind: "sprint", born: d.now - 2, until: d.now + 5 }; d._capsules(0.016);
+    const got = [d._pw("sprint"), d.capsule === null];
+    fresh(); d.capsule = { x: 3, y: -12, kind: "sprint", born: d.now - 20, until: d.now - 1 }; d._capsules(0.016);
+    return eq([got, d.capsule === null, d._pw("any")], [[true, true], true, false]);
+  });
+  t("the boss: stage 7 is the boss, rage triggers at 3 points", () => {
+    d.stage = 6; const boss = d._opp(); d._startMatch(); d.paused = true;
+    for (let i = 0; i < 3; i++) { d.phase = "rally"; d._point(1, "winner"); }
+    const r = d._rage; d.stage = 0;
+    return eq([boss.boss === true, boss.name, r], [true, "Captain Kitchen", true]);
+  });
+  t("every capsule kind renders", () => { fresh(); for (const key of T.POWERS) { d.capsule = { x: 0, y: -12, kind: key, born: d.now - 2, until: d.now + 5 }; d._drawCapsule(d.ctx); } d.capsule = null; d.ball = ball({ hits: 8 }); d._drawRally(d.ctx); return true; });
   t("every power renders without errors", () => {
     fresh(); d.paused = true;
     for (const key of T.POWERS) { d.power = { key, until: d.now + 5 }; d.flashUntil = d.now + 0.2; d._flashKey = key; d._drawPowerFx(d.ctx); d._drawPowerTint(d.ctx); d._powerHud(); }

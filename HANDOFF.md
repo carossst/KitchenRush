@@ -342,3 +342,20 @@ Not found anywhere in the repos: the Arkanoid-style effects with 10 US + 10 Fren
 8. **Server** (only if rankings are wanted): HTTPS hosting, persistence and secrets; the rally branch has a starting point.
 9. **Optional**: contact email setup (`email.js`), a social-share image (the current one is the app icon),
    analytics choice, translating the remaining screens listed in the French section above.
+
+
+## Capsules, rally ramp, final boss (version 13)
+
+Arkanoid-inspired additions to the Duel (ideas from the original game, not from any other repo):
+- **Capsules** (`_spawnCapsule`, `_capsules`, `_collectCapsule`, `_drawCapsule`): during a rally a capsule falls onto the
+  player's half; running over it grants one of the six powers for 7 s (`CAPSULE_SECONDS`), it vanishes after 8 s
+  (`CAPSULE_LIFE`). One at a time, 6-11 s apart, never in the Daily Duel. Icons are drawn (`capIcon`), not text.
+- **Rally ramp**: each shot of a rally makes the ball clock run 3.5% faster, up to +30% (`b.rate`, applied in
+  `_stepBall`), with a "RALLY n" counter (`_drawRally`). Speeding up the shot itself does NOT work: the arc must
+  still clear the net, which fixes the flight time. The rate resets with every point.
+- **Final boss**: `LADDER[6]` "Captain Kitchen" (`boss: true`): 30% bigger, red aura, intro banner, "RAGE" when he
+  reaches 3 points (faster and harder shots, embers), no power reward, a normal partner in doubles. After the boss
+  the ladder keeps scaling his stats. `wording.duelFr.tags` must have 7 entries (tested).
+- Tests: 25 rule checks (capsule spawn/catch/expiry, ramp rate, boss and rage, rendering of capsules and counter).
+- Ideas not done: target "bricks" on the opponent's court (Arkanoid's core idea), multiball (only one ball here),
+  a laser/catch capsule, boss patterns beyond rage.

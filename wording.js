@@ -154,6 +154,12 @@
       powerActive: "{name} {s}s",
       powerEquip: "Power: {name} \u2014 {desc}",
       powerNone: "Beat an opponent to earn a power. Win points to charge it.",
+      capsuleHint: "Grab the falling capsules for a short power.",
+      rallyLabel: "RALLY {n}",
+      bossLabel: "FINAL BOSS",
+      bossIntro: "FINAL BOSS: {name}",
+      bossRage: "RAGE!",
+      bossWin: "Boss defeated!",
       traitLabel: "Style: {x}",
       traits: { centre: "mostly down the middle", sides: "goes wide", tempo: "mixes soft and hard", left: "favours your left", right: "favours your right" }
     },
@@ -212,9 +218,15 @@
       powerActive: "{name} {s} s",
       powerEquip: "Pouvoir : {name} \u2014 {desc}",
       powerNone: "Battez un adversaire pour gagner un pouvoir. Marquez pour le charger.",
+      capsuleHint: "Attrapez les capsules qui tombent pour un pouvoir bref.",
+      rallyLabel: "\u00c9CHANGE {n}",
+      bossLabel: "BOSS FINAL",
+      bossIntro: "BOSS FINAL : {name}",
+      bossRage: "FUREUR !",
+      bossWin: "Boss vaincu !",
       traitLabel: "Style : {x}",
       traits: { centre: "surtout au milieu", sides: "joue large", tempo: "alterne doux et fort", left: "pr\u00e9f\u00e8re votre gauche", right: "pr\u00e9f\u00e8re votre droite" },
-      tags: ["L\u00e0 pour le plaisir", "Mains douces, balles courtes", "Adore la balle haute", "Frappe tout tr\u00e8s fort", "Trouve tous les coins", "Ma\u00eetre de la ligne"]
+      tags: ["L\u00e0 pour le plaisir", "Mains douces, balles courtes", "Adore la balle haute", "Frappe tout tr\u00e8s fort", "Trouve tous les coins", "Ma\u00eetre de la ligne", "Boss final : ne rate jamais un amorti"]
     },
 
     landing: {

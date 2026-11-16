@@ -70,7 +70,7 @@
   window.KR_CONFIG = {
 
     // Product version (UI display, logs, SW cache key)
-    version: "12",
+    version: "13",
 
     // Storage schema version (localStorage).
     // Change ONLY if you accept a migration/wipe.
