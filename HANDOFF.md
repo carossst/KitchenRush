@@ -429,3 +429,23 @@ P2
 11. Social: friend challenge by link (seeded match), async leaderboard (needs a server).
 12. Monetisation, if ever: cosmetics only, fixed prices, no random packs, no pay-to-win; server-held balance; legal review for minors.
 13. Architecture: `duel.js` is large and untyped; split rendering, rules and UI before adding more features.
+
+
+## Audit fixes: tutorial, tabs, touch, local playtest log (version 16)
+
+Done from the audit's P0 list:
+- **Tutorial**: the first match (stage 0, `save.coached` false) uses a gentler opponent (`_opp()`: speed x0.8, error x1.4, reaction x1.4,
+  aggression x0.6), 60% longer slow-motion, and a coach box (`_coachTick`) with one hint at a time: serve, get to the ball, aim while
+  time slows, "nice". It ends after 4 of your shots or at the end of the match (`save.coached = true`). "Replay the tutorial" is in the
+  Play tab. Touch and keyboard wordings are separate (`coachServeTouch/Keys`, `coachAimTouch/Keys`).
+- **Menu tabs**: Play / Players / Courts / Progress (`_showMenu`, `panel()`); Start / Back / language buttons stay visible. Tab switches
+  toggle `hidden` without re-rendering (`tab-` action). The result and the opponent header stay on top.
+- **Touch**: chips and tabs are at least 44 px high; tapping a player previews it (skill, price, status) and a separate button equips
+  or buys it (`pl-` previews, `act-` acts), so purchases need two deliberate taps; locked courts are `aria-disabled` and explain
+  themselves when tapped instead of relying on `title` tooltips.
+- **Local playtest log** (`kr:duel-stats`, last 60 matches, never sent anywhere): day, version, stage, world, opponent, mode, score,
+  duration, longest rally, capsules, powers used, player, court and the cause of every point (`team:reason`). The Progress tab shows
+  win rate and average duration and has "Copy my playtest data" so testers can paste their data to the owner. This is what is needed to
+  verify the AI-coverage hypothesis (how points are won) and to tune coins and difficulty.
+- Tests: 37 rule checks (tutorial, coach, tabs, preview/buy, locked court, log and export), 686 wording checks.
+Still open from the audit: real-device test, sound design, daily quests and coin sinks, colour-blind shapes, seasons, server.

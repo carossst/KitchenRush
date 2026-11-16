@@ -12,6 +12,13 @@
   var CW = 10, CL = 22, KIT = 7, NET_H = 3, G = 30, BALL_R = 0.24;
   var WIN_SCORE = 5;
   var STORE_KEY = "kr:duel";
+  // Local-only playtest log (never sent anywhere): used for balancing, exported by the player on request.
+  var STATS_KEY = "kr:duel-stats", STATS_MAX = 60;
+  function readStats() {
+    try { var a = JSON.parse(localStorage.getItem(STATS_KEY) || "[]"); return Array.isArray(a) ? a.filter(function (e) { return e && typeof e === "object"; }).slice(-STATS_MAX) : []; }
+    catch (_) { return []; }
+  }
+  function writeStats(a) { try { localStorage.setItem(STATS_KEY, JSON.stringify(a)); } catch (_) { } }
 
   var LADDER = [
     { name: "Rookie Rae", tag: "Just here for fun", look: 3, trait: "centre", speed: 10, react: 0.38, err: 2.6, aggr: 0.15, lobP: 0.05, dinkP: 0.15, volley: false, judge: 2, pace: 0.85,
@@ -113,6 +120,7 @@
     d.venue = (d.venue === "auto" || (typeof d.venue === "string" && hasVenue(d.venue))) ? d.venue : "auto";
     d.bestMargin = clamp(Math.floor(Number(d.bestMargin) || 0), 0, 99);
     d.lang = (d.lang === "fr" || d.lang === "en") ? d.lang : "";
+    d.coached = d.coached === true;
     d.coins = clamp(Math.floor(Number(d.coins) || 0), 0, 999999);
     var ownedClean = {};
     PLAYERS.forEach(function (p) { if (p.cost > 0 && d.owned && d.owned[p.id] === true) ownedClean[p.id] = true; });
@@ -130,6 +138,7 @@
     this.save = loadSave();
     this.lang = this.save.lang || window.KR_LANG || (/^fr/i.test(navigator.language || "") ? "fr" : "en");
     this.t = this._dict();
+    this._isTouch = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
     this.stage = clamp(Math.floor(Number(this.save.stage) || 0), 0, 999);
     this.mode = this.save.mode === "doubles" ? "doubles" : "singles";
     this.side = this.save.side === "left" ? "left" : "right";
@@ -165,6 +174,7 @@
       '<div class="kr-duel-score" aria-live="polite"></div><span class="kr-duel-spacer"></span></div>' +
       '<div class="kr-duel-banner" aria-live="polite"></div>' +
       '<button class="kr-duel-power" hidden></button>' +
+      '<div class="kr-duel-coach" role="status" aria-live="polite" hidden></div>' +
       '<div class="kr-duel-panel"></div>';
     document.body.appendChild(root);
     this.root = root;
@@ -174,6 +184,7 @@
     this.bannerEl = root.querySelector(".kr-duel-banner");
     this.panelEl = root.querySelector(".kr-duel-panel");
     this.powerEl = root.querySelector(".kr-duel-power");
+    this.coachEl = root.querySelector(".kr-duel-coach");
 
     var self = this;
     this._onResize = function () { self._resize(); };
@@ -215,6 +226,9 @@
   Duel.prototype._opp = function () {
     if (this.daily) return LADDER[this.daily.idx];
     var base = LADDER[this._oppIdx()], extra = this._world() - 1;   // each new world: the same six + boss, tougher
+    if (!extra && !this.save.coached && this.stage === 0) {   // tutorial match: a gentler first opponent
+      var e = Object.assign({}, base); e.speed *= 0.8; e.err *= 1.4; e.react *= 1.4; e.aggr *= 0.6; return e;
+    }
     if (!extra) return base;
     var o = Object.assign({}, base);
     o.speed += extra * 1.2; o.err = Math.max(0.4, o.err - extra * 0.15); o.react = Math.max(0.07, o.react - extra * 0.02); o.pace *= 1 + extra * 0.05;
@@ -244,28 +258,34 @@
     if (result && this._lastEarn) head += '<p class="kr-duel-earn">' + esc((t.earned || "+{n} coins").replace("{n}", this._lastEarn)) + '</p>';
     var m = this.mode, s = this.side;
     function opt(id, label, on) { return '<button class="kr-duel-opt' + (on ? " kr-duel-opt--on" : "") + '" data-duel="' + id + '" aria-pressed="' + (on ? "true" : "false") + '">' + esc(label) + '</button>'; }
-    var touch = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
+    var touch = this._isTouch;
+    var tabs = ["play", "players", "courts", "progress"], tab = (this.tab && tabs.indexOf(this.tab) >= 0) ? this.tab : "play", tabNames = t.tabs || {};
+    function tabBtn(id) { return '<button role="tab" class="kr-duel-tab" data-duel="tab-' + id + '" aria-selected="' + (tab === id ? "true" : "false") + '">' + esc(tabNames[id] || id) + "</button>"; }
+    function panel(id, html) { return '<div class="kr-duel-tabpanel" role="tabpanel" data-tabpanel="' + id + '"' + (tab === id ? "" : " hidden") + ">" + html + "</div>"; }
     this.panelEl.innerHTML =
       '<div class="kr-duel-card">' + head +
       '<p class="kr-duel-kicker">' + esc((this._world() > 1 && !this.daily ? (t.worldLabel || "World {w}").replace("{w}", this._world()) + " \u00b7 " : "") + (opp.boss ? (t.bossLabel || "FINAL BOSS") : (t.stageLabel || "Opponent {n}").replace("{n}", this._oppIdx() + 1))) + '</p>' +
       '<h2 class="kr-duel-name">' + esc(opp.name) + '</h2>' +
       '<p class="kr-muted">' + esc((t.tags && t.tags[this._oppIdx()]) || opp.tag || "") + '</p>' +
       (opp.trait && t.traits ? '<p class="kr-muted kr-duel-trait">' + esc((t.traitLabel || "Style: {x}").replace("{x}", t.traits[opp.trait] || "")) + '</p>' : "") +
-      this._statsHtml(result) +
-      this._venueHtml() +
-      this._playerHtml() +
-      '<div class="kr-duel-opts" role="group" aria-label="' + esc(t.modeAria || "Match type") + '">' +
-        opt("singles", t.singles || "Singles", m === "singles") +
-        opt("left", t.doublesLeft || "Doubles · Left", m === "doubles" && s === "left") +
-        opt("right", t.doublesRight || "Doubles · Right", m === "doubles" && s === "right") +
-      '</div>' +
-      '<button class="kr-btn kr-btn--secondary kr-duel-look" data-duel="look">' + esc(t.changeLook || "Change my look") + '</button>' +
-      '<p class="kr-duel-how">' + esc(touch ? (t.howTouch || "Drag to move. When time slows, swipe toward where you want the ball.") : (t.howKeys || "Arrows / WASD: move. Space: hit — hold a direction to aim. Or click where you want the ball.")) + '</p>' +
-      '<p class="kr-duel-how">' + esc(t.capsuleHint || "Grab the falling capsules for a short power.") + '</p>' +
-      '<p class="kr-duel-how">' + esc(t.rules || "First to 5. Serve and return must bounce. No volleys in the Kitchen.") + '</p>' +
+      '<div class="kr-duel-tabs" role="tablist">' + tabs.map(tabBtn).join("") + '</div>' +
+      panel("play", this._goalHtml(result) +
+        '<div class="kr-duel-opts" role="group" aria-label="' + esc(t.modeAria || "Match type") + '">' +
+          opt("singles", t.singles || "Singles", m === "singles") +
+          opt("left", t.doublesLeft || "Doubles · Left", m === "doubles" && s === "left") +
+          opt("right", t.doublesRight || "Doubles · Right", m === "doubles" && s === "right") +
+        '</div>' + this._dailyHtml() +
+        '<p class="kr-duel-how">' + esc(touch ? (t.howTouch || "Drag to move. When time slows, swipe toward where you want the ball.") : (t.howKeys || "Arrows / WASD: move. When time slows, hold a direction and press Space, or click where you want the ball.")) + '</p>' +
+        '<p class="kr-duel-how">' + esc(t.capsuleHint || "Grab the falling capsules for a short power.") + '</p>' +
+        '<p class="kr-duel-how">' + esc(t.rules || "First to 5. Serve and return must bounce. No volleys in the Kitchen.") + '</p>' +
+        '<button class="kr-btn kr-btn--ghost" data-duel="tutorial">' + esc(t.tutorialBtn || "Replay the tutorial") + '</button>') +
+      panel("players", this._playerHtml() +
+        '<button class="kr-btn kr-btn--secondary kr-duel-look" data-duel="look">' + esc(t.changeLook || "Change my look") + '</button>' + this._collectionHtml()) +
+      panel("courts", this._venueHtml()) +
+      panel("progress", this._progressHtml()) +
       '<button class="kr-btn kr-btn--primary kr-duel-go" data-duel="go">' + esc(result ? (result === "win" ? (t.next || "Next opponent") : (t.retry || "Rematch")) : (t.start || "Start match")) + '</button>' +
       '<button class="kr-btn kr-btn--ghost" data-duel="exit">' + esc(t.home || "Back to menu") + '</button>' +
-      '<button class="kr-btn kr-btn--ghost kr-duel-lang" data-duel="lang" lang="' + (this.lang === "fr" ? "en" : "fr") + '">' + (this.lang === "fr" ? "English" : "Fran\u00e7ais") + '</button>' +
+      '<button class="kr-btn kr-btn--ghost kr-duel-lang" data-duel="lang" lang="' + (this.lang === "fr" ? "en" : "fr") + '">' + (this.lang === "fr" ? "English" : "Français") + '</button>' +
       '</div>';
     this.panelEl.classList.add("kr-duel-panel--on");
     this.scoreEl.textContent = "";
@@ -275,30 +295,78 @@
   };
 
   // Progress block of the match menu: last results, record, goal for the next match, opponents beaten.
-  Duel.prototype._statsHtml = function (result) {
-    var t = this.t, sv = this.save, h = sv.history || [], opp = this._opp(), sc = this._lastScore;
-    var self = this, wl = String(t.winLetter || "W"), ll = String(t.loseLetter || "L");
-    var goal;
-    if (result && this._lastDailyIdx != null && sc) goal = (t.dailyGoal || "Daily Duel: {you}\u2013{them} vs {name}. Back tomorrow!").replace("{you}", sc[0]).replace("{them}", sc[1]).replace("{name}", LADDER[this._lastDailyIdx].name);
-    else if (result === "lose" && sc) goal = (t.goalLose || "Lost {you}\u2013{them}. Beat {name} to move up.").replace("{you}", sc[0]).replace("{them}", sc[1]).replace("{name}", opp.name);
+  Duel.prototype._goalHtml = function (result) {
+    var t = this.t, opp = this._opp(), sc = this._lastScore, goal;
+    if (result && this._lastDailyIdx != null && sc) goal = (t.dailyGoal || "Daily Duel: {you}–{them} vs {name}. Back tomorrow!").replace("{you}", sc[0]).replace("{them}", sc[1]).replace("{name}", LADDER[this._lastDailyIdx].name);
+    else if (result === "lose" && sc) goal = (t.goalLose || "Lost {you}–{them}. Beat {name} to move up.").replace("{you}", sc[0]).replace("{them}", sc[1]).replace("{name}", opp.name);
     else if (result === "win") goal = (t.goalNext || "Next: beat {name}").replace("{name}", opp.name);
     else goal = (t.goalFirst || "Beat {name} to move up the ladder.").replace("{name}", opp.name);
-    var out = '<p class="kr-duel-goal">' + esc(goal) + '</p>';
+    return '<p class="kr-duel-goal">' + esc(goal) + '</p>';
+  };
+
+  // Progress tab: recent results, record, win rate from the local playtest log, and the export button.
+  Duel.prototype._progressHtml = function () {
+    var t = this.t, sv = this.save, h = sv.history || [], wl = String(t.winLetter || "W"), ll = String(t.loseLetter || "L"), out = "";
     if (h.length) {
       out += '<div class="kr-duel-recent" role="list" aria-label="' + esc(t.recent || "Last matches") + '">' + h.slice(-5).map(function (e) {
         var w = e.you > e.them;
-        return '<span role="listitem" class="kr-duel-dot kr-duel-dot--' + (w ? "w" : "l") + '" title="' + e.you + '\u2013' + e.them + '">' + esc(w ? wl : ll) + '</span>';
+        return '<span role="listitem" class="kr-duel-dot kr-duel-dot--' + (w ? "w" : "l") + '" title="' + e.you + '–' + e.them + '">' + esc(w ? wl : ll) + '</span>';
       }).join("") + '</div>';
-      out += '<p class="kr-muted">' + esc((t.record || "Wins {w} \u00b7 Best margin +{m}").replace("{w}", Number(sv.wins) || 0).replace("{m}", sv.bestMargin || 0)) + '</p>';
+      out += '<p class="kr-muted">' + esc((t.record || "Wins {w} · Best margin +{m}").replace("{w}", Number(sv.wins) || 0).replace("{m}", sv.bestMargin || 0)) + '</p>';
     }
-    out += this._dailyHtml();
-    out += '<div class="kr-duel-chips" aria-label="' + esc(t.collection || "Opponents beaten") + '">' + LADDER.map(function (o, i) {
+    var log = readStats();
+    if (log.length) {
+      var wins = log.filter(function (e) { return e.you > e.them; }).length, avg = Math.round(log.reduce(function (a, e) { return a + (Number(e.sec) || 0); }, 0) / log.length);
+      out += '<p class="kr-muted">' + esc((t.winRate || "Win rate {p}% over {n} matches · avg {m}").replace("{p}", Math.round(100 * wins / log.length)).replace("{n}", log.length).replace("{m}", Math.floor(avg / 60) + ":" + (avg % 60 < 10 ? "0" : "") + (avg % 60))) + '</p>';
+    } else out += '<p class="kr-muted">' + esc(t.noProgress || "Play a match to see your progress here.") + '</p>';
+    out += '<button class="kr-btn kr-btn--secondary" data-duel="export">' + esc(t.exportBtn || "Copy my playtest data") + '</button>';
+    return '<div class="kr-duel-stats">' + out + '</div>';
+  };
+
+  // Players tab: opponents beaten (each gives a power you can equip) and the equipped power.
+  Duel.prototype._collectionHtml = function () {
+    var t = this.t, sv = this.save, self = this;
+    return '<div class="kr-duel-chips" aria-label="' + esc(t.collection || "Opponents beaten") + '">' + LADDER.map(function (o, i) {
       var on = sv.beaten && sv.beaten[i];
       if (!on) return '<span class="kr-duel-chip">?</span>';
       var eq = POWERS[i] === self._equippedKey();
-      return '<button class="kr-duel-chip kr-duel-chip--on' + (eq ? " kr-duel-chip--eq" : "") + '" data-duel="eq-' + i + '" aria-pressed="' + (eq ? "true" : "false") + '" title="' + esc((t.powerDescs || [])[i] || "") + '">' + (eq ? "\u2605 " : "\u2713 ") + esc(o.name) + '</button>';
+      return '<button class="kr-duel-chip kr-duel-chip--on' + (eq ? " kr-duel-chip--eq" : "") + '" data-duel="eq-' + i + '" aria-pressed="' + (eq ? "true" : "false") + '" title="' + esc((t.powerDescs || [])[i] || "") + '">' + (eq ? "★ " : "✓ ") + esc(o.name) + '</button>';
     }).join("") + '</div>' + this._powerLine();
-    return '<div class="kr-duel-stats">' + out + '</div>';
+  };
+
+  Duel.prototype._logMatch = function (won, s, isDaily) {
+    var m = this._m || {}, all = readStats();
+    all.push({ day: new Date().toISOString().slice(0, 10), v: String((window.KR_CONFIG && window.KR_CONFIG.version) || ""), stage: this.stage, world: this._world(), opp: this._opp().name,
+      mode: isDaily ? "daily" : this.mode, you: s[0], them: s[1], sec: Math.round((Date.now() - (m.t0 || Date.now())) / 1000), maxRally: m.maxRally || 0, caps: m.caps || 0,
+      powers: m.powers || 0, player: this._player().id, court: this._venueId(), pts: (m.pts || []).slice(0, 40) });
+    writeStats(all.slice(-STATS_MAX));
+  };
+
+  Duel.prototype._exportData = function () {
+    return JSON.stringify({ app: "kitchen-rush-duel", version: String((window.KR_CONFIG && window.KR_CONFIG.version) || ""), exportedAt: new Date().toISOString(), coins: this.save.coins || 0, stage: this.stage, matches: readStats() });
+  };
+
+  Duel.prototype._export = function () {
+    var t = this.t, btn = this.panelEl.querySelector('[data-duel="export"]'), self = this;
+    function done(ok) { if (btn) { btn.textContent = ok ? (t.exportDone || "Copied!") : (t.exportFail || "Copy failed"); setTimeout(function () { if (btn && self.root) btn.textContent = t.exportBtn || "Copy my playtest data"; }, 1800); } }
+    try { navigator.clipboard.writeText(this._exportData()).then(function () { done(true); }, function () { done(false); }); } catch (_) { done(false); }
+  };
+
+  // Tutorial coach: one short hint at a time during the first match.
+  Duel.prototype._coachTick = function () {
+    var el = this.coachEl; if (!el) return;
+    var t = this.t, key = "", b = this.ball;
+    if (this.phase !== "menu" && !this.daily && !this.save.coached) {
+      if (this.phase === "serve" && this.server === this.human) key = "coachServe";
+      else if (this.phase === "rally" && this.timeScale < 0.7) key = "coachAim";
+      else if (this.phase === "rally" && b && b.live && !b.dead && b.lastHitTeam === 1) key = "coachMove";
+      else if (this.phase === "rally" && b && b.lastHitTeam === 0) key = "coachNice";
+    }
+    if (key === this._coachKey) return;
+    this._coachKey = key;
+    if (!key) { el.hidden = true; return; }
+    el.textContent = t[key + (this._isTouch ? "Touch" : "Keys")] || t[key] || "";
+    el.hidden = !el.textContent;
   };
 
   // ───────────────────────── Powers ─────────────────────────
@@ -313,16 +381,19 @@
   Duel.prototype._capDelay = function (s) { return s * (this._player().lucky ? 0.6 : 1); };
 
   Duel.prototype._playerHtml = function () {
-    var t = this.t, sv = this.save, cur = this._player(), sk = t.playerSkill || {};
+    var t = this.t, sv = this.save, cur = this._player(), sk = t.playerSkill || {}, coins = sv.coins || 0;
+    var pid = this.previewPlayer || cur.id, P = cur;
+    PLAYERS.forEach(function (p) { if (p.id === pid) P = p; });
     var chips = PLAYERS.map(function (p) {
-      var owned = p.cost === 0 || !!(sv.owned && sv.owned[p.id]), afford = (sv.coins || 0) >= p.cost, on = cur.id === p.id;
-      var title = (sk[p.id] || "") + (owned ? "" : " — " + (afford ? (t.playerBuy || "Buy for {n} coins") : (t.playerNeed || "Not enough coins ({n})")).replace("{n}", p.cost));
-      var a = p.pal.jerseyA || HUMAN_PAL.jerseyA, b = p.pal.jerseyB || HUMAN_PAL.jerseyB;
-      return '<button class="kr-duel-chip' + (on ? " kr-duel-chip--eq" : "") + '" data-duel="pl-' + p.id + '" aria-pressed="' + (on ? "true" : "false") + '"' + ((!owned && !afford) ? " disabled" : "") + ' title="' + esc(title) + '"><i class="kr-duel-swatch" style="background:linear-gradient(135deg,' + a + "," + b + ')"></i>' + esc(p.name) + (owned ? "" : " · " + p.cost) + "</button>";
+      var owned = p.cost === 0 || !!(sv.owned && sv.owned[p.id]), a = p.pal.jerseyA || HUMAN_PAL.jerseyA, b = p.pal.jerseyB || HUMAN_PAL.jerseyB;
+      return '<button class="kr-duel-chip' + (cur.id === p.id ? " kr-duel-chip--eq" : "") + (P.id === p.id ? " kr-duel-chip--pick" : "") + '" data-duel="pl-' + p.id + '" aria-pressed="' + (P.id === p.id ? "true" : "false") + '"><i class="kr-duel-swatch" style="background:linear-gradient(135deg,' + a + "," + b + ')"></i>' + esc(p.name) + (owned ? "" : " · " + p.cost) + "</button>";
     }).join("");
-    return '<p class="kr-duel-coins">' + esc((t.coins || "Coins: {n}").replace("{n}", sv.coins || 0)) + "</p>" +
+    var owned = P.cost === 0 || !!(sv.owned && sv.owned[P.id]), equipped = cur.id === P.id, afford = coins >= P.cost;
+    var label = equipped ? (t.playerEquipped || "Equipped") : owned ? (t.playerEquip || "Equip") : afford ? (t.playerBuy || "Buy for {n} coins").replace("{n}", P.cost) : (t.playerMissing || "Need {n} more coins").replace("{n}", P.cost - coins);
+    return '<p class="kr-duel-coins">' + esc((t.coins || "Coins: {n}").replace("{n}", coins)) + "</p>" +
       '<div class="kr-duel-venues" role="group" aria-label="' + esc(t.playerLabel || "My player") + '">' + chips + "</div>" +
-      '<p class="kr-muted kr-duel-venuenow">' + esc(cur.name + " — " + (sk[cur.id] || "")) + "</p>";
+      '<div class="kr-duel-detail"><strong>' + esc(P.name) + '</strong><p class="kr-muted">' + esc(sk[P.id] || "") + '</p>' +
+      '<button class="kr-btn kr-btn--secondary" data-duel="act-' + P.id + '"' + ((equipped || (!owned && !afford)) ? " disabled" : "") + ">" + esc(label) + "</button></div>";
   };
 
   Duel.prototype._pw = function (key) {
@@ -351,6 +422,7 @@
   Duel.prototype._activatePower = function () {
     var key = this._equippedKey();
     if (!key || this.daily || this.phase === "menu" || (this.charge || 0) < this._chargeMax() || this._pw("any")) return;
+    if (this._m) this._m.powers++;
     this.power = { key: key, until: this.now + POWER_SECONDS };
     this.charge = 0;
     this.flashUntil = this.now + 0.3; this._flashKey = key;
@@ -404,19 +476,31 @@
 
   Duel.prototype._panelAction = function (a) {
     if (a === "exit") { this.destroy(); return; }
-    if (a.indexOf("pl-") === 0) {
-      var pid = a.slice(3), sv2 = this.save, P = null;
+    if (a.indexOf("pl-") === 0) { this.previewPlayer = a.slice(3); this._showMenu(this._lastResult); return; }
+    if (a.indexOf("act-") === 0) {
+      var pid = a.slice(4), sv2 = this.save, P = null;
       for (var pi = 0; pi < PLAYERS.length; pi++) if (PLAYERS[pi].id === pid) P = PLAYERS[pi];
       if (P) {
         if (P.cost === 0 || sv2.owned[pid]) sv2.player = pid;
         else if ((sv2.coins || 0) >= P.cost) { sv2.coins -= P.cost; sv2.owned[pid] = true; sv2.player = pid; this._sound("milestone"); }
-        writeSave(sv2);
+        this.previewPlayer = pid; writeSave(sv2);
       }
       this._showMenu(this._lastResult); return;
     }
+    if (a === "tutorial") { this.save.coached = false; writeSave(this.save); this.tab = "play"; this._showMenu(this._lastResult); return; }
+    if (a === "export") { this._export(); return; }
+    if (a.indexOf("tab-") === 0) {
+      var tb = a.slice(4);
+      if (["play", "players", "courts", "progress"].indexOf(tb) < 0) return;
+      this.tab = tb;
+      this.panelEl.querySelectorAll("[data-tabpanel]").forEach(function (p) { p.hidden = p.getAttribute("data-tabpanel") !== tb; });
+      this.panelEl.querySelectorAll(".kr-duel-tab").forEach(function (b) { b.setAttribute("aria-selected", b.getAttribute("data-duel") === "tab-" + tb ? "true" : "false"); });
+      return;
+    }
     if (a.indexOf("venue-") === 0) {
       var vid = a.slice(6);
-      if (vid === "auto" || (hasVenue(vid) && this.stage >= VENUES[vid].unlock)) { this.save.venue = vid; writeSave(this.save); this._bg = null; }
+      if (vid === "auto" || (hasVenue(vid) && this.stage >= VENUES[vid].unlock)) { this.save.venue = vid; writeSave(this.save); this._bg = null; this.venueMsg = ""; }
+      else if (hasVenue(vid)) this.venueMsg = (this.t.venueLocked || "Reach opponent {n} to unlock").replace("{n}", VENUES[vid].unlock + 1);
       this._showMenu(this._lastResult); return;
     }
     if (a.indexOf("eq-") === 0) {
@@ -465,7 +549,8 @@
     this.panelEl.classList.remove("kr-duel-panel--on");
     this._lastResult = null;
     this._lastDailyIdx = null;
-    this.capsule = null; this.capSpawnIn = null; this._rage = false; this._lastBoss = false; this._lastEarn = 0;
+    this.capsule = null; this.capSpawnIn = null; this._rage = false; this._lastBoss = false; this._lastEarn = 0; this._coachHits = 0; this._coachKey = "";
+    this._m = { t0: Date.now(), maxRally: 0, caps: 0, powers: 0, pts: [] };
     this.charge = this._player().startCharge || 0;
     this.power = null;
     RNG = this.daily ? seeded(this.daily.seed) : Math.random;
@@ -600,7 +685,9 @@
     }
     b.vx = dx / T; b.vy = dy / T; b.vz = (0.5 * G * T * T - b.z) / T;
     b.live = true; b.held = false; b.lastHitTeam = a.team; b.bounces = 0; b.hits += 1; b.id = ++this.ballId;
-    b.rate = 1 + clamp(Math.max(0, b.hits - 1) * 0.035, 0, 0.3);   // rally ramp: the ball runs up to 30% faster on the same arc
+    b.rate = 1 + clamp(Math.max(0, b.hits - 1) * 0.035, 0, 0.3);
+    if (this._m) this._m.maxRally = Math.max(this._m.maxRally, b.hits);
+    if (a.human) { this._coachHits = (this._coachHits || 0) + 1; if (this._coachHits >= 4 && !this.daily && !this.save.coached) { this.save.coached = true; writeSave(this.save); } }   // rally ramp: the ball runs up to 30% faster on the same arc
     b.isServe = b.hits === 1;
     a.swingAnim = this.now + 0.3; a.swung = true;
     a.side = b.x >= a.x ? 1 : -1;
@@ -705,6 +792,7 @@
     this.phase = "point";
     this.phaseAt = this.now;
     this.score[team] += 1;
+    if (this._m && this._m.pts.length < 40) this._m.pts.push(team + ":" + reason);
     if (team === 0 && !this.daily && !this._pw("any")) this.charge = Math.min(this._chargeMax(), (this.charge || 0) + 1);
     this.serveTurn[team] += (this.serverTeam === team) ? 0 : 1;
     this.serverTeam = team;
@@ -723,6 +811,8 @@
     if ((s[0] >= WIN_SCORE || s[1] >= WIN_SCORE) && lead >= 1) {
       var won = s[0] > s[1], sv = this.save, idx = this._oppIdx(), isDaily = !!this.daily;
       this._lastScore = [s[0], s[1]];
+      this._logMatch(won, s, isDaily);
+      if (!isDaily && !sv.coached) sv.coached = true;
       this._lastBoss = won && !isDaily && !!this._opp().boss;
       // Coins: soft currency earned by playing (the Daily pays once a day, on the first attempt).
       var firstDaily = isDaily && (!sv.daily || sv.daily.key !== this.daily.key);
@@ -860,7 +950,7 @@
     var t = this.t, sv = this.save, self = this, names = t.venues || {}, cur = this._venueId();
     var sel = (sv.venue && (sv.venue === "auto" || hasVenue(sv.venue))) ? sv.venue : "auto";
     function chip(id, label, locked, title, on, sw) {
-      return '<button class="kr-duel-chip' + (on ? " kr-duel-chip--eq" : "") + '" data-duel="venue-' + id + '" aria-pressed="' + (on ? "true" : "false") + '"' + (locked ? " disabled" : "") + (title ? ' title="' + esc(title) + '"' : "") + ">" + (sw || "") + esc(label) + "</button>";
+      return '<button class="kr-duel-chip' + (on ? " kr-duel-chip--eq" : "") + '" data-duel="venue-' + id + '" aria-pressed="' + (on ? "true" : "false") + '"' + (locked ? ' aria-disabled="true"' : "") + (title ? ' title="' + esc(title) + '"' : "") + ">" + (sw || "") + esc(label) + "</button>";
     }
     var chips = chip("auto", t.venueAuto || "Auto", false, "", sel === "auto", "");
     VENUE_ORDER.forEach(function (id) {
@@ -869,7 +959,7 @@
         '<i class="kr-duel-swatch" style="background:linear-gradient(135deg,' + V.sky[0] + "," + V.court + ')"></i>');
     });
     return '<div class="kr-duel-venues" role="group" aria-label="' + esc(t.venueLabel || "Court") + '">' + chips + "</div>" +
-      '<p class="kr-muted kr-duel-venuenow">' + esc((t.venueNow || "Playing at: {name}").replace("{name}", names[cur] || cur)) + "</p>";
+      '<p class="kr-muted kr-duel-venuenow">' + esc(this.venueMsg || (t.venueNow || "Playing at: {name}").replace("{name}", names[cur] || cur)) + "</p>";
   };
 
   // Scenery behind the stands (mostly visible in landscape and on tall screens).
@@ -1090,6 +1180,7 @@
 
   Duel.prototype._collectCapsule = function () {
     var c = this.capsule; if (!c) return;
+    if (this._m) this._m.caps++;
     this.power = { key: c.kind, until: this.now + CAPSULE_SECONDS };
     this.capsule = null; this.capSpawnIn = 6 + rand() * 5;
     this.flashUntil = this.now + 0.3; this._flashKey = c.kind;
@@ -1219,7 +1310,7 @@
 
   // ───────────────────────── Focus time (slow motion at contact) ─────────────────────────
   Duel.prototype._slowScale = function () { var v = clamp(0.16 + this.stage * 0.035, 0.16, 0.4); return this._pw("touch") ? v * 0.7 : v; };
-  Duel.prototype._slowBudget = function () { return clamp(1.1 - this.stage * 0.1, 0.5, 1.1) * (this._pw("touch") ? 1.8 : 1) * this._pstat("focus"); };   // real seconds per ball
+  Duel.prototype._slowBudget = function () { return clamp(1.1 - this.stage * 0.1, 0.5, 1.1) * (this._pw("touch") ? 1.8 : 1) * this._pstat("focus") * ((!this.daily && !this.save.coached && this.stage === 0) ? 1.6 : 1); };   // real seconds per ball
 
   Duel.prototype._wantSlow = function (realDt) {
     var b = this.ball, h = this.human;
@@ -1291,6 +1382,7 @@
     this.realNow = (this.realNow || 0) + rdt;
     if (!frozen && !this.paused) this._update(dt);
     this._powerHud();
+    this._coachTick();
 
     var g = this.ctx, W = this.W, H = this.H, self = this;
     if (!this._bg || this._bgVenue !== this._venueId()) this._drawBackground();
