@@ -186,3 +186,43 @@ TODO, in priority order (written for a smaller model; do them one at a time, run
    without checking rights; fictional lookalike characters are safer.
 5. Payment is still not operational (see "Known issues"). Decide the architecture before launch.
 6. Real-device test (touch, low-end Android). Sound design for Duel (distinct paddle hit, crowd, ball bounce).
+
+## Audit: `main` vs the rally branch (written 2026-11-16, read-only audit, rally branch not run)
+
+Two lines exist and have diverged:
+- **`main`**: original Kitchen Rush (Classic, Daily, Power Run) + **Duel** (aimed shots, slow-motion focus time, singles/doubles, 6 AI opponents, cartoon 3D court). English only, no real athlete names, no tests, no server, payment unfinished.
+- **`improve/pickleball-rally`** (PR #1, draft, conflicting with `main`, work by another agent): 2v2 doubles rally with automatic returns, FR and US editions, 10 identities per edition with fixed FR<->US power pairs (9 effects), six round profiles, drop/drive and Pillar/Creator options, end screen with record gap / next goal / history / collection, daily seed, Node + SQLite leaderboard with replay verification (not deployed), 59 tests, FR/US manifests, deferred service-worker update. It no longer loads `ui*.js` / `main.js`, so merging it would **replace** the arcade and Duel instead of adding to them.
+
+**Decision recorded: do not merge PR #1.** Keep `main` as the base and port ideas one at a time.
+
+### Port from the rally branch to `main`, in order
+1. **FR/EN for Duel**: move the `duel` block of `wording.js` behind a language switch (browser language, persisted choice) and add French. Also the landing, menu and banners.
+2. **End screen / progress for Duel**: record gap, next objective, last 5 matches, opponents beaten (`kr:duel` already stores `stage`, `wins`).
+3. **Tests**: port the idea of `tests/rally.test.mjs` (determinism, rules) and keep the stall detector from "How to verify". `duel.js` uses `Math.random`; a seeded RNG is needed for deterministic tests and for any daily mode.
+4. **One power per opponent** (reach, slow, reflex volley, life, shield, speed, drive, ATP, smash), discovered from stage 1 to 4. Keep fixed pairs across languages: same effect, same strength, same duration.
+5. **Round profiles as opponent traits** (centre-heavy, sides, slow/fast alternation).
+6. **Daily Duel** with a shared seed; ranking only once a server exists.
+7. **Defer the service-worker update** until the match ends.
+
+### Port from `main` to the rally branch (only if that line is kept)
+Aimed shots and focus time, real ball physics and rules, cartoon characters with varied looks, the `fx.js` layer, the stall fix.
+
+### Real athlete names: set aside (legal)
+The rally branch's `players.js` uses real professional players' names with source links. Using a real person's name or likeness in a game generally needs their permission (personality / publicity rights; in France also droit à l'image and the right to one's name), and a source link is not permission. **Do not port `players.js`, and do not put real names in the game, until written permission or a legal opinion exists.** Ask the owner before reintroducing them.
+
+Placeholder roster until then: fictional names that only echo the originals (not the same name, no likeness). Still have a lawyer check them if the game goes public.
+
+| Power (same in both editions) | FR placeholder | US placeholder |
+|---|---|---|
+| Block Volley (bigger paddle, 6 s) | Léo Pavel | Anya Lee Watts |
+| Erne | Lara Rocca | Ana Brightwell |
+| Reset | Matéo Rey | Bo Jones |
+| ATP | Miriam Emery | Tara Blake |
+| Drive | Émile Bernel | Haden Patrick |
+| Dig | Anaïs Loriel | JT Jensen |
+| Reflex Volley | Noa Khalil | Noa Khalil (same in both) |
+| Smash | Jay Delvaux | Jay Delvaux (same in both) |
+| Lob (+1 life) | Valentina Verne | Jordi Jansen |
+| Reflex Volley | Manon Sarceau | Perry Dodd |
+
+The arcade-style effects mentioned by the owner (an earlier version with Arkanoid-like effects and 10 US + 10 French players) are not in this repository; ask where that prototype lives before rebuilding.
