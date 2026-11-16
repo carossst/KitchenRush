@@ -1952,6 +1952,77 @@ a:focus-visible {
   margin-top: var(--gap-2);
 }
 
+.kr-duel-final {
+  margin-left: var(--gap-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.kr-duel-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  margin: var(--gap-1) 0;
+}
+
+.kr-duel-goal {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: rgb(var(--text-strong));
+}
+
+.kr-duel-recent {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.kr-duel-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.kr-duel-dot--w {
+  background: rgb(var(--primary));
+  color: rgb(var(--on-primary));
+}
+
+.kr-duel-dot--l {
+  background: rgb(var(--surface-muted));
+  color: rgb(var(--text-muted));
+}
+
+.kr-duel-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-4);
+}
+
+.kr-duel-chip {
+  padding: var(--space-2) var(--gap-1);
+  border-radius: var(--r-pill);
+  border: 1px solid rgb(var(--border));
+  font-size: var(--fs-xs);
+  color: rgb(var(--text-muted));
+}
+
+.kr-duel-chip--on {
+  border-color: rgb(var(--primary));
+  color: rgb(var(--primary));
+}
+
+/* A service-worker update prompt must never appear mid-match: it waits until the match is closed. */
+body:has(.kr-duel) #update-toast {
+  display: none;
+}
+
 .kr-landing-duel-explain {
   margin: var(--gap-1) 0 0;
 }

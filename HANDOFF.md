@@ -226,3 +226,25 @@ Placeholder roster until then: fictional names that only echo the originals (not
 | Reflex Volley | Manon Sarceau | Perry Dodd |
 
 The arcade-style effects mentioned by the owner (an earlier version with Arkanoid-like effects and 10 US + 10 French players) are not in this repository; ask where that prototype lives before rebuilding.
+
+
+## Port status (2026-11-16, version 8)
+
+Ported from the rally branch into `main` (no real athlete names, see the legal note above):
+- **FR/EN for Duel** (item 1): `wording.duel` (EN, base) + `wording.duelFr` (overrides). Language is the saved
+  choice (`kr:duel.lang`) else the browser language; a "Francais / English" button sits in the match menu.
+  The rest of the app (landing, arcade, end screen, share card) is still English only: next step is to
+  generalise the same override pattern to `wording.js` as a whole.
+- **Match history and end screen** (item 2): last 20 matches, last 5 shown as W/L dots, win count, best margin,
+  goal for the next match, and a collection of opponents beaten. Stored in `kr:duel` and sanitised on load
+  (`loadSave()`), so corrupted or hand-edited storage cannot break the menu.
+- **Smoke test** (item 3): `tests/duel-smoke.mjs` (needs `playwright`; see the file header). It plays full
+  matches with a bot and fails on a stall, a console error, a match that never ends, missing history, or a
+  broken language toggle. Run all three scenarios before every Duel change. It found a real bug on its first
+  run: after a point (e.g. net), an AI player could still hit the dead ball, which put the match back in the
+  rally phase with no way to end it. Fixed in `_tryHit` / `_ai`, plus a watchdog after `_stepBall`.
+- **Deferred update** (item 7): the service-worker update toast is hidden while a Duel is open
+  (`body:has(.kr-duel) #update-toast`), so it can never be tapped mid-match.
+
+Still to port, in order: one power per opponent (4), round profiles as opponent traits (5), Daily Duel with a
+seeded RNG (6; `duel.js` uses `Math.random`), FR for the rest of the app, deterministic unit tests of the rules.
