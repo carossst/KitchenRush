@@ -7,6 +7,10 @@
   "use strict";
 
   function pickLang() {
+    // ?lang=fr / ?lang=en gives each language its own shareable address; it is remembered for next time.
+    var q = "";
+    try { q = String(new URLSearchParams(window.location.search).get("lang") || "").toLowerCase(); } catch (_) { }
+    if (q === "fr" || q === "en") { try { window.localStorage.setItem("kr:lang", q); } catch (_) { } return q; }
     var stored = "";
     try { stored = String(window.localStorage.getItem("kr:lang") || ""); } catch (_) { }
     if (stored === "fr" || stored === "en") return stored;

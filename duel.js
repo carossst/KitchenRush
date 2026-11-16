@@ -321,7 +321,7 @@
   Duel.prototype._share = function () {
     var t = this.t, di = dailyInfo(), d = this.save.daily;
     if (!d || d.key !== di.key) return;
-    var text = (t.shareText || "Kitchen Rush Daily Duel {date}: {you}\u2013{them} vs {name}").replace("{date}", d.key).replace("{you}", d.you).replace("{them}", d.them).replace("{name}", LADDER[d.idx % LADDER.length].name) + "\n" + location.origin + location.pathname;
+    var text = (t.shareText || "Kitchen Rush Daily Duel {date}: {you}\u2013{them} vs {name}").replace("{date}", d.key).replace("{you}", d.you).replace("{them}", d.them).replace("{name}", LADDER[d.idx % LADDER.length].name) + "\n" + location.origin + location.pathname + "?lang=" + this.lang;
     var btn = this.panelEl.querySelector('[data-duel="share"]'), self = this;
     function done(ok) { if (btn) { btn.textContent = ok ? (t.copied || "Copied!") : (t.copyFailed || "Copy failed"); setTimeout(function () { if (btn && self.root) btn.textContent = t.share || "Share"; }, 1600); } }
     try {

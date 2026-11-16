@@ -305,3 +305,40 @@ embers; precision = crosshair on the aim marker; sprint = ground streaks behind 
 lights up (volleys are legal there). The effects blink in the last 20% of the duration, and respect reduced
 motion (`fx.reduced`: no pulse, no flash, no embers). Test: "every power renders without errors" in
 `tests/duel-rules.mjs`.
+
+
+## Language URLs and poster (version 12)
+
+- **One address per language**: `https://carossst.github.io/KitchenRush/?lang=fr` and `...?lang=en`. The parameter
+  is read in `wording-fr.js` (`pickLang`) and remembered in `localStorage["kr:lang"]`; without it the saved choice,
+  then the browser language, decide. The Daily Duel share text already carries `?lang=`.
+- **Poster** (`poster.html`, FR and EN, one A4 page, QR code + Duel screenshot): `poster.html?lang=fr` or `?lang=en`,
+  then "Imprimer / Print" (save as PDF). Text lives in the `T` object inside the page. QR codes:
+  `icons/qr-fr.svg` / `icons/qr-en.svg`, regenerated with `python3 tools/make-qr.py [BASE_URL]` (needs `pip install segno`).
+  **If the public address changes, regenerate the QR codes and reprint.** Screenshots: `icons/poster-duel-{fr,en}.jpg`
+  (taken from a paused Duel with the Power effect on; retake after big visual changes).
+
+## What was taken from the rally branch, and what was not
+
+Taken (adapted to the Duel): French/English, match history and end screen, tests, Daily mode with a date seed,
+one power per opponent (own design), opponent styles (like round profiles), deferred update prompt.
+Not taken: 18 real-athlete identities (legal), server leaderboard with replay verification, drop/drive and
+Pillar/Creator tactics, ball capture and precision challenge, GoatCounter / Kit email, FR/US manifests.
+Not found anywhere in the repos: the Arkanoid-style effects with 10 US + 10 French players.
+
+## Owner to-do list (things only the owner can do or decide)
+
+1. **Playtest** on a real phone and a computer; report difficulty (too easy/hard), controls, power balance.
+2. **Have the French (and English) copy read by a native speaker**; tests only check keys and placeholders.
+3. **Payment**: decide to launch or remove it. Needs Stripe payment links in `config.js`, something that creates
+   premium codes (`success.html` only reads one), and ideally a small server to verify them.
+4. **Real player names**: get written permission or a lawyer's opinion before using any; until then keep fictional names.
+5. **Legal pages**: `privacy.html` and `terms.html` are English only; check they match what the game actually
+   stores and shares (local storage, optional analytics/email), and translate them.
+6. **Final address**: decide the public domain (`kitchenrush.app` is a placeholder in `config.js` and the meta tags);
+   then update them, regenerate the QR codes and reprint the poster.
+7. **Rally branch / PR #1**: close it (recommended) or keep it as a reference; tell the next agent where the
+   Arkanoid prototype with the US/French player sets lives (repo `carossst/pickleballgame` is a candidate, unread).
+8. **Server** (only if rankings are wanted): HTTPS hosting, persistence and secrets; the rally branch has a starting point.
+9. **Optional**: contact email setup (`email.js`), a social-share image (the current one is the app icon),
+   analytics choice, translating the remaining screens listed in the French section above.
