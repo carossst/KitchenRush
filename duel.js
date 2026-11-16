@@ -14,17 +14,17 @@
   var STORE_KEY = "kr:duel";
 
   var LADDER = [
-    { name: "Rookie Rae", tag: "Just here for fun", look: 3, speed: 10, react: 0.38, err: 2.6, aggr: 0.15, lobP: 0.05, dinkP: 0.15, volley: false, judge: 2, pace: 0.85,
+    { name: "Rookie Rae", tag: "Just here for fun", look: 3, trait: "centre", speed: 10, react: 0.38, err: 2.6, aggr: 0.15, lobP: 0.05, dinkP: 0.15, volley: false, judge: 2, pace: 0.85,
       pal: { jerseyA: "#ffe27a", jerseyB: "#f5a524", shorts: "#7a4b12", hair: "#c9632b", band: "#ffffff", paddle: "#3fd0ff" } },
-    { name: "Dinking Dee", tag: "Soft hands, short balls", look: 1, speed: 11.5, react: 0.3, err: 2, aggr: 0.35, lobP: 0.05, dinkP: 0.5, volley: false, judge: 1.4, pace: 0.9,
+    { name: "Dinking Dee", tag: "Soft hands, short balls", look: 1, trait: "tempo", speed: 11.5, react: 0.3, err: 2, aggr: 0.35, lobP: 0.05, dinkP: 0.5, volley: false, judge: 1.4, pace: 0.9,
       pal: { jerseyA: "#9af0c4", jerseyB: "#22b07d", shorts: "#0e4f3a", hair: "#2b1d12", band: "#ffd60a", paddle: "#ff5d8f" } },
-    { name: "Lobster Lou", tag: "Loves the high ball", look: 6, speed: 12.5, react: 0.26, err: 1.7, aggr: 0.5, lobP: 0.35, dinkP: 0.2, volley: false, judge: 1, pace: 0.95,
+    { name: "Lobster Lou", tag: "Loves the high ball", look: 6, trait: "sides", speed: 12.5, react: 0.26, err: 1.7, aggr: 0.5, lobP: 0.35, dinkP: 0.2, volley: false, judge: 1, pace: 0.95,
       pal: { jerseyA: "#ff9d8a", jerseyB: "#e2452f", shorts: "#6b1408", hair: "#f2e2c4", band: "#ffffff", paddle: "#ffd60a" } },
-    { name: "Banger Bo", tag: "Hits everything hard", look: 5, speed: 13.5, react: 0.22, err: 1.5, aggr: 0.7, lobP: 0.05, dinkP: 0.1, volley: true, judge: 0.7, pace: 1.12,
+    { name: "Banger Bo", tag: "Hits everything hard", look: 5, trait: "right", speed: 13.5, react: 0.22, err: 1.5, aggr: 0.7, lobP: 0.05, dinkP: 0.1, volley: true, judge: 0.7, pace: 1.12,
       pal: { jerseyA: "#d5b4ff", jerseyB: "#7b4dff", shorts: "#2b1a5c", hair: "#20182e", band: "#ff5d8f", paddle: "#9bffb0" } },
-    { name: "Spin Sam", tag: "Finds every corner", look: 4, speed: 14.5, react: 0.18, err: 1.2, aggr: 0.82, lobP: 0.15, dinkP: 0.35, volley: true, judge: 0.4, pace: 1.05,
+    { name: "Spin Sam", tag: "Finds every corner", look: 4, trait: "left", speed: 14.5, react: 0.18, err: 1.2, aggr: 0.82, lobP: 0.15, dinkP: 0.35, volley: true, judge: 0.4, pace: 1.05,
       pal: { jerseyA: "#8ad8ff", jerseyB: "#0f6fd6", shorts: "#06254d", hair: "#101018", band: "#ffffff", paddle: "#ff8a3d" } },
-    { name: "Kitchen Ace", tag: "Owns the line", look: 7, speed: 15.5, react: 0.14, err: 0.9, aggr: 0.95, lobP: 0.2, dinkP: 0.4, volley: true, judge: 0.2, pace: 1.12,
+    { name: "Kitchen Ace", tag: "Owns the line", look: 7, trait: "tempo", speed: 15.5, react: 0.14, err: 0.9, aggr: 0.95, lobP: 0.2, dinkP: 0.4, volley: true, judge: 0.2, pace: 1.12,
       pal: { jerseyA: "#3a3a4a", jerseyB: "#11111a", shorts: "#000000", hair: "#101018", band: "#ffd60a", paddle: "#ffd60a", trim: "#ffd60a" } }
   ];
   var ALLY = { name: "Partner", speed: 12.5, react: 0.25, err: 1.6, aggr: 0.5, lobP: 0.08, dinkP: 0.25, volley: true, judge: 0.8, pace: 0.95,
@@ -44,19 +44,59 @@
 
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function lerp(a, b, t) { return a + (b - a) * t; }
-  function gauss() { return (Math.random() + Math.random() + Math.random() - 1.5) / 0.75; }
+  // Gameplay randomness goes through rand() so a Daily Duel can run on a shared, date-derived seed.
+  var RNG = Math.random;
+  function rand() { return RNG(); }
+  function hash32(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function seeded(seed) {
+    var a = seed >>> 0;
+    return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+  function dailyInfo() {
+    var d = new Date(), p2 = function (n) { return n < 10 ? "0" + n : "" + n; };
+    var key = d.getUTCFullYear() + "-" + p2(d.getUTCMonth() + 1) + "-" + p2(d.getUTCDate());
+    var h = hash32("kr-duel-" + key);
+    return { key: key, seed: h, idx: h % LADDER.length };
+  }
+  function gauss() { return (rand() + rand() + rand() - 1.5) / 0.75; }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
 
+  var HISTORY_MAX = 20;
+  // One signature power per opponent, earned by beating them (same index as LADDER). Charged by winning points.
+  var POWERS = ["reach", "touch", "power", "precision", "sprint", "pass"];
+  var POWER_SECONDS = 10, CHARGE_MAX = 3;
+  var POWER_RGB = { reach: "63,208,255", touch: "180,140,255", power: "255,122,46", precision: "255,214,10", sprint: "60,230,140", pass: "255,93,162" };
+
+  // Stored data is untrusted (hand-edited, truncated, from an older version): clamp everything.
   function loadSave() {
-    try { var d = JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); return (d && typeof d === "object") ? d : {}; }
-    catch (_) { return {}; }
+    var d = {};
+    try { d = JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); } catch (_) { d = {}; }
+    if (!d || typeof d !== "object" || Array.isArray(d)) d = {};
+    d.history = (Array.isArray(d.history) ? d.history : [])
+      .filter(function (e) { return e && typeof e === "object"; })
+      .slice(-HISTORY_MAX)
+      .map(function (e) {
+        return { d: Number(e.d) || 0, stage: clamp(Math.floor(Number(e.stage) || 0), 0, 999), mode: e.mode === "doubles" ? "doubles" : "singles",
+          you: clamp(Math.floor(Number(e.you) || 0), 0, 99), them: clamp(Math.floor(Number(e.them) || 0), 0, 99) };
+      });
+    var beaten = {};
+    if (d.beaten && typeof d.beaten === "object") Object.keys(d.beaten).forEach(function (k) { var i = Number(k); if (i >= 0 && i < 999 && d.beaten[k] === true) beaten[Math.floor(i)] = true; });
+    d.beaten = beaten;
+    d.equipped = POWERS.indexOf(d.equipped) >= 0 ? d.equipped : "";
+    d.bestMargin = clamp(Math.floor(Number(d.bestMargin) || 0), 0, 99);
+    d.lang = (d.lang === "fr" || d.lang === "en") ? d.lang : "";
+    var dd = d.daily;
+    d.daily = (dd && typeof dd === "object" && /^\d{4}-\d{2}-\d{2}$/.test(String(dd.key)))
+      ? { key: String(dd.key), you: clamp(Math.floor(Number(dd.you) || 0), 0, 99), them: clamp(Math.floor(Number(dd.them) || 0), 0, 99), idx: clamp(Math.floor(Number(dd.idx) || 0), 0, 99) } : null;
+    return d;
   }
   function writeSave(d) { try { localStorage.setItem(STORE_KEY, JSON.stringify(d)); } catch (_) { } }
 
   function Duel(opts) {
     this.opts = opts || {};
-    this.t = (opts.wording && opts.wording.duel) || {};
     this.save = loadSave();
+    this.lang = this.save.lang || window.KR_LANG || (/^fr/i.test(navigator.language || "") ? "fr" : "en");
+    this.t = this._dict();
     this.stage = clamp(Math.floor(Number(this.save.stage) || 0), 0, 999);
     this.mode = this.save.mode === "doubles" ? "doubles" : "singles";
     this.side = this.save.side === "left" ? "left" : "right";
@@ -76,6 +116,12 @@
     this._showMenu();
   }
 
+  // English is the base dictionary; French overrides it key by key, so a missing key never shows blank.
+  Duel.prototype._dict = function () {
+    var w = this.opts.wording || {}, en = w.duel || {};
+    return this.lang === "fr" ? Object.assign({}, en, w.duelFr || {}) : en;
+  };
+
   // ───────────────────────── DOM ─────────────────────────
   Duel.prototype._mount = function () {
     var root = document.createElement("div");
@@ -85,6 +131,7 @@
       '<div class="kr-duel-hud"><button class="kr-btn-icon kr-duel-exit" aria-label="' + esc(this.t.exit || "Exit") + '">✕</button>' +
       '<div class="kr-duel-score" aria-live="polite"></div><span class="kr-duel-spacer"></span></div>' +
       '<div class="kr-duel-banner" aria-live="polite"></div>' +
+      '<button class="kr-duel-power" hidden></button>' +
       '<div class="kr-duel-panel"></div>';
     document.body.appendChild(root);
     this.root = root;
@@ -93,6 +140,7 @@
     this.scoreEl = root.querySelector(".kr-duel-score");
     this.bannerEl = root.querySelector(".kr-duel-banner");
     this.panelEl = root.querySelector(".kr-duel-panel");
+    this.powerEl = root.querySelector(".kr-duel-power");
 
     var self = this;
     this._onResize = function () { self._resize(); };
@@ -104,6 +152,7 @@
     document.addEventListener("keyup", this._onKeyUp);
     document.addEventListener("visibilitychange", this._onVis);
     root.querySelector(".kr-duel-exit").addEventListener("click", function () { self.destroy(); });
+    this.powerEl.addEventListener("click", function () { self._activatePower(); });
     this.panelEl.addEventListener("click", function (e) {
       var b = e.target.closest("[data-duel]");
       if (b) self._panelAction(b.getAttribute("data-duel"));
@@ -118,6 +167,7 @@
   };
 
   Duel.prototype.destroy = function () {
+    RNG = Math.random;
     cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this._onResize);
     document.removeEventListener("keydown", this._onKey);
@@ -130,6 +180,7 @@
   Duel.prototype._sound = function (name) { try { if (this.opts.sound) this.opts.sound(name); } catch (_) { } };
 
   Duel.prototype._opp = function () {
+    if (this.daily) return LADDER[this.daily.idx];
     var base = LADDER[Math.min(this.stage, LADDER.length - 1)];
     var extra = Math.max(0, this.stage - (LADDER.length - 1));
     if (!extra) return base;
@@ -142,8 +193,9 @@
     this.phase = "menu";
     var t = this.t, opp = this._opp();
     var head = "";
-    if (result === "win") head = '<p class="kr-duel-result kr-duel-result--win">' + esc(t.win || "You win!") + '</p>';
-    if (result === "lose") head = '<p class="kr-duel-result kr-duel-result--lose">' + esc(t.lose || "So close. Run it back.") + '</p>';
+    var sc = this._lastScore, fin = (result && sc) ? ' <span class="kr-duel-final">' + sc[0] + '\u2013' + sc[1] + '</span>' : "";
+    if (result === "win") head = '<p class="kr-duel-result kr-duel-result--win">' + esc(t.win || "You win!") + fin + '</p>';
+    if (result === "lose") head = '<p class="kr-duel-result kr-duel-result--lose">' + esc(t.lose || "So close. Run it back.") + fin + '</p>';
     var m = this.mode, s = this.side;
     function opt(id, label, on) { return '<button class="kr-duel-opt' + (on ? " kr-duel-opt--on" : "") + '" data-duel="' + id + '" aria-pressed="' + (on ? "true" : "false") + '">' + esc(label) + '</button>'; }
     var touch = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
@@ -151,7 +203,9 @@
       '<div class="kr-duel-card">' + head +
       '<p class="kr-duel-kicker">' + esc((t.stageLabel || "Opponent {n}").replace("{n}", this.stage + 1)) + '</p>' +
       '<h2 class="kr-duel-name">' + esc(opp.name) + '</h2>' +
-      '<p class="kr-muted">' + esc(opp.tag || "") + '</p>' +
+      '<p class="kr-muted">' + esc((t.tags && t.tags[Math.min(this.stage, LADDER.length - 1)]) || opp.tag || "") + '</p>' +
+      (opp.trait && t.traits ? '<p class="kr-muted kr-duel-trait">' + esc((t.traitLabel || "Style: {x}").replace("{x}", t.traits[opp.trait] || "")) + '</p>' : "") +
+      this._statsHtml(result) +
       '<div class="kr-duel-opts" role="group" aria-label="' + esc(t.modeAria || "Match type") + '">' +
         opt("singles", t.singles || "Singles", m === "singles") +
         opt("left", t.doublesLeft || "Doubles · Left", m === "doubles" && s === "left") +
@@ -162,6 +216,7 @@
       '<p class="kr-duel-how">' + esc(t.rules || "First to 5. Serve and return must bounce. No volleys in the Kitchen.") + '</p>' +
       '<button class="kr-btn kr-btn--primary kr-duel-go" data-duel="go">' + esc(result ? (result === "win" ? (t.next || "Next opponent") : (t.retry || "Rematch")) : (t.start || "Start match")) + '</button>' +
       '<button class="kr-btn kr-btn--ghost" data-duel="exit">' + esc(t.home || "Back to menu") + '</button>' +
+      '<button class="kr-btn kr-btn--ghost kr-duel-lang" data-duel="lang" lang="' + (this.lang === "fr" ? "en" : "fr") + '">' + (this.lang === "fr" ? "English" : "Fran\u00e7ais") + '</button>' +
       '</div>';
     this.panelEl.classList.add("kr-duel-panel--on");
     this.scoreEl.textContent = "";
@@ -170,10 +225,123 @@
     if (go) try { go.focus({ preventScroll: true }); } catch (_) { }
   };
 
+  // Progress block of the match menu: last results, record, goal for the next match, opponents beaten.
+  Duel.prototype._statsHtml = function (result) {
+    var t = this.t, sv = this.save, h = sv.history || [], opp = this._opp(), sc = this._lastScore;
+    var self = this, wl = String(t.winLetter || "W"), ll = String(t.loseLetter || "L");
+    var goal;
+    if (result && this._lastDailyIdx != null && sc) goal = (t.dailyGoal || "Daily Duel: {you}\u2013{them} vs {name}. Back tomorrow!").replace("{you}", sc[0]).replace("{them}", sc[1]).replace("{name}", LADDER[this._lastDailyIdx].name);
+    else if (result === "lose" && sc) goal = (t.goalLose || "Lost {you}\u2013{them}. Beat {name} to move up.").replace("{you}", sc[0]).replace("{them}", sc[1]).replace("{name}", opp.name);
+    else if (result === "win") goal = (t.goalNext || "Next: beat {name}").replace("{name}", opp.name);
+    else goal = (t.goalFirst || "Beat {name} to move up the ladder.").replace("{name}", opp.name);
+    var out = '<p class="kr-duel-goal">' + esc(goal) + '</p>';
+    if (h.length) {
+      out += '<div class="kr-duel-recent" role="list" aria-label="' + esc(t.recent || "Last matches") + '">' + h.slice(-5).map(function (e) {
+        var w = e.you > e.them;
+        return '<span role="listitem" class="kr-duel-dot kr-duel-dot--' + (w ? "w" : "l") + '" title="' + e.you + '\u2013' + e.them + '">' + esc(w ? wl : ll) + '</span>';
+      }).join("") + '</div>';
+      out += '<p class="kr-muted">' + esc((t.record || "Wins {w} \u00b7 Best margin +{m}").replace("{w}", Number(sv.wins) || 0).replace("{m}", sv.bestMargin || 0)) + '</p>';
+    }
+    out += this._dailyHtml();
+    out += '<div class="kr-duel-chips" aria-label="' + esc(t.collection || "Opponents beaten") + '">' + LADDER.map(function (o, i) {
+      var on = sv.beaten && sv.beaten[i];
+      if (!on) return '<span class="kr-duel-chip">?</span>';
+      var eq = POWERS[i] === self._equippedKey();
+      return '<button class="kr-duel-chip kr-duel-chip--on' + (eq ? " kr-duel-chip--eq" : "") + '" data-duel="eq-' + i + '" aria-pressed="' + (eq ? "true" : "false") + '" title="' + esc((t.powerDescs || [])[i] || "") + '">' + (eq ? "\u2605 " : "\u2713 ") + esc(o.name) + '</button>';
+    }).join("") + '</div>' + this._powerLine();
+    return '<div class="kr-duel-stats">' + out + '</div>';
+  };
+
+  // ───────────────────────── Powers ─────────────────────────
+  Duel.prototype._pw = function (key) {
+    var p = this.power;
+    if (!p || this.now >= p.until) return false;
+    return key === "any" || p.key === key;
+  };
+
+  // Equipped power if owned, else the most recently earned one, else "".
+  Duel.prototype._equippedKey = function () {
+    var sv = this.save, owned = function (key) { return !!(sv.beaten && sv.beaten[POWERS.indexOf(key)]); };
+    if (sv.equipped && owned(sv.equipped)) return sv.equipped;
+    for (var i = POWERS.length - 1; i >= 0; i--) if (owned(POWERS[i])) return POWERS[i];
+    return "";
+  };
+
+  Duel.prototype._powerName = function (key) { var i = POWERS.indexOf(key); return (this.t.powerNames || [])[i] || key; };
+
+  Duel.prototype._powerLine = function () {
+    var t = this.t, key = this._equippedKey();
+    if (!key) return '<p class="kr-muted kr-duel-powerline">' + esc(t.powerNone || "Beat an opponent to earn a power.") + '</p>';
+    var i = POWERS.indexOf(key);
+    return '<p class="kr-muted kr-duel-powerline">' + esc((t.powerEquip || "Power: {name} \u2014 {desc}").replace("{name}", this._powerName(key)).replace("{desc}", (t.powerDescs || [])[i] || "")) + '</p>';
+  };
+
+  Duel.prototype._activatePower = function () {
+    var key = this._equippedKey();
+    if (!key || this.daily || this.phase === "menu" || (this.charge || 0) < CHARGE_MAX || this._pw("any")) return;
+    this.power = { key: key, until: this.now + POWER_SECONDS };
+    this.charge = 0;
+    this.flashUntil = this.now + 0.3; this._flashKey = key;
+    if (this.fx) this.fx.punch(0.03, this.now * 1000);
+    this._sound("milestone");
+    this._banner(this._powerName(key) + "!", 900, "good");
+    var p = this._project(this.human.x, this.human.y, 2);
+    if (this.fx) { this.fx.burst(p.x, p.y, ["#ffd60a", "#ffffff", "#3fd0ff"], 16, { speed: 300, up: 90 }); this.fx.ring(p.x, p.y, "#ffd60a", 60); }
+  };
+
+  // Small HUD button: charge, ready (tap/E to fire) or active countdown. Re-rendered only when the text changes.
+  Duel.prototype._powerHud = function () {
+    var el = this.powerEl; if (!el) return;
+    var act = this._pw("any");
+    if (this._wasPw && !act && this.fx && this.human) { var q = this._project(this.human.x, this.human.y, 0); this.fx.ring(q.x, q.y, "rgb(" + POWER_RGB[this._wasPw] + ")", 56, 520); }
+    this._wasPw = act ? this.power.key : "";
+    var key = this._equippedKey();
+    if (!key || this.daily || this.phase === "menu") { if (this._phs !== "hide") { el.hidden = true; this._phs = "hide"; } return; }
+    var t = this.t, name = this._powerName(key), state, txt;
+    if (this._pw("any")) { state = "on"; txt = (t.powerActive || "{name} {s}s").replace("{name}", name).replace("{s}", Math.max(1, Math.ceil(this.power.until - this.now))); }
+    else if ((this.charge || 0) >= CHARGE_MAX) { state = "ready"; txt = (t.powerReady || "{name} READY").replace("{name}", name); }
+    else { state = "charge"; txt = (t.powerCharge || "{name} {n}/3").replace("{name}", name).replace("{n}", this.charge || 0); }
+    var sig = state + "|" + txt;
+    if (sig === this._phs) return;
+    this._phs = sig; el.style.setProperty("--pw", "rgb(" + POWER_RGB[key] + ")"); el.hidden = false; el.textContent = txt; el.disabled = state !== "ready";
+    el.className = "kr-duel-power kr-duel-power--" + state;
+  };
+
+  Duel.prototype._dailyHtml = function () {
+    var t = this.t, di = dailyInfo(), d = this.save.daily;
+    if (d && d.key === di.key) {
+      var line = (t.dailyDone || "Daily Duel today: {you}\u2013{them} vs {name}").replace("{you}", d.you).replace("{them}", d.them).replace("{name}", LADDER[d.idx % LADDER.length].name);
+      return '<p class="kr-muted kr-duel-daily-line">' + esc(line) + '</p>' +
+        '<button class="kr-btn kr-btn--secondary kr-duel-share" data-duel="share">' + esc(t.share || "Share") + '</button>';
+    }
+    return '<button class="kr-btn kr-btn--secondary kr-duel-daily" data-duel="daily">' + esc((t.dailyBtn || "Daily Duel \u00b7 vs {name}").replace("{name}", LADDER[di.idx].name)) + '</button>';
+  };
+
+  // Copy / share today's result (text only: score and opponent, no personal data).
+  Duel.prototype._share = function () {
+    var t = this.t, di = dailyInfo(), d = this.save.daily;
+    if (!d || d.key !== di.key) return;
+    var text = (t.shareText || "Kitchen Rush Daily Duel {date}: {you}\u2013{them} vs {name}").replace("{date}", d.key).replace("{you}", d.you).replace("{them}", d.them).replace("{name}", LADDER[d.idx % LADDER.length].name) + "\n" + location.origin + location.pathname;
+    var btn = this.panelEl.querySelector('[data-duel="share"]'), self = this;
+    function done(ok) { if (btn) { btn.textContent = ok ? (t.copied || "Copied!") : (t.copyFailed || "Copy failed"); setTimeout(function () { if (btn && self.root) btn.textContent = t.share || "Share"; }, 1600); } }
+    try {
+      if (navigator.share) { navigator.share({ text: text }).catch(function () { }); return; }
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+    } catch (_) { done(false); }
+  };
+
   Duel.prototype._panelAction = function (a) {
     if (a === "exit") { this.destroy(); return; }
-    if (a === "go") { this._startMatch(); return; }
-    if (a === "look") this.look = (this.look + 1) % LOOKS.length;
+    if (a.indexOf("eq-") === 0) {
+      var qi = Number(a.slice(3));
+      if (this.save.beaten && this.save.beaten[qi] && POWERS[qi]) { this.save.equipped = POWERS[qi]; writeSave(this.save); }
+      this._showMenu(this._lastResult); return;
+    }
+    if (a === "go") { this.daily = null; this._startMatch(); return; }
+    if (a === "daily") { var di = dailyInfo(); this.daily = di; this.mode = "singles"; this._startMatch(); return; }
+    if (a === "share") { this._share(); return; }
+    if (a === "lang") { this.lang = this.lang === "fr" ? "en" : "fr"; this.save.lang = this.lang; this.t = this._dict(); this._bg = null; }
+    else if (a === "look") this.look = (this.look + 1) % LOOKS.length;
     else if (a === "singles") this.mode = "singles";
     else { this.mode = "doubles"; this.side = a; }
     this.save.mode = this.mode; this.save.side = this.side; this.save.look = this.look; writeSave(this.save);
@@ -208,6 +376,10 @@
   Duel.prototype._startMatch = function () {
     this.panelEl.classList.remove("kr-duel-panel--on");
     this._lastResult = null;
+    this._lastDailyIdx = null;
+    this.charge = 0;
+    this.power = null;
+    RNG = this.daily ? seeded(this.daily.seed) : Math.random;
     this._setupActors();
     this.serverTeam = 0;
     this.serveTurn = [0, 0];
@@ -248,6 +420,7 @@
     var map = { ArrowLeft: "l", a: "l", ArrowRight: "r", d: "r", ArrowUp: "u", w: "u", ArrowDown: "d", s: "d" };
     if (k === "Escape" && down) { this.destroy(); return; }
     if (this.phase === "menu") return;
+    if (k === "e" && down && !e.repeat) { this._activatePower(); return; }
     if (map[k]) { this.keys[map[k]] = down; e.preventDefault(); }
     if (k === " " && down && !e.repeat) { e.preventDefault(); this._swing((this.keys.r ? 1 : 0) - (this.keys.l ? 1 : 0), (this.keys.u ? 1 : 0) - (this.keys.d ? 1 : 0)); }
     if (k === " ") e.preventDefault();
@@ -310,15 +483,17 @@
 
   Duel.prototype._launch = function (a, shot, sigma, badness) {
     var b = this.ball, dir = a.team === 0 ? 1 : -1;
-    var smash = !shot.loft && b.z > 5.4 && Math.abs(shot.ty) > 8 && !b.held;
-    var speed = smash ? 58 : shot.speed;
+    var pw = a.human && this._pw("power");
+    var smash = !shot.loft && b.z > (pw ? 4.2 : 5.4) && Math.abs(shot.ty) > 8 && !b.held;
+    var speed = (smash ? 58 : shot.speed) * (pw ? 1.15 : 1);
+    if (a.human && this._pw("precision")) sigma *= 0.45;
     var tx = shot.tx + gauss() * sigma, ty = shot.ty + gauss() * sigma * 1.3;
     var dx = tx - b.x, dy = ty - b.y;
     var D = Math.max(1, Math.hypot(dx, dy));
     var T = D / speed;
     if (shot.loft) T = Math.max(T, 1.75);
     // Raise the arc until it clears the net. A stretched or rushed shot gets less margin, so it can clip the tape.
-    var need = NET_H + 0.9 - badness * Math.random() * 1.7;
+    var need = NET_H + 0.9 - badness * rand() * 1.7;
     // Only meaningful when the shot actually crosses the net. A ball struck just past the net toward
     // the far side never "clears" it, which used to inflate T without bound (z ~ 1000, point never ends).
     if (b.y * ty < 0 && Math.abs(dy) > 0.01) {
@@ -350,14 +525,15 @@
 
   Duel.prototype._tryHit = function (a, shot, sigma) {
     var b = this.ball;
-    if (!b || !b.live || b.lastHitTeam === a.team) return false;
+    // A dead ball (point already awarded, e.g. into the net) must never be hit: that restarted the rally phase and froze the match.
+    if (!b || !b.live || b.dead || b.lastHitTeam === a.team) return false;
     if (a.team === 0 ? b.y > 0.6 : b.y < -0.6) return false;
-    var reach = a.human ? 4.7 : 3.4;   // generous for the human: balls bouncing wide were hard to catch
+    var reach = a.human ? 4.7 * (this._pw("reach") ? 1.35 : 1) : 3.4;   // generous for the human: balls bouncing wide were hard to catch
     var d = Math.hypot(b.x - a.x, b.y - a.y);
     if (d > reach || b.z > 8.6) return false;
     var volley = b.bounces === 0;
     if (volley && b.hits < 3) { this._point(1 - a.team, "twoBounce"); return true; }
-    if (volley && Math.abs(a.y) < KIT) { this._point(1 - a.team, "kitchen"); return true; }
+    if (volley && Math.abs(a.y) < KIT && !(a.human && this._pw("pass"))) { this._point(1 - a.team, "kitchen"); return true; }
     var badness = clamp((d - 1.4) / (reach - 1.4), 0, 1);
     this._launch(a, shot, sigma + badness * 2.6, badness);
     return true;
@@ -381,21 +557,27 @@
   Duel.prototype._aiShot = function (a) {
     var k = a.skill, dir = a.team === 0 ? 1 : -1, foes = this._teamActors(1 - a.team);
     var atNet = foes.some(function (f) { return Math.abs(f.y) < KIT + 2; });
-    if (atNet && Math.random() < k.lobP) return { tx: (Math.random() - 0.5) * 12, ty: dir * 18, speed: 30, loft: true };
+    if (atNet && rand() < k.lobP) return { tx: (rand() - 0.5) * 12, ty: dir * 18, speed: 30, loft: true };
     var best = null, bestS = -1;
     var xs = [-7.6, -4, 0, 4, 7.6], ds = [3.8, 13, 18.6];
     for (var i = 0; i < xs.length; i++) for (var j = 0; j < ds.length; j++) {
       var tx = xs[i], ty = dir * ds[j];
       var open = Math.min.apply(null, foes.map(function (f) { return Math.hypot(f.x - tx, (f.y - ty) * 0.8); }));
-      var s = open * k.aggr + Math.random() * 9 * (1 - k.aggr) + (j === 0 ? k.dinkP * 6 - 3 : 0) + (j === 1 ? 1.5 * (1 - k.aggr) : 0);
+      var s = open * k.aggr + rand() * 9 * (1 - k.aggr) + (j === 0 ? k.dinkP * 6 - 3 : 0) + (j === 1 ? 1.5 * (1 - k.aggr) : 0);
+      var tr = k.trait;
+      if (tr === "centre") s += (6 - Math.abs(tx)) * 0.5;
+      else if (tr === "sides") s += Math.abs(tx) * 0.45;
+      else if (tr === "left") s += (tx < 0 ? 2.5 : 0);
+      else if (tr === "right") s += (tx > 0 ? 2.5 : 0);
       if (s > bestS) { bestS = s; best = { tx: tx, ty: ty, speed: (j === 0 ? 20 : j === 1 ? 32 : 43) * k.pace }; }
     }
+    if (k.trait === "tempo") { this._tempo = !this._tempo; best.speed *= this._tempo ? 1.25 : 0.78; }
     return best;
   };
 
   Duel.prototype._ai = function (a, dt) {
     var b = this.ball, k = a.skill, dir = a.team === 0 ? -1 : 1;   // dir: which way is "back" for this actor
-    var incoming = b && b.live && b.lastHitTeam !== a.team;
+    var incoming = b && b.live && !b.dead && b.lastHitTeam !== a.team;
     if (incoming && a.planId !== b.id) {
       a.planId = b.id;
       var pr = this._predict(), bo = pr.bounce;
@@ -404,10 +586,10 @@
         var mineSide = a.team === 0 ? bo.y < 0 : bo.y > 0;
         var outBy = Math.max(Math.abs(bo.x) - CW, Math.abs(bo.y) - CL);
         a.mine = mineSide && bo.x >= a.zone[0] && bo.x < a.zone[1];
-        a.leave = !mineSide || outBy > k.judge * (0.4 + Math.random() * 0.8);
+        a.leave = !mineSide || outBy > k.judge * (0.4 + rand() * 0.8);
         a.goalX = pr.after.x;
         a.goalY = clamp(pr.after.y + dir * 1.2, a.team === 0 ? -CL - 5 : 1, a.team === 0 ? -1 : CL + 5);
-        a.reactAt = this.now + k.react * (0.8 + Math.random() * 0.5);
+        a.reactAt = this.now + k.react * (0.8 + rand() * 0.5);
       }
     }
     var gx = a.homeX, gy = a.homeY;
@@ -429,6 +611,7 @@
     this.phase = "point";
     this.phaseAt = this.now;
     this.score[team] += 1;
+    if (team === 0 && !this.daily && !this._pw("any")) this.charge = Math.min(CHARGE_MAX, (this.charge || 0) + 1);
     this.serveTurn[team] += (this.serverTeam === team) ? 0 : 1;
     this.serverTeam = team;
     this._updateScore();
@@ -443,8 +626,19 @@
   Duel.prototype._afterPoint = function () {
     var s = this.score, lead = Math.abs(s[0] - s[1]);
     if ((s[0] >= WIN_SCORE || s[1] >= WIN_SCORE) && lead >= 1) {
-      var won = s[0] > s[1];
-      if (won) { this.stage += 1; this.save.stage = this.stage; this.save.wins = (Number(this.save.wins) || 0) + 1; if (this.fx) this.fx.confetti(this.W, this.H); this._sound("newBest"); }
+      var won = s[0] > s[1], sv = this.save, idx = Math.min(this.stage, LADDER.length - 1), isDaily = !!this.daily;
+      this._lastScore = [s[0], s[1]];
+      if (isDaily) {
+        // Daily Duel never touches the ladder; only the first attempt of the day is recorded.
+        this._lastDailyIdx = this.daily.idx;
+        if (!sv.daily || sv.daily.key !== this.daily.key) sv.daily = { key: this.daily.key, you: s[0], them: s[1], idx: this.daily.idx };
+        this.daily = null; RNG = Math.random;
+      } else {
+        sv.history = (sv.history || []).concat([{ d: Date.now(), stage: this.stage, mode: this.mode, you: s[0], them: s[1] }]).slice(-HISTORY_MAX);
+        if (won) { sv.beaten = sv.beaten || {}; sv.beaten[idx] = true; sv.bestMargin = Math.max(Number(sv.bestMargin) || 0, s[0] - s[1]); }
+        if (won) { this.stage += 1; this.save.stage = this.stage; this.save.wins = (Number(this.save.wins) || 0) + 1; }
+      }
+      if (won) { if (this.fx) this.fx.confetti(this.W, this.H); this._sound("newBest"); }
       else this._sound("gameOver");
       writeSave(this.save);
       this._lastResult = won ? "win" : "lose";
@@ -495,7 +689,8 @@
     if (this.joy) { mx = clamp((this.joy.x - this.joy.ox) / 46, -1, 1); my = clamp((this.joy.oy - this.joy.y) / 46, -1, 1); }
     var ml = Math.hypot(mx, my); if (ml > 1) { mx /= ml; my /= ml; }
     if (this.phase === "serve" && this.server === h) { mx = 0; my = 0; }
-    h.vx = mx * 18; h.vy = my * 18;
+    var spd = this._pw("sprint") ? 23 : 18;
+    h.vx = mx * spd; h.vy = my * spd;
     h.x = clamp(h.x + h.vx * dt, -CW - 2, CW + 2);
     h.y = clamp(h.y + h.vy * dt, -CL - 3, -0.9);
 
@@ -505,7 +700,7 @@
       if (srv.human) {
         if (this.now < h.swingUntil && !h.swung) { var sh = aimToShot(h.aimX, Math.max(-0.1, h.aimY), dir); sh.ty = dir * Math.max(10.5, Math.abs(sh.ty)); this._launch(h, sh, 0.7, 0.1); }
       } else if (this.now - this.phaseAt > 1.1) {
-        this._launch(srv, { tx: (Math.random() - 0.5) * 13, ty: dir * (12 + Math.random() * 6), speed: 34 * srv.skill.pace }, srv.skill.err * 0.6, 0.1);
+        this._launch(srv, { tx: (rand() - 0.5) * 13, ty: dir * (12 + rand() * 6), speed: 34 * srv.skill.pace }, srv.skill.err * 0.6, 0.1);
       }
       this.actors.forEach(function (a) { if (!a.human && a !== srv) self._ai(a, dt); });
       return;
@@ -516,6 +711,8 @@
     }
     if (this.phase === "rally" || this.phase === "point") this.actors.forEach(function (a) { if (!a.human) self._ai(a, dt); });
     var steps = 4; for (var i = 0; i < steps; i++) this._stepBall(dt / steps);
+    // Watchdog: a rally whose ball is no longer live must end, otherwise the match would hang.
+    if (this.phase === "rally" && this.ball && !this.ball.live) this._point(1 - this.ball.lastHitTeam, "out");
     if (this.phase === "point" && this.now - this.phaseAt > 1.35) this._afterPoint();
   };
 
@@ -672,7 +869,14 @@
     var gp = this._project(b.x, b.y, 0), p = this._project(b.x, b.y, b.z + BALL_R), r = Math.max(4, 0.46 * p.s);
     g.fillStyle = "rgba(0,0,30," + clamp(0.42 - b.z * 0.02, 0.12, 0.42).toFixed(2) + ")";
     g.beginPath(); g.ellipse(gp.x, gp.y, r * 1.15, r * 0.48, 0, 0, 7); g.fill();
-    if (this.fx && b.live && !b.dead) { this.fx.trailPush(b.id, p.x, p.y, r, "#f4ff8a"); this.fx.drawTrail(g, 0); }
+    var boosted = this._pw("any") && b.lastHitTeam === 0 && b.live && !b.dead, prgb = boosted ? POWER_RGB[this.power.key] : "";
+    if (this.fx && b.live && !b.dead) { this.fx.trailPush(b.id, p.x, p.y, r, boosted ? "rgb(" + prgb + ")" : "#f4ff8a"); this.fx.drawTrail(g, 0); }
+    if (boosted) {
+      g.save(); g.globalCompositeOperation = "lighter";
+      var gl = g.createRadialGradient(p.x, p.y, r * 0.4, p.x, p.y, r * 2.8);
+      gl.addColorStop(0, "rgba(" + prgb + ",0.6)"); gl.addColorStop(1, "rgba(" + prgb + ",0)");
+      g.fillStyle = gl; g.beginPath(); g.arc(p.x, p.y, r * 2.8, 0, 7); g.fill(); g.restore();
+    }
     var gr = g.createRadialGradient(p.x - r * 0.35, p.y - r * 0.4, r * 0.1, p.x, p.y, r);
     gr.addColorStop(0, "#fdffb8"); gr.addColorStop(0.6, "#e6ff2e"); gr.addColorStop(1, "#a6c400");
     g.fillStyle = gr; g.beginPath(); g.arc(p.x, p.y, r, 0, 7); g.fill();
@@ -692,12 +896,87 @@
     g.strokeStyle = "rgba(255,255,255,0.95)"; g.lineWidth = 2.5; g.setLineDash([6, 5]);
     g.beginPath(); g.arc(0, 0, r * pulse, 0, 7); g.stroke(); g.setLineDash([]);
     g.fillStyle = "rgba(255,214,10,0.9)"; g.beginPath(); g.arc(0, 0, r * 0.28, 0, 7); g.fill();
+    if (this._pw("precision")) {
+      g.strokeStyle = "rgba(255,214,10,0.95)"; g.lineWidth = 2; g.setLineDash([]);
+      g.beginPath(); g.moveTo(-r * 1.6, 0); g.lineTo(r * 1.6, 0); g.moveTo(0, -r * 1.6); g.lineTo(0, r * 1.6); g.stroke();
+    }
     g.restore();
   };
 
+  // ───────────────────────── Power visuals ─────────────────────────
+  // Polygon on the court plane (a circle in world feet), so rings follow the perspective.
+  Duel.prototype._ring = function (g, x, y, r, a0, a1, close) {
+    g.beginPath();
+    for (var i = 0; i <= 48; i++) {
+      var a = a0 + (a1 - a0) * i / 48, p = this._project(x + Math.cos(a) * r, y + Math.sin(a) * r, 0);
+      if (i) g.lineTo(p.x, p.y); else g.moveTo(p.x, p.y);
+    }
+    if (close) g.closePath();
+  };
+
+  // Under the actors: aura with a shrinking time arc, plus one signature effect per power.
+  Duel.prototype._drawPowerFx = function (g) {
+    var key = this._pw("any") ? this.power.key : "";
+    if (key !== "sprint") this._ghosts = null;
+    if (!key) return;
+    var h = this.human, now = this.now, rgb = POWER_RGB[key], col = "rgb(" + rgb + ")";
+    var left = clamp((this.power.until - now) / POWER_SECONDS, 0, 1);
+    var calm = !!(this.fx && this.fx.reduced), pulse = calm ? 0 : Math.sin(now * 7);
+    var blink = (left < 0.2 && !calm) ? (Math.sin(now * 24) > 0 ? 1 : 0.35) : 1, i;
+    g.save(); g.lineCap = "round"; g.lineJoin = "round";
+    this._ring(g, h.x, h.y, 2.4 + pulse * 0.12, 0, Math.PI * 2, true);
+    g.fillStyle = "rgba(" + rgb + "," + (0.22 * blink).toFixed(2) + ")"; g.fill();
+    g.strokeStyle = col; g.lineWidth = 3; g.globalAlpha = 0.9 * blink; g.stroke();
+    this._ring(g, h.x, h.y, 3.2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left, false);
+    g.lineWidth = 4; g.globalAlpha = 0.95; g.stroke();
+    g.globalAlpha = 1;
+    if (key === "reach") {
+      this._ring(g, h.x, h.y, 4.7 * 1.35, 0, Math.PI * 2, true);
+      g.setLineDash([8, 6]); g.lineWidth = 2.5; g.globalAlpha = 0.75 * blink; g.stroke(); g.setLineDash([]);
+    } else if (key === "touch") {
+      for (i = 0; i < 2; i++) {
+        var ph = (now * 0.8 + i * 0.5) % 1;
+        this._ring(g, h.x, h.y, 1.5 + ph * 6, 0, Math.PI * 2, true);
+        g.lineWidth = 2.5; g.globalAlpha = (1 - ph) * 0.55; g.stroke();
+      }
+    } else if (key === "pass") {
+      this._quad(g, -CW, -KIT, CW, 0, "rgba(" + rgb + "," + (0.2 + 0.09 * pulse).toFixed(2) + ")");
+      g.globalAlpha = 0.9; g.strokeStyle = col; this._line(g, -CW, -KIT, CW, -KIT, 0.35);
+    } else if (key === "sprint") {
+      var gp = this._project(h.x, h.y, 0), gh = this._ghosts || (this._ghosts = []);
+      if (!gh.length || Math.hypot(gp.x - gh[gh.length - 1].x, gp.y - gh[gh.length - 1].y) > 3) gh.push({ x: gp.x, y: gp.y });
+      if (gh.length > 12) gh.shift();
+      for (i = 0; i < gh.length; i++) {
+        var k = (i + 1) / gh.length;
+        g.globalAlpha = 0.34 * k * blink; g.fillStyle = col;
+        g.beginPath(); g.ellipse(gh[i].x, gh[i].y, 1.7 * gp.s * k, 0.55 * gp.s * k, 0, 0, 7); g.fill();
+      }
+    } else if (key === "power" && !calm && Math.random() < 0.6) {
+      var ep = this._project(h.x, h.y, 3.5);
+      this.fx.burst(ep.x + (Math.random() - 0.5) * 16, ep.y, [col, "#ffd60a"], 1, { speed: 40, up: 110, life: 520, gravity: -60, size: 2.4 });
+    }
+    g.restore();
+  };
+
+  // Over everything: a coloured vignette while a power runs, and a short flash when it fires.
+  Duel.prototype._drawPowerTint = function (g) {
+    var key = this._pw("any") ? this.power.key : "";
+    var fl = (this.flashUntil || 0) > this.now ? ((this.flashUntil - this.now) / 0.3) : 0;
+    if (!key && !fl) return;
+    var W = this.W, H = this.H, calm = !!(this.fx && this.fx.reduced);
+    if (key) {
+      var rgb = POWER_RGB[key], left = clamp((this.power.until - this.now) / POWER_SECONDS, 0, 1);
+      var a = 0.26 + (calm ? 0 : 0.06 * Math.sin(this.now * 5)), blink = (left < 0.2 && !calm) ? (Math.sin(this.now * 24) > 0 ? 1 : 0.4) : 1;
+      var v = g.createRadialGradient(W / 2, H * 0.55, Math.min(W, H) * 0.35, W / 2, H * 0.55, Math.max(W, H) * 0.75);
+      v.addColorStop(0, "rgba(" + rgb + ",0)"); v.addColorStop(1, "rgba(" + rgb + "," + (a * blink).toFixed(3) + ")");
+      g.fillStyle = v; g.fillRect(0, 0, W, H);
+    }
+    if (fl && !calm) { g.fillStyle = "rgba(" + POWER_RGB[this._flashKey || "power"] + "," + (0.38 * fl).toFixed(3) + ")"; g.fillRect(0, 0, W, H); }
+  };
+
   // ───────────────────────── Focus time (slow motion at contact) ─────────────────────────
-  Duel.prototype._slowScale = function () { return clamp(0.16 + this.stage * 0.035, 0.16, 0.4); };
-  Duel.prototype._slowBudget = function () { return clamp(1.1 - this.stage * 0.1, 0.5, 1.1); };   // real seconds per ball
+  Duel.prototype._slowScale = function () { var v = clamp(0.16 + this.stage * 0.035, 0.16, 0.4); return this._pw("touch") ? v * 0.7 : v; };
+  Duel.prototype._slowBudget = function () { return clamp(1.1 - this.stage * 0.1, 0.5, 1.1) * (this._pw("touch") ? 1.8 : 1); };   // real seconds per ball
 
   Duel.prototype._wantSlow = function (realDt) {
     var b = this.ball, h = this.human;
@@ -767,7 +1046,8 @@
     dt *= this.timeScale;
     this.now += dt;
     this.realNow = (this.realNow || 0) + rdt;
-    if (!frozen) this._update(dt);
+    if (!frozen && !this.paused) this._update(dt);
+    this._powerHud();
 
     var g = this.ctx, W = this.W, H = this.H, self = this;
     if (!this._bg) this._drawBackground();
@@ -780,6 +1060,7 @@
     if (z !== 1) { g.translate(W / 2, H * 0.55); g.scale(z, z); g.translate(-W / 2, -H * 0.55); }
 
     this._drawAim(g);
+    this._drawPowerFx(g);
     var far = this.actors.filter(function (a) { return a.team === 1; }).sort(function (a, b) { return b.y - a.y; });
     var near = this.actors.filter(function (a) { return a.team === 0; }).sort(function (a, b) { return b.y - a.y; });
     var b = this.ball, ballFar = b && b.y > 0;
@@ -791,12 +1072,14 @@
     if (b && !ballFar && !drawn) this._drawBall(g);
     if (this.fx) this.fx.draw(g, W, H, this.now * 1000, { combo: 0 });
     g.restore();
+    this._drawPowerTint(g);
     this._drawFocus(g);
     this._drawTouchHints(g);
   };
 
   window.KR_DUEL = {
     start: function (opts) { return new Duel(opts || {}); },
-    ladder: LADDER
+    ladder: LADDER,
+    _test: { seeded: seeded, dailyInfo: dailyInfo, aimToShot: aimToShot, POWERS: POWERS }
   };
 })();

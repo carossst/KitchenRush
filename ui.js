@@ -386,6 +386,7 @@ void function () {
       case "checkout-standard": this.checkout("standard"); break;
       case "share":             this.copyShareText(); break;
       case "share-email":       this.sendShareViaEmail(); break;
+      case "lang":              try { window.localStorage.setItem("kr:lang", window.KR_LANG === "fr" ? "en" : "fr"); } catch (_) { } location.reload(); break;
       case "howto":             this.openHowToModal(); break;
       case "redeem":            this.openRedeemModal(); break;
       case "support":           this.openSupportModal(); break;

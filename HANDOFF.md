@@ -226,3 +226,82 @@ Placeholder roster until then: fictional names that only echo the originals (not
 | Reflex Volley | Manon Sarceau | Perry Dodd |
 
 The arcade-style effects mentioned by the owner (an earlier version with Arkanoid-like effects and 10 US + 10 French players) are not in this repository; ask where that prototype lives before rebuilding.
+
+
+## Port status (2026-11-16, version 8)
+
+Ported from the rally branch into `main` (no real athlete names, see the legal note above):
+- **FR/EN for Duel** (item 1): `wording.duel` (EN, base) + `wording.duelFr` (overrides). Language is the saved
+  choice (`kr:duel.lang`) else the browser language; a "Francais / English" button sits in the match menu.
+  The rest of the app (landing, arcade, end screen, share card) is still English only: next step is to
+  generalise the same override pattern to `wording.js` as a whole.
+- **Match history and end screen** (item 2): last 20 matches, last 5 shown as W/L dots, win count, best margin,
+  goal for the next match, and a collection of opponents beaten. Stored in `kr:duel` and sanitised on load
+  (`loadSave()`), so corrupted or hand-edited storage cannot break the menu.
+- **Smoke test** (item 3): `tests/duel-smoke.mjs` (needs `playwright`; see the file header). It plays full
+  matches with a bot and fails on a stall, a console error, a match that never ends, missing history, or a
+  broken language toggle. Run all three scenarios before every Duel change. It found a real bug on its first
+  run: after a point (e.g. net), an AI player could still hit the dead ball, which put the match back in the
+  rally phase with no way to end it. Fixed in `_tryHit` / `_ai`, plus a watchdog after `_stepBall`.
+- **Deferred update** (item 7): the service-worker update toast is hidden while a Duel is open
+  (`body:has(.kr-duel) #update-toast`), so it can never be tapped mid-match.
+
+Still to port, in order: one power per opponent (4), round profiles as opponent traits (5), Daily Duel with a
+seeded RNG (6; `duel.js` uses `Math.random`), FR for the rest of the app, deterministic unit tests of the rules.
+
+
+## Daily Duel (version 9)
+
+- **Daily Duel** (item 6 of the port list): a "Daily Duel" button in the match menu plays today's opponent
+  (picked from the UTC date: `dailyInfo()`), singles, on a seeded RNG (`seeded()`, mulberry32). All gameplay
+  randomness goes through `rand()` in `duel.js`; only the screen shake still uses `Math.random`. It never
+  touches the ladder (no stage, wins, beaten list or history); only the first attempt of the day is stored
+  in `kr:duel.daily`. A result line and a Share button (Web Share, else clipboard; text = date, score,
+  opponent, link) replace the button once played.
+- Limits: the seed is shared but the match is not fully deterministic (it depends on frame timing and on
+  the player), so two players do not get identical rallies. There is no ranking: that needs a server
+  (see the rally branch's `server/`, replay verification and per-day boards). Daily and Share strings are
+  in `wording.duel` / `wording.duelFr`.
+- `tests/duel-smoke.mjs` now has four scenarios (singles bot, doubles-left bot, doubles idle, daily bot).
+
+Still to port: one power per opponent, round profiles as opponent traits, French for the rest of the app,
+deterministic unit tests of the rules.
+
+
+## Powers, opponent styles, full French, rule tests (version 10)
+
+All four remaining port items are done:
+- **One power per opponent**: beating opponent i earns `POWERS[i]` (reach, touch, power, precision, sprint, pass).
+  Win points to charge (3 points), then tap the HUD button or press E to fire it for 10 s. Choose which earned
+  power is equipped by tapping its chip in the match menu. Disabled in the Daily Duel (same conditions for all).
+  Effects live in `_launch` (power, precision), `_tryHit` (reach, pass), the move speed in `_update` (sprint),
+  `_slowScale/_slowBudget` (touch). Names and descriptions: `wording.duel.powerNames/powerDescs` (+ `duelFr`).
+- **Opponent styles**: `trait` on each `LADDER` entry (centre, sides, tempo, left, right) biases `_aiShot`;
+  shown in the menu as "Style: ...".
+- **French for the whole app**: `wording-fr.js` overrides `wording.js` when the language is French
+  (`localStorage["kr:lang"]`, else the browser language; the FR/EN button on the landing switches and reloads).
+  Covered: system, landing, in-game labels, end screen, first-run, how-to. NOT translated: paywall, share card,
+  stats sharing, house ad, waitlist, install prompt, support, micro-feedback, challenges, notFound, the daily
+  modifier names in `game.js` (`DAILY_MODIFIERS` labels are hard-coded English), `privacy.html`, `terms.html`.
+  To translate more: add the section to the `FR` object in `wording-fr.js` and run `node tests/wording.test.mjs`
+  (it rejects unknown keys and changed `{placeholders}`).
+- **Rule tests**: `tests/duel-rules.mjs` (19 checks: net, out, serve, double bounce, kitchen volley, dead ball,
+  net clearance, powers, seeded RNG, sanitised storage) and `tests/wording.test.mjs` (616 checks, no browser).
+  `Duel.paused` freezes the loop so tests can drive methods directly; `KR_DUEL._test` exposes helpers.
+- Test commands (server on 8123, `playwright` installed): `node tests/wording.test.mjs`,
+  `node tests/duel-rules.mjs`, `node tests/duel-smoke.mjs` (about 5 minutes).
+
+Remaining ideas: translate the sections listed above; make `DAILY_MODIFIERS` labels translatable; sound
+design for Duel; a server for rankings; balance after real playtests; real-device test; the payment flow.
+
+
+## Power visuals (version 11)
+
+Each power has its own look while active (`_drawPowerFx`, `_drawPowerTint`, plus hooks in `_drawBall`,
+`_drawAim`, `_powerHud`, colours in `POWER_RGB`): a coloured aura on the court with a shrinking time arc,
+a coloured vignette, a flash on activation and a ring when it ends, and the ball gets a glow and a trail in the
+power's colour. Per power: reach = dashed ring showing the real catch radius; touch = time ripples; power = rising
+embers; precision = crosshair on the aim marker; sprint = ground streaks behind the player; pass = the Kitchen
+lights up (volleys are legal there). The effects blink in the last 20% of the duration, and respect reduced
+motion (`fx.reduced`: no pulse, no flash, no embers). Test: "every power renders without errors" in
+`tests/duel-rules.mjs`.
