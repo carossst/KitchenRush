@@ -90,6 +90,27 @@ const results = await page.evaluate(() => {
     const r = d._rage; d.stage = 0;
     return eq([boss.boss === true, boss.name, r], [true, "Captain Kitchen", true]);
   });
+  t("coins: a win vs opponent 1 pays 25, a loss little, the Daily once a day", () => {
+    fresh(); d.save.coins = 0; d.score = [5, 2]; d._afterPoint(); const win = d.save.coins; d.stage = 0;
+    fresh(); d.save.coins = 0; d.score = [3, 5]; d._afterPoint(); const lose = d.save.coins; d.stage = 0;
+    fresh(); d.save.coins = 0; d.save.daily = null; d.daily = { key: "2099-01-01", idx: 0, seed: 1 }; d.score = [5, 1]; d._afterPoint(); const d1 = d.save.coins;
+    fresh(); d.save.coins = 0; d.daily = { key: "2099-01-01", idx: 0, seed: 1 }; d.score = [5, 1]; d._afterPoint(); const d2 = d.save.coins; d.save.daily = null; d.stage = 0;
+    return eq([win, lose, d1, d2], [25, 9, 25, 0]);
+  });
+  t("shop: no purchase without coins, one purchase, equip only what you own", () => {
+    fresh(); d.save.coins = 100; d.save.owned = {}; d.save.player = "alex";
+    d._panelAction("pl-sasha"); const a1 = [d.save.coins, !!d.save.owned.sasha, d.save.player];
+    d.save.coins = 130; d._panelAction("pl-sasha"); const a2 = [d.save.coins, !!d.save.owned.sasha, d.save.player];
+    d.save.player = "alex"; d._panelAction("pl-sasha"); const a3 = [d.save.coins, d.save.player];
+    d._panelAction("pl-nobody"); d.save.player = "alex"; d.save.owned = {};
+    return eq([a1, a2, a3], [[100, false, "alex"], [10, true, "sasha"], [10, "sasha"]]);
+  });
+  t("player skills apply; the Daily always uses the base player", () => {
+    fresh(); d.save.owned = { chen: true, sasha: true }; d.save.player = "sasha"; const sp = d._pstat("speed"); d._startMatch(); d.paused = true; const start = d.charge;
+    d.save.player = "chen"; const need = d._chargeMax();
+    d.daily = { key: "2099-01-01", idx: 0, seed: 1 }; const dly = d._player().id; d.daily = null; d.save.player = "alex"; d.save.owned = {};
+    return eq([sp, start, need, dly], [1.12, 1, 2, "alex"]);
+  });
   t("worlds: stage 7 restarts the ladder, tougher", () => { d.stage = 7; const o = d._opp(), w = d._world(); d.stage = 0; return eq([w, o.name, o.speed > KR_DUEL.ladder[0].speed], [2, KR_DUEL.ladder[0].name, true]); });
   t("venues follow the stage; locked or invalid choices are ignored", () => {
     const at = (stage, sel) => { d.stage = stage; d.save.venue = sel; d.daily = null; return d._venueId(); };
@@ -107,9 +128,9 @@ const results = await page.evaluate(() => {
   });
   t("corrupted saved data is sanitised", () => {
     d.destroy();
-    localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999, venue: "../x" }));
+    localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999, venue: "../x", coins: -5, owned: { chen: true, hacker: true }, player: "hacker" }));
     window.__ui._startDuel(); const s = window.__ui._duel.save;
-    return eq([Array.isArray(s.history), Object.keys(s.beaten), s.equipped, s.daily, s.lang, s.bestMargin, s.venue], [true, ["2"], "", null, "", 99, "auto"]);
+    return eq([Array.isArray(s.history), Object.keys(s.beaten), s.equipped, s.daily, s.lang, s.bestMargin, s.venue, s.coins, Object.keys(s.owned), s.player], [true, ["2"], "", null, "", 99, "auto", 0, ["chen"], "alex"]);
   });
   return out;
 });

@@ -2032,6 +2032,13 @@ button.kr-duel-chip.kr-duel-chip--eq {
   border: 1px solid rgb(var(--text-strong) / var(--kr-a-40));
 }
 
+.kr-duel-coins,
+.kr-duel-earn {
+  margin: 0;
+  font-weight: 700;
+  color: rgb(var(--accent-warm));
+}
+
 .kr-duel-venuenow {
   margin: 0;
 }

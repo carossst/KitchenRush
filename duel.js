@@ -42,6 +42,17 @@
     stadium: { unlock: 6, sky: ["#0a0a14", "#2a1a05"], stars: true, scene: "beams", stand: ["#2b2108", "#14100a"], crowd: ["#ffd23f", "#ffffff", "#ff9f1c", "#f4f1de"], ground: ["#1b1b24", "#20202b"], board: ["#14100a", "#ffd23f"], apron: "#7a5c12", court: "#1d3a8a", kitN: "#c0392b", kitF: "#d9503f", line: "#ffd23f" }
   };
   function hasVenue(id) { return Object.prototype.hasOwnProperty.call(VENUES, id); }
+  // Players you can own (fictional names). `stats` multiply base values; the other fields are passive skills.
+  // Soft currency only: coins are earned by playing (see _afterPoint). No real money, no random packs.
+  var PLAYERS = [
+    { id: "alex",  name: "Alex",  cost: 0,   pal: {},                                                                 stats: {} },
+    { id: "sasha", name: "Sasha", cost: 120, pal: { jerseyA: "#9af0c4", jerseyB: "#22b07d", shorts: "#0e4f3a" }, stats: { speed: 1.12 }, startCharge: 1 },
+    { id: "wen",   name: "Wen",   cost: 150, pal: { jerseyA: "#ffe27a", jerseyB: "#f5a524", shorts: "#7a4b12" }, stats: { reach: 1.15 } },
+    { id: "tomi",  name: "Tomi",  cost: 200, pal: { jerseyA: "#d5b4ff", jerseyB: "#7b4dff", shorts: "#2b1a5c" }, stats: { focus: 1.4 } },
+    { id: "priya", name: "Priya", cost: 220, pal: { jerseyA: "#ff9d8a", jerseyB: "#e2452f", shorts: "#6b1408" }, stats: {}, smash: true },
+    { id: "chen",  name: "Chen",  cost: 260, pal: { jerseyA: "#8ad8ff", jerseyB: "#0f6fd6", shorts: "#06254d" }, stats: {}, chargeNeed: 2 },
+    { id: "lola",  name: "Lola",  cost: 240, pal: { jerseyA: "#ffb3c7", jerseyB: "#ff5d8f", shorts: "#ffffff" }, stats: {}, lucky: true }
+  ];
   var ALLY = { name: "Partner", speed: 12.5, react: 0.25, err: 1.6, aggr: 0.5, lobP: 0.08, dinkP: 0.25, volley: true, judge: 0.8, pace: 0.95,
     pal: { jerseyA: "#ffb3c7", jerseyB: "#ff5d8f", shorts: "#ffffff", hair: "#6b3a1e", band: "#3fd0ff", paddle: "#3fd0ff" } };
   // Player looks: varied hair and skin so everyone can find themselves. Cycled from the match menu.
@@ -102,6 +113,11 @@
     d.venue = (d.venue === "auto" || (typeof d.venue === "string" && hasVenue(d.venue))) ? d.venue : "auto";
     d.bestMargin = clamp(Math.floor(Number(d.bestMargin) || 0), 0, 99);
     d.lang = (d.lang === "fr" || d.lang === "en") ? d.lang : "";
+    d.coins = clamp(Math.floor(Number(d.coins) || 0), 0, 999999);
+    var ownedClean = {};
+    PLAYERS.forEach(function (p) { if (p.cost > 0 && d.owned && d.owned[p.id] === true) ownedClean[p.id] = true; });
+    d.owned = ownedClean;
+    d.player = PLAYERS.some(function (p) { return p.id === d.player && (p.cost === 0 || ownedClean[p.id]); }) ? d.player : "alex";
     var dd = d.daily;
     d.daily = (dd && typeof dd === "object" && /^\d{4}-\d{2}-\d{2}$/.test(String(dd.key)))
       ? { key: String(dd.key), you: clamp(Math.floor(Number(dd.you) || 0), 0, 99), them: clamp(Math.floor(Number(dd.them) || 0), 0, 99), idx: clamp(Math.floor(Number(dd.idx) || 0), 0, 99) } : null;
@@ -225,6 +241,7 @@
     if (result === "win") head = '<p class="kr-duel-result kr-duel-result--win">' + esc((this._lastBoss && t.bossWin) || t.win || "You win!") + fin + '</p>';
     if (result === "lose") head = '<p class="kr-duel-result kr-duel-result--lose">' + esc(t.lose || "So close. Run it back.") + fin + '</p>';
     if (result === "win" && this._lastBoss) head += '<p class="kr-muted">' + esc((t.worldUp || "World {w} unlocked: tougher opponents").replace("{w}", this._world())) + '</p>';
+    if (result && this._lastEarn) head += '<p class="kr-duel-earn">' + esc((t.earned || "+{n} coins").replace("{n}", this._lastEarn)) + '</p>';
     var m = this.mode, s = this.side;
     function opt(id, label, on) { return '<button class="kr-duel-opt' + (on ? " kr-duel-opt--on" : "") + '" data-duel="' + id + '" aria-pressed="' + (on ? "true" : "false") + '">' + esc(label) + '</button>'; }
     var touch = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
@@ -236,6 +253,7 @@
       (opp.trait && t.traits ? '<p class="kr-muted kr-duel-trait">' + esc((t.traitLabel || "Style: {x}").replace("{x}", t.traits[opp.trait] || "")) + '</p>' : "") +
       this._statsHtml(result) +
       this._venueHtml() +
+      this._playerHtml() +
       '<div class="kr-duel-opts" role="group" aria-label="' + esc(t.modeAria || "Match type") + '">' +
         opt("singles", t.singles || "Singles", m === "singles") +
         opt("left", t.doublesLeft || "Doubles · Left", m === "doubles" && s === "left") +
@@ -284,6 +302,29 @@
   };
 
   // ───────────────────────── Powers ─────────────────────────
+  // The player you picked (Alex in the Daily Duel, so everyone plays on equal terms).
+  Duel.prototype._player = function () {
+    var id = this.daily ? "alex" : this.save.player, sv = this.save;
+    for (var i = 0; i < PLAYERS.length; i++) if (PLAYERS[i].id === id && (PLAYERS[i].cost === 0 || (sv.owned && sv.owned[id]))) return PLAYERS[i];
+    return PLAYERS[0];
+  };
+  Duel.prototype._pstat = function (k) { return (this._player().stats && this._player().stats[k]) || 1; };
+  Duel.prototype._chargeMax = function () { return this._player().chargeNeed || CHARGE_MAX; };
+  Duel.prototype._capDelay = function (s) { return s * (this._player().lucky ? 0.6 : 1); };
+
+  Duel.prototype._playerHtml = function () {
+    var t = this.t, sv = this.save, cur = this._player(), sk = t.playerSkill || {};
+    var chips = PLAYERS.map(function (p) {
+      var owned = p.cost === 0 || !!(sv.owned && sv.owned[p.id]), afford = (sv.coins || 0) >= p.cost, on = cur.id === p.id;
+      var title = (sk[p.id] || "") + (owned ? "" : " — " + (afford ? (t.playerBuy || "Buy for {n} coins") : (t.playerNeed || "Not enough coins ({n})")).replace("{n}", p.cost));
+      var a = p.pal.jerseyA || HUMAN_PAL.jerseyA, b = p.pal.jerseyB || HUMAN_PAL.jerseyB;
+      return '<button class="kr-duel-chip' + (on ? " kr-duel-chip--eq" : "") + '" data-duel="pl-' + p.id + '" aria-pressed="' + (on ? "true" : "false") + '"' + ((!owned && !afford) ? " disabled" : "") + ' title="' + esc(title) + '"><i class="kr-duel-swatch" style="background:linear-gradient(135deg,' + a + "," + b + ')"></i>' + esc(p.name) + (owned ? "" : " · " + p.cost) + "</button>";
+    }).join("");
+    return '<p class="kr-duel-coins">' + esc((t.coins || "Coins: {n}").replace("{n}", sv.coins || 0)) + "</p>" +
+      '<div class="kr-duel-venues" role="group" aria-label="' + esc(t.playerLabel || "My player") + '">' + chips + "</div>" +
+      '<p class="kr-muted kr-duel-venuenow">' + esc(cur.name + " — " + (sk[cur.id] || "")) + "</p>";
+  };
+
   Duel.prototype._pw = function (key) {
     var p = this.power;
     if (!p || this.now >= p.until) return false;
@@ -309,7 +350,7 @@
 
   Duel.prototype._activatePower = function () {
     var key = this._equippedKey();
-    if (!key || this.daily || this.phase === "menu" || (this.charge || 0) < CHARGE_MAX || this._pw("any")) return;
+    if (!key || this.daily || this.phase === "menu" || (this.charge || 0) < this._chargeMax() || this._pw("any")) return;
     this.power = { key: key, until: this.now + POWER_SECONDS };
     this.charge = 0;
     this.flashUntil = this.now + 0.3; this._flashKey = key;
@@ -330,8 +371,8 @@
     if (!key || this.daily || this.phase === "menu") { if (this._phs !== "hide") { el.hidden = true; this._phs = "hide"; } return; }
     var t = this.t, name = this._powerName(key), state, txt;
     if (this._pw("any")) { state = "on"; txt = (t.powerActive || "{name} {s}s").replace("{name}", name).replace("{s}", Math.max(1, Math.ceil(this.power.until - this.now))); }
-    else if ((this.charge || 0) >= CHARGE_MAX) { state = "ready"; txt = (t.powerReady || "{name} READY").replace("{name}", name); }
-    else { state = "charge"; txt = (t.powerCharge || "{name} {n}/3").replace("{name}", name).replace("{n}", this.charge || 0); }
+    else if ((this.charge || 0) >= this._chargeMax()) { state = "ready"; txt = (t.powerReady || "{name} READY").replace("{name}", name); }
+    else { state = "charge"; txt = (t.powerCharge || "{name} {n}/{m}").replace("{name}", name).replace("{n}", this.charge || 0).replace("{m}", this._chargeMax()); }
     var sig = state + "|" + txt;
     if (sig === this._phs) return;
     this._phs = sig; el.style.setProperty("--pw", "rgb(" + POWER_RGB[key] + ")"); el.hidden = false; el.textContent = txt; el.disabled = state !== "ready";
@@ -363,6 +404,16 @@
 
   Duel.prototype._panelAction = function (a) {
     if (a === "exit") { this.destroy(); return; }
+    if (a.indexOf("pl-") === 0) {
+      var pid = a.slice(3), sv2 = this.save, P = null;
+      for (var pi = 0; pi < PLAYERS.length; pi++) if (PLAYERS[pi].id === pid) P = PLAYERS[pi];
+      if (P) {
+        if (P.cost === 0 || sv2.owned[pid]) sv2.player = pid;
+        else if ((sv2.coins || 0) >= P.cost) { sv2.coins -= P.cost; sv2.owned[pid] = true; sv2.player = pid; this._sound("milestone"); }
+        writeSave(sv2);
+      }
+      this._showMenu(this._lastResult); return;
+    }
     if (a.indexOf("venue-") === 0) {
       var vid = a.slice(6);
       if (vid === "auto" || (hasVenue(vid) && this.stage >= VENUES[vid].unlock)) { this.save.venue = vid; writeSave(this.save); this._bg = null; }
@@ -394,7 +445,7 @@
     }
     var A = [];
     var oppPal = Object.assign({}, opp.pal, LOOKS[opp.look % LOOKS.length]);
-    var humanPal = Object.assign({}, HUMAN_PAL, LOOKS[this.look]);
+    var humanPal = Object.assign({}, HUMAN_PAL, LOOKS[this.look], this._player().pal);
     var allyLook = LOOKS[(this.look + 3) % LOOKS.length];
     this.human = actor(0, true, hx, -15, null, humanPal, dbl ? (hx < 0 ? [-99, 0] : [0, 99]) : [-99, 99]);
     A.push(this.human);
@@ -414,8 +465,8 @@
     this.panelEl.classList.remove("kr-duel-panel--on");
     this._lastResult = null;
     this._lastDailyIdx = null;
-    this.capsule = null; this.capSpawnIn = null; this._rage = false; this._lastBoss = false;
-    this.charge = 0;
+    this.capsule = null; this.capSpawnIn = null; this._rage = false; this._lastBoss = false; this._lastEarn = 0;
+    this.charge = this._player().startCharge || 0;
     this.power = null;
     RNG = this.daily ? seeded(this.daily.seed) : Math.random;
     this._setupActors();
@@ -523,9 +574,9 @@
 
   Duel.prototype._launch = function (a, shot, sigma, badness) {
     var b = this.ball, dir = a.team === 0 ? 1 : -1;
-    var pw = a.human && this._pw("power");
-    var smash = !shot.loft && b.z > (pw ? 4.2 : 5.4) && Math.abs(shot.ty) > 8 && !b.held;
-    var speed = (smash ? 58 : shot.speed) * (pw ? 1.15 : 1);
+    var pw = a.human && this._pw("power"), pp = a.human && this._player().smash;
+    var smash = !shot.loft && b.z > (pw ? 4.2 : pp ? 4.8 : 5.4) && Math.abs(shot.ty) > 8 && !b.held;
+    var speed = (smash ? 58 : shot.speed) * (pw ? 1.15 : pp ? 1.06 : 1);
     if (a.human && this._pw("precision")) sigma *= 0.45;
     // (Rally ramp is applied as the ball clock rate `b.rate`, set below: speeding up the shot itself cannot work
     // because the arc must still clear the net.)
@@ -571,7 +622,7 @@
     // A dead ball (point already awarded, e.g. into the net) must never be hit: that restarted the rally phase and froze the match.
     if (!b || !b.live || b.dead || b.lastHitTeam === a.team) return false;
     if (a.team === 0 ? b.y > 0.6 : b.y < -0.6) return false;
-    var reach = a.human ? 4.7 * (this._pw("reach") ? 1.35 : 1) : 3.4;   // generous for the human: balls bouncing wide were hard to catch
+    var reach = a.human ? 4.7 * this._pstat("reach") * (this._pw("reach") ? 1.35 : 1) : 3.4;   // generous for the human: balls bouncing wide were hard to catch
     var d = Math.hypot(b.x - a.x, b.y - a.y);
     if (d > reach || b.z > 8.6) return false;
     var volley = b.bounces === 0;
@@ -654,7 +705,7 @@
     this.phase = "point";
     this.phaseAt = this.now;
     this.score[team] += 1;
-    if (team === 0 && !this.daily && !this._pw("any")) this.charge = Math.min(CHARGE_MAX, (this.charge || 0) + 1);
+    if (team === 0 && !this.daily && !this._pw("any")) this.charge = Math.min(this._chargeMax(), (this.charge || 0) + 1);
     this.serveTurn[team] += (this.serverTeam === team) ? 0 : 1;
     this.serverTeam = team;
     this._updateScore();
@@ -673,6 +724,10 @@
       var won = s[0] > s[1], sv = this.save, idx = this._oppIdx(), isDaily = !!this.daily;
       this._lastScore = [s[0], s[1]];
       this._lastBoss = won && !isDaily && !!this._opp().boss;
+      // Coins: soft currency earned by playing (the Daily pays once a day, on the first attempt).
+      var firstDaily = isDaily && (!sv.daily || sv.daily.key !== this.daily.key);
+      var earn = isDaily ? (firstDaily ? (won ? 25 : 10) : 0) : ((won ? 20 + 6 * idx + 10 * (this._world() - 1) + (this._lastBoss ? 60 : 0) : 6) + s[0]);
+      sv.coins = clamp((Number(sv.coins) || 0) + earn, 0, 999999); this._lastEarn = earn;
       if (isDaily) {
         // Daily Duel never touches the ladder; only the first attempt of the day is recorded.
         this._lastDailyIdx = this.daily.idx;
@@ -735,7 +790,7 @@
     if (this.joy) { mx = clamp((this.joy.x - this.joy.ox) / 46, -1, 1); my = clamp((this.joy.oy - this.joy.y) / 46, -1, 1); }
     var ml = Math.hypot(mx, my); if (ml > 1) { mx /= ml; my /= ml; }
     if (this.phase === "serve" && this.server === h) { mx = 0; my = 0; }
-    var spd = this._pw("sprint") ? 23 : 18;
+    var spd = (this._pw("sprint") ? 23 : 18) * this._pstat("speed");
     h.vx = mx * spd; h.vy = my * spd;
     h.x = clamp(h.x + h.vx * dt, -CW - 2, CW + 2);
     h.y = clamp(h.y + h.vy * dt, -CL - 3, -0.9);
@@ -1017,20 +1072,20 @@
   Duel.prototype._spawnCapsule = function () {
     var h = this.human, lo = Math.max(-8, h.zone[0] + 1), hi = Math.min(8, h.zone[1] - 1);
     if (lo >= hi) { lo = -8; hi = 8; }
-    this.capsule = { x: lo + rand() * (hi - lo), y: -(9 + rand() * 8), kind: POWERS[Math.floor(rand() * POWERS.length)], born: this.now, until: this.now + CAPSULE_LIFE };
+    this.capsule = { x: lo + rand() * (hi - lo), y: -(9 + rand() * 8), kind: POWERS[Math.floor(rand() * POWERS.length)], born: this.now, until: this.now + CAPSULE_LIFE * (this._player().lucky ? 1.3 : 1) };
   };
 
   Duel.prototype._capsules = function (dt) {
     if (this.daily || this.phase !== "rally") return;
     var c = this.capsule, h = this.human, b = this.ball;
     if (!c) {
-      if (this.capSpawnIn == null) this.capSpawnIn = 3 + rand() * 3;
+      if (this.capSpawnIn == null) this.capSpawnIn = this._capDelay(3 + rand() * 3);
       this.capSpawnIn -= dt;
       if (this.capSpawnIn <= 0 && b && b.hits >= 2) this._spawnCapsule();
       return;
     }
     if (this.now > c.until) { this.capsule = null; this.capSpawnIn = 6 + rand() * 5; return; }
-    if (this.now - c.born > 0.9 && Math.hypot(h.x - c.x, h.y - c.y) < 2.1) this._collectCapsule();
+    if (this.now - c.born > 0.9 && Math.hypot(h.x - c.x, h.y - c.y) < 2.1 * (this._player().lucky ? 1.25 : 1)) this._collectCapsule();
   };
 
   Duel.prototype._collectCapsule = function () {
@@ -1164,7 +1219,7 @@
 
   // ───────────────────────── Focus time (slow motion at contact) ─────────────────────────
   Duel.prototype._slowScale = function () { var v = clamp(0.16 + this.stage * 0.035, 0.16, 0.4); return this._pw("touch") ? v * 0.7 : v; };
-  Duel.prototype._slowBudget = function () { return clamp(1.1 - this.stage * 0.1, 0.5, 1.1) * (this._pw("touch") ? 1.8 : 1); };   // real seconds per ball
+  Duel.prototype._slowBudget = function () { return clamp(1.1 - this.stage * 0.1, 0.5, 1.1) * (this._pw("touch") ? 1.8 : 1) * this._pstat("focus"); };   // real seconds per ball
 
   Duel.prototype._wantSlow = function (realDt) {
     var b = this.ball, h = this.human;

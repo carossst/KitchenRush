@@ -373,3 +373,22 @@ Arkanoid-inspired additions to the Duel (ideas from the original game, not from 
   `kr:duel.venue` (sanitised). Adding a court = one entry in `VENUES` (+ `AUTO`/`VENUE_ORDER` and the two `venues` word lists).
 - Scenery behind the stands (sea, skyline, floodlights, beams) is mostly visible in landscape; in portrait the colours carry it.
 - Tests: 28 rule checks (worlds, court choice rules, every court renders, sanitised `venue`).
+
+
+## Coins, shop and players (version 15)
+
+First version of a progression economy, deliberately **soft-currency only**: no real money, no random packs.
+- **Coins** are earned by playing (`_afterPoint`): win = 20 + 6 x opponent index + 10 x (world - 1) + 60 for a boss kill,
+  plus 1 per point scored; a loss pays 6 + points scored; the Daily Duel pays 25 (win) or 10 (loss) once a day, first attempt only.
+- **Players** (`PLAYERS` in `duel.js`, fictional names): Alex (free, balanced), Sasha (+12% speed, starts with 1 charge, 120),
+  Wen (+15% reach, 150), Tomi (+40% slow motion, 200), Priya (easier, faster smashes, 220), Lola (capsules sooner/longer/easier, 240),
+  Chen (power needs 2 points instead of 3, 260). Each also sets the jersey colours; hair and skin stay your own "look".
+  Skills are read through `_player()`, `_pstat()`, `_chargeMax()`, `_capDelay()`. The Daily Duel always uses Alex (equal terms).
+- **UI**: the match menu shows the coin balance and one chip per player (tap to equip; tap an affordable locked one to buy it;
+  unaffordable ones are greyed with the price in the tooltip). Result lines show "+n coins".
+- **Save** (`kr:duel`): `coins`, `owned`, `player`, all sanitised on load. It is client-side only, so a user can edit it:
+  fine for a free soft currency, NOT acceptable if coins ever become purchasable (that needs a server holding the balance).
+- Tests: 31 rule checks (earnings, shop rules, skills, sanitising). Balance is untested with real players: watch how fast
+  coins accumulate versus prices, and whether any skill is clearly best.
+- Not done / decisions needed: paid currency or random packs (legal review needed: loot-box rules in France and Belgium,
+  minors, refunds; also needs the payment flow and a server), choosing your doubles partner, upgrading players, cosmetics shop.
