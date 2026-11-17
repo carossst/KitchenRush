@@ -78,7 +78,7 @@ Then open `http://localhost:8123/`. There is no bundler, no package.json and no 
 | `ui-overlays.js`, `ui-modals.js`, `ui-sharing.js` | Start overlay/toasts, modals, share card. |
 | `fx.js` | **New.** Cosmetic effects: backdrop, particles, rings, ball trail, camera punch, combo meter, confetti. |
 | `characters.js` | **New.** Cartoon player (back view) and opponent (front view). Accepts `palette` and `swingT` overrides. |
-| `duel.js` | **New.** Duel mode: its own engine, 3D-projected renderer, input and DOM (about 2,000 lines, the main mode). See "Duel mode" below and the later version sections. |
+| `duel.js` | **New.** Duel mode: its own engine, 3D-projected renderer, input and DOM (about 1422 lines, the main mode). See "Duel mode" below and the later version sections. |
 | `poster.html`, `icons/qr-*.svg`, `icons/poster-duel-*.jpg`, `tools/make-qr.py` | Printable FR/EN poster with QR codes. |
 | `tests/` | `wording.test.mjs`, `duel-rules.mjs`, `duel-smoke.mjs` (see START HERE). |
 | `storage*.js` | `StorageManager` over `localStorage`: runs balance, history, personal best, premium, codes. |
@@ -500,3 +500,59 @@ Done from the audit's P0 list:
   verify the AI-coverage hypothesis (how points are won) and to tune coins and difficulty.
 - Tests: 37 rule checks (tutorial, coach, tabs, preview/buy, locked court, log and export), 686 wording checks.
 Still open from the audit: real-device test, sound design, daily quests and coin sinks, colour-blind shapes, seasons, server.
+
+
+## Character-select concept: studio analysis (2026-11-17, five expert profiles, read-only, nothing implemented)
+
+Owner's idea: a fighting-game style start: choose a character (names evoking real pro players, American-sounding for the US edition,
+French-sounding for the French edition), each with a super power, then choose the stage. (The owner's example "Tyra Banks" is a different
+famous person, a supermodel: it must not be used; the pro is Tyra Black.)
+
+**Verdict of all profiles**: the mechanics are a good fit and the code is about 70% there (`PLAYERS` passives, `POWERS` charge meter, `VENUES` stage
+picker); the **risk is the names**, not the selector.
+
+**Names / legal (counsel profile, not legal advice, not web-verified)**
+- Pun or lookalike names of real players ("Bon Jonesy") = HIGH risk: the evoked identity is the point, which is exactly what right of publicity /
+  false endorsement (US) and droit au nom, droit a l'image, parasitisme (France) look at. "Parody" or "inspired by" and disclaimers protect little.
+  Highest risk when the game is public, reaches minors and sells cosmetics. Copying a player's signature move, look or nickname adds risk.
+- Safe paths: (1) fictional archetypes inspired by a playing STYLE (the Pillar, the Creator), with no phonetic or visual allusion: LOW risk;
+  (2) real names under a signed licence: LOW risk once signed (scope: name, stylised image, voice; territories FR/US; duration; cosmetics;
+  revenue share or flat fee; right of withdrawal; visual approval; parental consent for minors). Do not mention anyone publicly before signature.
+- Process: list players; approach agents or federations (PPA, MLP, FFP; check league trademarks); French players first (small scene, the owner's
+  media is a lever; offer visibility and a dedicated character with the power they choose, no money at first); written simple agreement; IP lawyer review.
+- Decision taken in this session: **do not ship lookalike or pun names.** Ship fictional archetypes; add real names only with a signed agreement.
+  The roster data must make names swappable per edition so that a licence costs nothing technically.
+- One profile (product) called lookalikes "risk-free": the legal profile contradicts it; follow the legal profile.
+
+**Design and balance (designer profile)**
+- One model: character = identity + stats + one passive + one super (reuse the charge meter: `charge`, `chargeNeed`, `startCharge`). The 6 `POWERS`
+  become the characters' supers (no longer "earned by beating opponent i"); capsules would be a second power system: neutralise (neutral bonus) or remove.
+- Opponents: reuse the same cast (reskins or draws) for the ladder; AI tier = difficulty, character = style; the boss stays unique; mirror matches allowed.
+- Courts stay cosmetic (no gameplay effect). Daily Duel stays without supers (equal terms).
+- Measure with the playtest log: add character id, super used/hit, opponent, court; targets: win rate per character within +-10 points of the average,
+  at most one character picked in more than 40% of matches.
+
+**UX / art (UX profile)**: first launch = full-screen Character -> Court -> tutorial -> match; returning players keep the tabs. Character card = animated
+signature pose, power icon and name, 3 stat bars (speed, reach, focus) with numbers; each power gets a shape and a label besides its colour; distinct
+silhouettes (build, height, accessory: headband, visor, sleeve, glasses) and an idle pose per character, all in code (`characters.js` has `palette`,
+`swingT`); keep the independent look picker (hair, skin) so appearance and gender are not tied to a power; intros skippable and reduced-motion aware.
+Start with 6-8 characters, not 10-20.
+
+**Product / community (producer profile)**: one codebase, two cast lists switched by `?lang=`; minimal first slice (1-2 weeks): selection screen with
+4 characters (2 FR-flavoured, 2 US-flavoured), one passive each, existing court picker, text read by a native speaker; milestones: 10 real phone
+testers using "Copy my playtest data"; metrics: at least 40% finish a first duel, at least 20% start a second, daily-duel shares. Refuse: payment,
+random packs, server rankings, 20 characters, real names without agreement.
+
+**Engineering / QA / feel (engineer profile)**: add a `super` field to each `PLAYERS` entry mapped to the existing powers; names as `{en, fr}` in the
+roster data (or `wording.duel`/`duelFr`) with a wording test that every id has both. New supers are one more `_pw` branch in `_launch`/`_tryHit`.
+Pitfall: `beaten` and `equipped` are indexed by `POWERS`; reordering `POWERS` breaks saves (add a migration or never reorder). Extract `_fxHit` and
+`_superFx` before piling effects into `_launch`. Juice available: `fx.punch`, `freezeUntil` (hit stop), `flashUntil`, `shakeUntil`, `fx.burst/ring`;
+for a super: hit stop about 120 ms, zoom, tinted flash, 0.4 s slow-down, banner, `navigator.vibrate` behind try/catch (not on iOS). Audio: add
+`superCharge` and `superFire` to `audio.js` (synth; `pitch` gives each character a cue). Tests: per super charge/activation/effect/expiry, `loadSave`
+rejects an unknown `player`; balance regression with seeded bots (`seeded()`), about 20 matches per character with a win-rate band of 35-65%.
+Safe slice in 4 steps: 1) roster data per edition + existing picker; 2) super = the character's power, no new meter; 3) one genuinely new super;
+4) sound + hit stop + tests.
+
+**Unverified by all profiles**: real balance of the 6 powers, mobile UI and haptics, the legal analysis, the appetite of real players for an agreement.
+**Decisions needed from the owner**: confirm archetypes-first (no lookalikes); which French players to approach first; keep or remove capsules once supers
+exist; initial cast size (recommended 6).
