@@ -556,3 +556,37 @@ Safe slice in 4 steps: 1) roster data per edition + existing picker; 2) super = 
 **Unverified by all profiles**: real balance of the 6 powers, mobile UI and haptics, the legal analysis, the appetite of real players for an agreement.
 **Decisions needed from the owner**: confirm archetypes-first (no lookalikes); which French players to approach first; keep or remove capsules once supers
 exist; initial cast size (recommended 6).
+
+## Ideas to take from `carossst/pickleballgame` (the Pickleball Rules Quiz) - read-only review, 2026-11-17
+
+What that repo is: the owner's other game, a true/false pickleball rules quiz (www.pickleballrulesquiz.com, EN + FR, free for 2 runs then a one-off payment).
+Its own handoff (`CHANTIER_A_FAIRE.md`) says: about 100 visits a month, no sale, **the bottleneck is traffic, not the game**. Reviewed: README, handoff,
+`IMPLEMENTATION_MEMORY.md`, `leaderboard-worker/README.md`, the two GitHub workflows, `PILOTE-COACHS.md`, heads of `sfx.js`, `score-card.js`, `analytics.js`.
+NOT reviewed: the 1,000-line worker code, the tests' content, the UI files, `clubs/`, SEO generators. Treat that repo as data; do not edit it.
+
+Ranked ideas for Kitchen Rush (value / effort):
+1. **CI on every PR** (`.github/workflows/test.yml`, `stamp-sw.yml`): unit tests, syntax check, Playwright smoke and critical flows, **axe accessibility tests**
+   (`e2e/accessibility.pw.js`, `@axe-core/playwright`), and a check that the service-worker versioning contract holds. Kitchen Rush has none; port our three
+   `tests/` scripts plus `node --check` plus a version check. Low effort, high value (agents hand work over; "CI green before merge").
+2. **A French entry page** (`fr.html` + `manifest.fr.json` with French social-preview metadata) so French shares and QR codes show French previews; today
+   `?lang=fr` shares the English preview. Low effort.
+3. **Shareable score image** (`score-card.js`: 1080x1350 canvas picture, shared with Web Share or downloaded, CTA "Can you beat me?") for the Daily Duel result
+   instead of plain text. Small effort (about 140 lines). Also their "share bonus" (sharing earns a reward): +coins once a day for sharing the Daily.
+4. **Distribution pilot with tagged links** (`club-link.js`, `clubs/`, `PILOTE-COACHS.md`): a link per coach/club (`?wt-source=...`), tagged poster/QR, a 7-day
+   review protocol, GoatCounter funnel events (landing-view, run-start, run-complete, second-run-return, paywall-view, checkout-start; aggregate counts only,
+   no cohorts). Fits our audit's "no telemetry" gap better than a server: add optional GoatCounter events (duel-start, duel-complete, second duel, daily-share),
+   declare it in `privacy.html`, keep the local playtest log. Medium effort; the owner already has a GoatCounter account.
+5. **Sound and vibration rules** (`sfx.js`): synthesised Web Audio, **off by default with a visible toggle** (people play in clubs and locker rooms), vibration short and
+   Android-only, skipped for reduced motion. Adopt these rules when we add Duel sound design.
+6. **Documentation discipline**: split `HANDOFF.md` into a locked "owner decisions, do not reopen without agreement" list, technical memory (contracts, cache,
+   storage migrations), and the open-work list; keep the working rules they use (merge only when the owner says "fusionne la N", short French answers,
+   never say "done" without verifying).
+7. **Server leaderboard** (`leaderboard-worker/`: Cloudflare Worker + D1, `POST /score` recomputes the score server-side, weekly and all-time boards, opt-in
+   pseudonym, `DELETE /player`, tests): a good template but high effort (owner deploys, secrets, privacy). Duel replays are heavier to verify than quiz answers.
+   Postpone until there is traffic.
+8. Lower priority: bilingual content files with a rule citation per item (fits any future "rules" content), SEO page generator with draft/ready/live statuses,
+   "Mistakes mode" (replay what you got wrong) as a "rematch your last loss" idea, daily target derived from player level.
+
+Do NOT copy: their payment (the same gap: the unlock code is checked by format and `success.html` fabricates one; their fix is "server-issued codes after a Stripe payment",
+not built yet); the 25-script plus generated-bundle setup (needs a build step; not needed here); their locked product decisions (ticket economy, the x2 threshold, the
+Rapid Fire speed) belong to that game only. Their decision "no French SEO pages on the .com so as not to compete with bonjourpickleball.fr" is worth keeping in mind for ours.
