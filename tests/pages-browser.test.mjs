@@ -76,8 +76,12 @@ ok(await t.page.locator('[data-action="play"]').count() === 1, "Classic stays av
 await t.ctx.close();
 
 t = await open("/index.html?lang=en", null, "reduce");
-await t.page.waitForTimeout(500);
-ok(await t.page.locator(".kr-landing-cast").evaluate((cast) => cast.scrollLeft === 0), "the welcome cast stays still with reduced motion");
+const cast = t.page.locator(".kr-landing-cast");
+const firstPosition = await cast.evaluate((el) => el.scrollLeft);
+await t.page.waitForTimeout(1100);
+const lastPosition = await cast.evaluate((el) => el.scrollLeft);
+ok(await t.page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches) &&
+  Math.abs(lastPosition - firstPosition) < 1, "the welcome cast stays still with reduced motion");
 await t.ctx.close();
 
 await browser.close();
