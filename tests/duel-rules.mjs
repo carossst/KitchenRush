@@ -201,6 +201,15 @@ const results = await page.evaluate(() => {
     const pr = T.cast.find((p) => p.id === "precision"); d.lang = "fr"; const f = d._plook(pr); d.lang = "en"; const e = d._plook(pr); d.lang = window.KR_LANG || "en";
     return eq([f.skin !== e.skin, !!f.hairStyle && !!e.hairStyle], [true, true]);
   });
+  t("inspired looks only apply with the fun names switch; missing traits keep the generic value", () => {
+    const re = T.cast.find((p) => p.id === "reach"), pa = T.cast.find((p) => p.id === "pass");
+    window.KR_CONFIG.duelNames = "neutral"; d.lang = "fr"; const n = d._plook(re).skin;
+    window.KR_CONFIG.duelNames = "fun"; const f = d._plook(re), keep = f.hairStyle === re.look.fr.hairStyle && f.skin === "#f4c7a1";
+    const none = d._plook(pa).hair === "#a07c52";
+    d.lang = "en"; const en = d._plook(pa).hair === "#604537";
+    window.KR_CONFIG.duelNames = "neutral"; d.lang = window.KR_LANG || "en";
+    return eq([n, keep, none, en], ["#f7d7bd", true, true, true]);
+  });
   t("corrupted saved data is sanitised", () => {
     d.destroy();
     localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999, venue: "../x", coached: "yes", sound: "yes", shareDay: "bad", coins: -5, owned: { sprint: true, hacker: true }, player: "hacker" }));

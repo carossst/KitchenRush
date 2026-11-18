@@ -62,17 +62,23 @@
   };
   var PLAYERS = [
     { id: "touch",     sup: "touch",     cost: 0,   pal: { jerseyA: "#d5b4ff", jerseyB: "#7b4dff", shorts: "#2b1a5c" }, stats: { focus: 1.4 },
-      look: { fr: { hairStyle: "short", hair: "#20182e", skin: "#e2ab82" }, en: { hairStyle: "short", hair: "#4a2c17", skin: "#f4c7a1" } } },
+      look: { fr: { hairStyle: "short", hair: "#20182e", skin: "#e2ab82" }, en: { hairStyle: "short", hair: "#4a2c17", skin: "#f4c7a1" } },
+      lookFun: { fr: { hairStyle: "curly", hair: "#352820", skin: "#c68c5e" }, en: { hairStyle: "short", hair: "#79553f", skin: "#f4c7a1", acc: "cap" } } },
     { id: "sprint",    sup: "sprint",    cost: 120, pal: { jerseyA: "#9af0c4", jerseyB: "#22b07d", shorts: "#0e4f3a" }, stats: { speed: 1.12 },
-      look: { fr: { hairStyle: "curly", hair: "#1d1512", skin: "#c68c5e" }, en: { hairStyle: "short", hair: "#1d1512", skin: "#a8734d" } } },
+      look: { fr: { hairStyle: "curly", hair: "#1d1512", skin: "#c68c5e" }, en: { hairStyle: "short", hair: "#1d1512", skin: "#a8734d" } },
+      lookFun: { fr: { hairStyle: "curly", hair: "#29221e", skin: "#e2ab82", beard: true }, en: { hairStyle: "short", hair: "#382b25", skin: "#f4c7a1", acc: "cap" } } },
     { id: "reach",     sup: "reach",     cost: 160, pal: { jerseyA: "#ffe27a", jerseyB: "#f5a524", shorts: "#7a4b12" }, stats: { reach: 1.15 },
-      look: { fr: { hairStyle: "short", hair: "#c9632b", skin: "#f7d7bd" }, en: { hairStyle: "ponytail", hair: "#e8c66a", skin: "#f1c9a5" } } },
+      look: { fr: { hairStyle: "short", hair: "#c9632b", skin: "#f7d7bd" }, en: { hairStyle: "ponytail", hair: "#e8c66a", skin: "#f1c9a5" } },
+      lookFun: { fr: { hairStyle: "short", hair: "#4a3a2c", skin: "#f4c7a1", beard: true, acc: "capBack", capColor: "#f1efe6" }, en: { hairStyle: "ponytail", hair: "#bb925e", skin: "#f4c7a1", acc: "glasses" } } },
     { id: "precision", sup: "precision", cost: 200, pal: { jerseyA: "#8ad8ff", jerseyB: "#0f6fd6", shorts: "#06254d" }, stats: {}, startCharge: 1,
-      look: { fr: { hairStyle: "bob", hair: "#4a2c17", skin: "#f1c9a5" }, en: { hairStyle: "curly", hair: "#15131c", skin: "#6b4226" } } },
+      look: { fr: { hairStyle: "bob", hair: "#4a2c17", skin: "#f1c9a5" }, en: { hairStyle: "curly", hair: "#15131c", skin: "#6b4226" } },
+      lookFun: { fr: { hairStyle: "ponytail", hair: "#705342", skin: "#f4c7a1" }, en: { hairStyle: "ponytail", hair: "#29211f", skin: "#a8734d", acc: "cap" } } },
     { id: "power",     sup: "power",     cost: 240, pal: { jerseyA: "#ff9d8a", jerseyB: "#e2452f", shorts: "#6b1408" }, stats: {}, smash: true,
-      look: { fr: { hairStyle: "long", hair: "#c9632b", skin: "#f7d7bd" }, en: { hairStyle: "short", hair: "#d9d9e3", skin: "#f4c7a1" } } },
+      look: { fr: { hairStyle: "long", hair: "#c9632b", skin: "#f7d7bd" }, en: { hairStyle: "short", hair: "#d9d9e3", skin: "#f4c7a1" } },
+      lookFun: { fr: { hairStyle: "bun", hair: "#c6ae83", skin: "#f4c7a1" }, en: { hairStyle: "short", hair: "#896647", skin: "#f4c7a1" } } },
     { id: "pass",      sup: "pass",      cost: 280, pal: { jerseyA: "#ffb3c7", jerseyB: "#ff5d8f", shorts: "#ffffff" }, stats: {}, lucky: true,
-      look: { fr: { hairStyle: "bun", hair: "#101018", skin: "#e2ab82" }, en: { hairStyle: "ponytail", hair: "#6b3a1e", skin: "#f4c7a1" } } }
+      look: { fr: { hairStyle: "bun", hair: "#101018", skin: "#e2ab82" }, en: { hairStyle: "ponytail", hair: "#6b3a1e", skin: "#f4c7a1" } },
+      lookFun: { fr: { hairStyle: "ponytail", hair: "#a07c52", skin: "#f4c7a1" }, en: { hairStyle: "ponytail", hair: "#604537", skin: "#f4c7a1", acc: "cap" } } }
   ];
   // The Daily Duel is played on equal terms: a plain character with no super power and no passive.
   var DAILY_PLAYER = { id: "base", sup: "", cost: 0, pal: {}, stats: {}, look: null };
@@ -222,6 +228,20 @@
       var b = e.target.closest("[data-duel]");
       if (b) self._panelAction(b.getAttribute("data-duel"));
     });
+    this.panelEl.addEventListener("keydown", function (e) {
+      var tab = e.target.closest(".kr-duel-tab");
+      if (!tab) return;
+      var tabs = Array.from(self.panelEl.querySelectorAll(".kr-duel-tab"));
+      var i = tabs.indexOf(tab);
+      if (e.key === "ArrowLeft") i = (i + tabs.length - 1) % tabs.length;
+      else if (e.key === "ArrowRight") i = (i + 1) % tabs.length;
+      else if (e.key === "Home") i = 0;
+      else if (e.key === "End") i = tabs.length - 1;
+      else return;
+      e.preventDefault();
+      self._panelAction(tabs[i].getAttribute("data-duel"));
+      tabs[i].focus();
+    });
     var c = this.canvas;
     c.addEventListener("pointerdown", function (e) { self._pDown(e); });
     c.addEventListener("pointermove", function (e) { self._pMove(e); });
@@ -291,7 +311,7 @@
     return AUTO[this.stage % AUTO.length];
   };
 
-  Duel.prototype._showMenu = function (result) {
+  Duel.prototype._showMenu = function (result, focusAction) {
     this.phase = "menu";
     var t = this.t, opp = this._opp();
     var head = "";
@@ -304,8 +324,16 @@
     function opt(id, label, on) { return '<button class="kr-duel-opt' + (on ? " kr-duel-opt--on" : "") + '" data-duel="' + id + '" aria-pressed="' + (on ? "true" : "false") + '">' + esc(label) + '</button>'; }
     var touch = this._isTouch;
     var tabs = ["play", "players", "courts", "progress"], tab = (this.tab && tabs.indexOf(this.tab) >= 0) ? this.tab : "play", tabNames = t.tabs || {};
-    function tabBtn(id) { return '<button role="tab" class="kr-duel-tab" data-duel="tab-' + id + '" aria-selected="' + (tab === id ? "true" : "false") + '">' + esc(tabNames[id] || id) + "</button>"; }
-    function panel(id, html) { return '<div class="kr-duel-tabpanel" role="tabpanel" data-tabpanel="' + id + '"' + (tab === id ? "" : " hidden") + ">" + html + "</div>"; }
+    function tabBtn(id) {
+      var selected = tab === id;
+      return '<button role="tab" class="kr-duel-tab" id="kr-duel-tab-' + id + '" data-duel="tab-' + id +
+        '" aria-controls="kr-duel-panel-' + id + '" aria-selected="' + selected + '" tabindex="' + (selected ? 0 : -1) +
+        '">' + esc(tabNames[id] || id) + "</button>";
+    }
+    function panel(id, html) {
+      return '<div class="kr-duel-tabpanel" role="tabpanel" id="kr-duel-panel-' + id + '" aria-labelledby="kr-duel-tab-' + id +
+        '" data-tabpanel="' + id + '"' + (tab === id ? "" : " hidden") + ">" + html + "</div>";
+    }
     this.panelEl.innerHTML =
       '<div class="kr-duel-card">' + head +
       '<p class="kr-duel-kicker">' + esc((this._world() > 1 && !this.daily ? (t.worldLabel || "World {w}").replace("{w}", this._world()) + " \u00b7 " : "") + (opp.boss ? (t.bossLabel || "FINAL BOSS") : (t.stageLabel || "Opponent {n}").replace("{n}", this._oppIdx() + 1))) + '</p>' +
@@ -334,8 +362,13 @@
     this.panelEl.classList.add("kr-duel-panel--on");
     this.scoreEl.textContent = "";
     this._setupActors();
+    this._drawPortrait();
     var go = this.panelEl.querySelector(".kr-duel-go");
-    if (go) try { go.focus({ preventScroll: true }); } catch (_) { }
+    var target = focusAction && Array.from(this.panelEl.querySelectorAll("[data-duel]:enabled")).find(function (b) {
+      return b.getAttribute("data-duel") === focusAction && !b.closest("[hidden]");
+    });
+    target = target || go;
+    if (target) try { target.focus({ preventScroll: true }); } catch (_) { }
   };
 
   // Progress block of the match menu: last results, record, goal for the next match, opponents beaten.
@@ -422,7 +455,14 @@
     var cfg = window.KR_CONFIG, fun = !!(cfg && cfg.duelNames === "fun");
     return (fun && ROSTER.fun[this.lang === "fr" ? "fr" : "en"][p.id]) || ROSTER.neutral[p.id] || p.id;
   };
-  Duel.prototype._plook = function (p) { return (p && p.look && p.look[this.lang === "fr" ? "fr" : "en"]) || null; };
+  // Look per edition. With duelNames "fun" a character may carry an "inspired" look (`lookFun`, same shape as `look`: hair style, hair colour,
+  // skin; generic cartoon traits only, never a portrait). Until the owner supplies those traits, `lookFun` is absent and `look` is used.
+  Duel.prototype._plook = function (p) {
+    if (!p) return null;
+    var l = this.lang === "fr" ? "fr" : "en", cfg = window.KR_CONFIG;
+    var base = (p.look && p.look[l]) || null, fun = !!(cfg && cfg.duelNames === "fun") && p.lookFun && p.lookFun[l];
+    return fun ? Object.assign({}, base || {}, fun) : base;   // missing traits (unverified) keep the generic value
+  };
   Duel.prototype._pstat = function (k) { return (this._player().stats && this._player().stats[k]) || 1; };
   Duel.prototype._chargeMax = function () { return this._player().chargeNeed || CHARGE_MAX; };
   Duel.prototype._capDelay = function (s) { return s * (this._player().lucky ? 0.6 : 1); };
@@ -439,8 +479,20 @@
     var label = equipped ? (t.playerEquipped || "Equipped") : owned ? (t.playerEquip || "Equip") : afford ? (t.playerBuy || "Buy for {n} coins").replace("{n}", P.cost) : (t.playerMissing || "Need {n} more coins").replace("{n}", P.cost - coins);
     return '<p class="kr-duel-coins">' + esc((t.coins || "Coins: {n}").replace("{n}", coins)) + "</p>" +
       '<div class="kr-duel-venues" role="group" aria-label="' + esc(t.playerLabel || "My player") + '">' + chips + "</div>" +
-      '<div class="kr-duel-detail"><strong>' + esc(this._pname(P)) + '</strong><p class="kr-muted">' + esc(sk[P.id] || "") + '</p>' +
+      '<div class="kr-duel-detail"><canvas class="kr-duel-portrait" width="180" height="200" aria-hidden="true" data-portrait="' + P.id + '"></canvas><strong>' + esc(this._pname(P)) + '</strong><p class="kr-muted">' + esc(sk[P.id] || "") + '</p>' +
       '<button class="kr-btn kr-btn--secondary" data-duel="act-' + P.id + '"' + ((equipped || (!owned && !afford)) ? " disabled" : "") + ">" + esc(label) + "</button></div>";
+  };
+
+  // Front-view portrait of the character being previewed in the Players tab.
+  Duel.prototype._drawPortrait = function () {
+    var cv = this.panelEl && this.panelEl.querySelector("canvas[data-portrait]");
+    if (!cv || !window.KR_CHARACTERS) return;
+    var id = cv.getAttribute("data-portrait"), P = PLAYERS[0], g = cv.getContext("2d");
+    PLAYERS.forEach(function (p) { if (p.id === id) P = p; });
+    if (!g) return;
+    g.clearRect(0, 0, cv.width, cv.height);
+    var pal = Object.assign({}, HUMAN_PAL, LOOKS[this.look], P.pal, this._plook(P) || {});
+    window.KR_CHARACTERS.draw(g, { x: 90, y: 150, scale: 3.6, now: 0, state: "idle", side: 1, facing: "front", role: "player", palette: pal, lookX: 0 });
   };
 
   Duel.prototype._pw = function (key) {
@@ -547,7 +599,7 @@
 
   Duel.prototype._panelAction = function (a) {
     if (a === "exit") { this.destroy(); return; }
-    if (a.indexOf("pl-") === 0) { this.previewPlayer = a.slice(3); this._showMenu(this._lastResult); return; }
+    if (a.indexOf("pl-") === 0) { this.previewPlayer = a.slice(3); this._showMenu(this._lastResult, a); return; }
     if (a.indexOf("act-") === 0) {
       var pid = a.slice(4), sv2 = this.save, P = null;
       for (var pi = 0; pi < PLAYERS.length; pi++) if (PLAYERS[pi].id === pid) P = PLAYERS[pi];
@@ -556,7 +608,7 @@
         else if ((sv2.coins || 0) >= P.cost) { sv2.coins -= P.cost; sv2.owned[pid] = true; sv2.player = pid; this._sound("milestone"); }
         this.previewPlayer = pid; writeSave(sv2);
       }
-      this._showMenu(this._lastResult); return;
+      this._showMenu(this._lastResult, "pl-" + pid); return;
     }
     if (a === "tutorial") { this.save.coached = false; writeSave(this.save); this.tab = "play"; this._showMenu(this._lastResult); return; }
     if (a === "export") { this._export(); return; }
@@ -565,14 +617,18 @@
       if (["play", "players", "courts", "progress"].indexOf(tb) < 0) return;
       this.tab = tb;
       this.panelEl.querySelectorAll("[data-tabpanel]").forEach(function (p) { p.hidden = p.getAttribute("data-tabpanel") !== tb; });
-      this.panelEl.querySelectorAll(".kr-duel-tab").forEach(function (b) { b.setAttribute("aria-selected", b.getAttribute("data-duel") === "tab-" + tb ? "true" : "false"); });
+      this.panelEl.querySelectorAll(".kr-duel-tab").forEach(function (b) {
+        var selected = b.getAttribute("data-duel") === "tab-" + tb;
+        b.setAttribute("aria-selected", selected ? "true" : "false");
+        b.tabIndex = selected ? 0 : -1;
+      });
       return;
     }
     if (a.indexOf("venue-") === 0) {
       var vid = a.slice(6);
       if (vid === "auto" || (hasVenue(vid) && this.stage >= VENUES[vid].unlock)) { this.save.venue = vid; writeSave(this.save); this._bg = null; this.venueMsg = ""; }
       else if (hasVenue(vid)) this.venueMsg = (this.t.venueLocked || "Reach opponent {n} to unlock").replace("{n}", VENUES[vid].unlock + 1);
-      this._showMenu(this._lastResult); return;
+      this._showMenu(this._lastResult, a); return;
     }
     if (a === "go") { this.daily = null; this._startMatch(); return; }
     if (a === "daily") { var di = dailyInfo(); this.daily = di; this.mode = "singles"; this._startMatch(); return; }
@@ -583,7 +639,7 @@
     else if (a === "singles") this.mode = "singles";
     else { this.mode = "doubles"; this.side = a; }
     this.save.mode = this.mode; this.save.side = this.side; this.save.look = this.look; writeSave(this.save);
-    this._showMenu(this._lastResult);
+    this._showMenu(this._lastResult, a);
   };
 
   // ───────────────────────── Match setup ─────────────────────────

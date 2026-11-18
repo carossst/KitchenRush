@@ -1850,7 +1850,7 @@ a:focus-visible {
   position: absolute;
   inset: 0;
   display: none;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: var(--gap-3);
   background: rgb(var(--court-bg) / var(--kr-a-55));
@@ -1865,6 +1865,7 @@ a:focus-visible {
 
 .kr-duel-card {
   width: min(100%, 400px);
+  margin-block: auto;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -2074,6 +2075,12 @@ button.kr-duel-chip.kr-duel-chip--eq {
   padding: var(--gap-2);
   border-radius: var(--r-md);
   background: rgb(var(--bg) / var(--kr-a-40));
+}
+
+.kr-duel-portrait {
+  width: 120px;
+  height: auto;
+  max-width: 40vw;
 }
 
 .kr-duel-detail .kr-muted {

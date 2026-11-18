@@ -659,3 +659,15 @@ npm run build:fr       # regenerate fr.html and manifest.fr.json after changing 
   US: Bon Jonesy, JW Jetson, Anna Leigh Watermelon, Tyra Bullseye, Hayden Patty-Melt, Anna Bright-Whisk. Alternatives the owner liked: see chat history (not stored).
 - Tests: `tests/duel-rules.mjs` covers the cast (same stats per edition, neutral by default, one super per character, looks per edition), capsules and the shop.
 - Not done: a dedicated fighting-game style selection screen (the Players tab is the selection for now), distinct portraits, a second look pass by a designer.
+- **Inspired looks (prepared, empty):** a character may carry `lookFun: { fr, en }` (hair style, hair colour, skin), used only when `duelNames` is `"fun"`; otherwise (and while a
+  `lookFun` is missing) `look` is used (`_plook`). Generic cartoon traits only, no portraits, no accessories yet (the renderer has none). The owner must supply the traits per
+  character and edition (hair, skin tone, distinguishing sign); do not guess a real person's appearance. Preferably each player validates their own drawing once approached.
+- **Inspired looks (filled 2026-11-18, from the owner's research via Claude; sources not stored here):** `lookFun` now holds hair style/colour and skin for 11 of the 12 slots; a trait
+  the research marked "unverified" is left out and falls back to the generic `look` (Cyril Peltier: skin only; Laura Rocchi's traits came later from a photo the owner sent: ponytail, light brown hair, light skin; her headphones were a video call, not a match accessory).
+  Accessories (headband, cap, glasses) were found for several players but the renderer has none: open item. The research itself says publishing such looks without the player's
+  written agreement is potentially sensitive for all 12; photographs seen are references, not reproducible. Keep `duelNames: "neutral"` until the legal check and the players' agreement.
+- **Beard:** `characters.js` supports `pal.beard = true` (hair-coloured cap on the lower face, front view; the mouth is redrawn in the skin colour on top). Used for the French Sprint
+  character's inspired look (owner's information, not from the research); accessories (headband, cap, glasses) are still not drawn.
+- **Accessories and portrait (added before merging PR #13):** `characters.js` draws `pal.acc` = `cap` | `capBack` | `glasses` (cap colour `pal.capColor`, default the shirt colour; colours were not
+  verified, only the presence of the cap or glasses). The Players tab now shows a front-view portrait (`_drawPortrait`) of the previewed character. Cyril Peltier's slot: short dark hair, light skin,
+  beard, backwards cap (from a photo the owner sent). The "headband" of the research is the existing coloured band every character already wears.
