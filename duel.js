@@ -144,6 +144,7 @@
     d.lang = (d.lang === "fr" || d.lang === "en") ? d.lang : "";
     d.coached = d.coached === true;
     d.sound = d.sound === true;
+    d.picked = d.picked === true;
     d.shareDay = /^\d{4}-\d{2}-\d{2}$/.test(String(d.shareDay)) ? String(d.shareDay) : "";
     d.coins = clamp(Math.floor(Number(d.coins) || 0), 0, 999999);
     var ownedClean = {};
@@ -180,7 +181,7 @@
     this.raf = 0;
     this._mount();
     this._updateSoundBtn();
-    this._showMenu();
+    if (this.save.picked) this._showMenu(); else this._showSelect();
   }
 
   // English is the base dictionary; French overrides it key by key, so a missing key never shows blank.
@@ -253,6 +254,7 @@
 
   Duel.prototype.destroy = function () {
     RNG = Math.random;
+    this._clearScreenTimers();
     cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this._onResize);
     document.removeEventListener("keydown", this._onKey);
@@ -312,6 +314,7 @@
   };
 
   Duel.prototype._showMenu = function (result, focusAction) {
+    this._clearScreenTimers();
     this.phase = "menu";
     var t = this.t, opp = this._opp();
     var head = "";
@@ -352,6 +355,7 @@
         '<p class="kr-duel-how">' + esc(t.rules || "First to 5. Serve and return must bounce. No volleys in the Kitchen.") + '</p>' +
         '<button class="kr-btn kr-btn--ghost" data-duel="tutorial">' + esc(t.tutorialBtn || "Replay the tutorial") + '</button>') +
       panel("players", this._playerHtml() +
+        '<button class="kr-btn kr-btn--ghost" data-duel="select">' + esc(t.selectOpen || "Open the select screen") + '</button>' +
         this._collectionHtml()) +
       panel("courts", this._venueHtml()) +
       panel("progress", this._progressHtml()) +
@@ -483,16 +487,113 @@
       '<button class="kr-btn kr-btn--secondary" data-duel="act-' + P.id + '"' + ((equipped || (!owned && !afford)) ? " disabled" : "") + ">" + esc(label) + "</button></div>";
   };
 
-  // Front-view portrait of the character being previewed in the Players tab.
-  Duel.prototype._drawPortrait = function () {
-    var cv = this.panelEl && this.panelEl.querySelector("canvas[data-portrait]");
-    if (!cv || !window.KR_CHARACTERS) return;
-    var id = cv.getAttribute("data-portrait"), P = PLAYERS[0], g = cv.getContext("2d");
-    PLAYERS.forEach(function (p) { if (p.id === id) P = p; });
-    if (!g) return;
-    g.clearRect(0, 0, cv.width, cv.height);
-    var pal = Object.assign({}, HUMAN_PAL, LOOKS[this.look], P.pal, this._plook(P) || {});
-    window.KR_CHARACTERS.draw(g, { x: 90, y: 150, scale: 3.6, now: 0, state: "idle", side: 1, facing: "front", role: "player", palette: pal, lookX: 0 });
+  // Front-view portraits: canvases with data-portrait="<player id>" (a character) or data-opp="1" (the current opponent).
+  Duel.prototype._paintPortraits = function () {
+    if (!this.panelEl || !window.KR_CHARACTERS) return;
+    var self = this;
+    this.panelEl.querySelectorAll("canvas[data-portrait], canvas[data-opp]").forEach(function (cv) {
+      var g = cv.getContext("2d"); if (!g) return;
+      g.clearRect(0, 0, cv.width, cv.height);
+      var pal, role = "player";
+      if (cv.hasAttribute("data-opp")) { var o = self._opp(); pal = Object.assign({}, o.pal, LOOKS[o.look % LOOKS.length]); role = "opponent"; }
+      else {
+        var id = cv.getAttribute("data-portrait"), P = PLAYERS[0];
+        PLAYERS.forEach(function (p) { if (p.id === id) P = p; });
+        pal = Object.assign({}, HUMAN_PAL, LOOKS[self.look], P.pal, self._plook(P) || {});
+      }
+      window.KR_CHARACTERS.draw(g, { x: cv.width * 0.45, y: cv.height * 0.75, scale: cv.width / 62, now: 0, state: "idle", side: 1, facing: "front", role: role, palette: pal, lookX: 0 });
+    });
+  };
+  Duel.prototype._drawPortrait = Duel.prototype._paintPortraits;
+
+  // ───────────────────────── Fighting-game screens: select, versus, victory ─────────────────────────
+  Duel.prototype._clearScreenTimers = function () {
+    if (this._versusT) { clearTimeout(this._versusT); this._versusT = 0; }
+    if (this._splashT) { clearTimeout(this._splashT); this._splashT = 0; }
+  };
+
+  Duel.prototype._buyOrEquip = function (pid) {
+    var sv = this.save, P = null;
+    for (var i = 0; i < PLAYERS.length; i++) if (PLAYERS[i].id === pid) P = PLAYERS[i];
+    if (!P) return;
+    if (P.cost === 0 || sv.owned[pid]) sv.player = pid;
+    else if ((sv.coins || 0) >= P.cost) { sv.coins -= P.cost; sv.owned[pid] = true; sv.player = pid; this._sound("milestone"); }
+    this.previewPlayer = pid; writeSave(sv);
+  };
+
+  // Character select: a roster of 6 tiles, a big preview with the super power, then Continue.
+  Duel.prototype._showSelect = function (focusAction) {
+    this._clearScreenTimers();
+    this.phase = "menu";
+    var t = this.t, sv = this.save, cur = this._player(), self = this, coins = sv.coins || 0, sk = t.playerSkill || {};
+    var P = cur; PLAYERS.forEach(function (p) { if (p.id === (self.previewPlayer || cur.id)) P = p; });
+    var tiles = PLAYERS.map(function (p) {
+      var owned = p.cost === 0 || !!(sv.owned && sv.owned[p.id]), on = P.id === p.id;
+      return '<button class="kr-duel-tile' + (on ? " kr-duel-tile--on" : "") + (owned ? "" : " kr-duel-tile--locked") + '" data-duel="sel-' + p.id + '" aria-pressed="' + (on ? "true" : "false") + '">' +
+        '<canvas width="70" height="78" aria-hidden="true" data-portrait="' + p.id + '"></canvas>' +
+        '<span class="kr-duel-tile-name">' + esc(self._pname(p)) + '</span>' +
+        '<span class="kr-duel-tile-sub">' + esc(cur.id === p.id ? "\u2605" : owned ? "" : "\uD83E\uDE99 " + p.cost) + '</span></button>';
+    }).join("");
+    var owned = P.cost === 0 || !!(sv.owned && sv.owned[P.id]), equipped = cur.id === P.id, afford = coins >= P.cost;
+    var label = equipped ? (t.playerEquipped || "Equipped") : owned ? (t.playerEquip || "Equip") : afford ? (t.playerBuy || "Buy for {n} coins").replace("{n}", P.cost) : (t.playerMissing || "Need {n} more coins").replace("{n}", P.cost - coins);
+    var pi = POWERS.indexOf(P.sup);
+    var sup = (t.superLine || "Super: {name} \u2014 {desc}").replace("{name}", this._powerName(P.sup)).replace("{desc}", (t.powerDescs || [])[pi] || "");
+    this.panelEl.innerHTML =
+      '<div class="kr-duel-card kr-duel-select" role="group" aria-label="' + esc(t.selectTitle || "Choose your player") + '">' +
+      '<h2 class="kr-duel-name">' + esc(t.selectTitle || "Choose your player") + '</h2>' +
+      '<p class="kr-duel-coins">' + esc((t.coins || "Coins: {n}").replace("{n}", coins)) + '</p>' +
+      '<div class="kr-duel-hero"><canvas width="180" height="200" aria-hidden="true" data-portrait="' + P.id + '"></canvas>' +
+      '<strong class="kr-duel-hero-name">' + esc(this._pname(P)) + '</strong>' +
+      '<p class="kr-duel-super">' + esc(sup) + '</p>' +
+      '<p class="kr-muted">' + esc(sk[P.id] || "") + '</p>' +
+      '<button class="kr-btn kr-btn--secondary" data-duel="selact-' + P.id + '"' + ((equipped || (!owned && !afford)) ? " disabled" : "") + '>' + esc(label) + '</button></div>' +
+      '<div class="kr-duel-roster" role="group" aria-label="' + esc(t.playerLabel || "My player") + '">' + tiles + '</div>' +
+      '<button class="kr-btn kr-btn--primary kr-duel-go" data-duel="selok">' + esc(t.selectOk || "Continue") + '</button></div>';
+    this.panelEl.classList.add("kr-duel-panel--on");
+    this.scoreEl.textContent = "";
+    this._setupActors();
+    this._paintPortraits();
+    var target = focusAction && this.panelEl.querySelector('[data-duel="' + focusAction + '"]:enabled');
+    target = target || this.panelEl.querySelector(".kr-duel-go");
+    if (target) try { target.focus({ preventScroll: true }); } catch (_) { }
+  };
+
+  // "VS" screen before every match; a tap, Enter or Space skips it, otherwise it moves on by itself.
+  Duel.prototype._showVersus = function () {
+    this._clearScreenTimers();
+    this.phase = "menu";
+    var t = this.t, opp = this._opp(), self = this, me = this._player(), mine = this.daily ? PLAYERS[0] : me;
+    var court = (t.venues || {})[this._venueId()] || "";
+    var reduced = false; try { reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch (_) { }
+    this.panelEl.innerHTML =
+      '<div class="kr-duel-card kr-duel-versus-card"><button class="kr-duel-versus" data-duel="versus-go">' +
+      '<span class="kr-duel-vs-side kr-duel-vs-side--l"><canvas width="150" height="168" aria-hidden="true" data-portrait="' + mine.id + '"></canvas><strong>' + esc(this._pname(mine)) + '</strong></span>' +
+      '<span class="kr-duel-vs-mid" aria-hidden="true">' + esc(t.versusVs || "VS") + '</span>' +
+      '<span class="kr-duel-vs-side kr-duel-vs-side--r"><canvas width="150" height="168" aria-hidden="true" data-opp="1"></canvas><strong>' + esc(opp.name) + '</strong></span>' +
+      '<span class="kr-duel-vs-foot">' + esc(court) + (court ? " \u00b7 " : "") + esc(t.versusTap || "Tap to start") + '</span></button></div>';
+    this.panelEl.classList.add("kr-duel-panel--on");
+    this._setupActors();
+    this._paintPortraits();
+    this._sound("milestone");
+    var b = this.panelEl.querySelector(".kr-duel-versus"); if (b) try { b.focus({ preventScroll: true }); } catch (_) { }
+    this._versusT = setTimeout(function () { self._versusT = 0; if (self.root && self.phase === "menu") self._startMatch(); }, reduced ? 900 : 1900);
+  };
+
+  // Short victory (or defeat) splash after a match, then the menu.
+  Duel.prototype._showSplash = function (result) {
+    this._clearScreenTimers();
+    var t = this.t, self = this, won = result === "win", sc = this._lastScore;
+    var title = won ? (this._lastBoss ? (t.splashBoss || "BOSS DEFEATED!") : (t.splashWin || "VICTORY!")) : (t.splashLose || "Not this time");
+    var me = this._player();
+    this.panelEl.innerHTML =
+      '<div class="kr-duel-card kr-duel-splash-card"><button class="kr-duel-splash kr-duel-splash--' + (won ? "win" : "lose") + '" data-duel="splash-go">' +
+      '<span class="kr-duel-splash-title">' + esc(title) + '</span>' +
+      '<canvas width="150" height="168" aria-hidden="true" data-portrait="' + me.id + '"></canvas>' +
+      '<span class="kr-duel-splash-score">' + (sc ? sc[0] + '\u2013' + sc[1] : "") + (this._lastEarn ? " \u00b7 " + esc((t.earned || "+{n} coins").replace("{n}", this._lastEarn)) : "") + '</span></button></div>';
+    this.panelEl.classList.add("kr-duel-panel--on");
+    this._paintPortraits();
+    var b = this.panelEl.querySelector(".kr-duel-splash"); if (b) try { b.focus({ preventScroll: true }); } catch (_) { }
+    this._splashT = setTimeout(function () { self._splashT = 0; if (self.root) self._showMenu(self._lastResult); }, won ? 1700 : 900);
   };
 
   Duel.prototype._pw = function (key) {
@@ -600,16 +701,13 @@
   Duel.prototype._panelAction = function (a) {
     if (a === "exit") { this.destroy(); return; }
     if (a.indexOf("pl-") === 0) { this.previewPlayer = a.slice(3); this._showMenu(this._lastResult, a); return; }
-    if (a.indexOf("act-") === 0) {
-      var pid = a.slice(4), sv2 = this.save, P = null;
-      for (var pi = 0; pi < PLAYERS.length; pi++) if (PLAYERS[pi].id === pid) P = PLAYERS[pi];
-      if (P) {
-        if (P.cost === 0 || sv2.owned[pid]) sv2.player = pid;
-        else if ((sv2.coins || 0) >= P.cost) { sv2.coins -= P.cost; sv2.owned[pid] = true; sv2.player = pid; this._sound("milestone"); }
-        this.previewPlayer = pid; writeSave(sv2);
-      }
-      this._showMenu(this._lastResult, "pl-" + pid); return;
-    }
+    if (a.indexOf("act-") === 0) { var pid = a.slice(4); this._buyOrEquip(pid); this._showMenu(this._lastResult, "pl-" + pid); return; }
+    if (a.indexOf("sel-") === 0) { this.previewPlayer = a.slice(4); this._showSelect(a); return; }
+    if (a.indexOf("selact-") === 0) { var sid = a.slice(7); this._buyOrEquip(sid); this._showSelect("sel-" + sid); return; }
+    if (a === "selok") { this.save.picked = true; writeSave(this.save); this._showMenu(this._lastResult); return; }
+    if (a === "select") { this.previewPlayer = null; this._showSelect(); return; }
+    if (a === "versus-go") { this._clearScreenTimers(); this._startMatch(); return; }
+    if (a === "splash-go") { this._clearScreenTimers(); this._showMenu(this._lastResult); return; }
     if (a === "tutorial") { this.save.coached = false; writeSave(this.save); this.tab = "play"; this._showMenu(this._lastResult); return; }
     if (a === "export") { this._export(); return; }
     if (a.indexOf("tab-") === 0) {
@@ -630,8 +728,8 @@
       else if (hasVenue(vid)) this.venueMsg = (this.t.venueLocked || "Reach opponent {n} to unlock").replace("{n}", VENUES[vid].unlock + 1);
       this._showMenu(this._lastResult, a); return;
     }
-    if (a === "go") { this.daily = null; this._startMatch(); return; }
-    if (a === "daily") { var di = dailyInfo(); this.daily = di; this.mode = "singles"; this._startMatch(); return; }
+    if (a === "go") { this.daily = null; this._showVersus(); return; }
+    if (a === "daily") { var di = dailyInfo(); this.daily = di; this.mode = "singles"; this._showVersus(); return; }
     if (a === "share") { this._share(); return; }
     if (a === "card") { this._saveCard(); return; }
     if (a === "lang") { this.lang = this.lang === "fr" ? "en" : "fr"; this.save.lang = this.lang; this.t = this._dict(); this._bg = null; }
@@ -964,7 +1062,7 @@
       this._lastResult = won ? "win" : "lose";
       this._banner("", 0);
       var self = this;
-      setTimeout(function () { if (self.root) self._showMenu(self._lastResult); }, won ? 900 : 300);
+      setTimeout(function () { if (self.root && self.phase === "menu") self._showSplash(self._lastResult); }, won ? 600 : 250);
       this.phase = "menu";
       return;
     }
