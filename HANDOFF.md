@@ -662,3 +662,9 @@ npm run build:fr       # regenerate fr.html and manifest.fr.json after changing 
 - **Inspired looks (prepared, empty):** a character may carry `lookFun: { fr, en }` (hair style, hair colour, skin), used only when `duelNames` is `"fun"`; otherwise (and while a
   `lookFun` is missing) `look` is used (`_plook`). Generic cartoon traits only, no portraits, no accessories yet (the renderer has none). The owner must supply the traits per
   character and edition (hair, skin tone, distinguishing sign); do not guess a real person's appearance. Preferably each player validates their own drawing once approached.
+- **Inspired looks (filled 2026-11-18, from the owner's research via Claude; sources not stored here):** `lookFun` now holds hair style/colour and skin for 11 of the 12 slots; a trait
+  the research marked "unverified" is left out and falls back to the generic `look` (all of Laura Rocchi's, so the French Pass character has no `lookFun`; Cyril Peltier: skin only).
+  Accessories (headband, cap, glasses) were found for several players but the renderer has none: open item. The research itself says publishing such looks without the player's
+  written agreement is potentially sensitive for all 12; photographs seen are references, not reproducible. Keep `duelNames: "neutral"` until the legal check and the players' agreement.
+- **Beard:** `characters.js` supports `pal.beard = true` (hair-coloured cap on the lower face, front view; the mouth is redrawn in the skin colour on top). Used for the French Sprint
+  character's inspired look (owner's information, not from the research); accessories (headband, cap, glasses) are still not drawn.

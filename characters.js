@@ -247,6 +247,14 @@
       ctx.ellipse(hx - 3.6 + look, hy + 1.6, 1.25, swinging ? 0.9 : 1.7, 0, 0, Math.PI * 2);
       ctx.ellipse(hx + 3.6 + look, hy + 1.6, 1.25, swinging ? 0.9 : 1.7, 0, 0, Math.PI * 2);
       ctx.fill();
+      // Optional beard (pal.beard = true): a hair-coloured cap over the lower face, drawn under the mouth
+      if (pal.beard) {
+        ctx.fillStyle = pal.hair;
+        ctx.beginPath();
+        ctx.arc(hx, hy, 9.6, Math.PI * 0.12, Math.PI * 0.88);
+        ctx.quadraticCurveTo(hx, hy + 4.6, hx + 9.1, hy + 3.1);
+        ctx.fill();
+      }
       // Mouth: focused line, open on swing
       ctx.lineWidth = 1.1;
       ctx.lineCap = "round";
@@ -254,6 +262,7 @@
       if (swinging) ctx.ellipse(hx + look * 0.5, hy + 5.6, 1.6, 1.3, 0, 0, Math.PI * 2);
       else ctx.arc(hx + look * 0.5, hy + 4.2, 2.4, 0.25 * Math.PI, 0.75 * Math.PI);
       ctx.stroke();
+      if (pal.beard) { ctx.strokeStyle = pal.skin; ctx.lineWidth = 1.1; ctx.beginPath(); if (swinging) ctx.ellipse(hx + look * 0.5, hy + 5.6, 1.6, 1.3, 0, 0, Math.PI * 2); else ctx.arc(hx + look * 0.5, hy + 4.2, 2.4, 0.25 * Math.PI, 0.75 * Math.PI); ctx.stroke(); ctx.strokeStyle = OUTLINE; }
     } else {
       // Back of the head: hair, headband, small ponytail that lags the motion
       ctx.fillStyle = pal.hair;
