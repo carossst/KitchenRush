@@ -18,6 +18,11 @@ async function open(path, setup) {
 let t = await open("/fr.html");
 ok(await t.page.evaluate(() => document.documentElement.lang === "fr" && window.KR_LANG === "fr"), "fr.html opens in French");
 ok((await t.page.innerText("body")).includes("L'arcade du pickleball"), "fr.html shows the French landing text");
+ok(await t.page.getByRole("button", { name: "Jouer", exact: true }).count() === 1, "first landing has a clear Play button");
+ok(await t.page.locator('.kr-landing-body button[data-action]').count() === 1 &&
+  await t.page.locator('[data-action="howto"]').count() === 0, "first landing shows one game action and no help button");
+ok(await t.page.locator(".kr-landing-cast li:has(canvas):has(strong):has(span)").count() === 6 &&
+  await t.page.locator(".kr-hero-net").count() === 0, "six portraits and their specialties replace the old hero net");
 ok(t.errors.length === 0, "fr.html console errors: " + t.errors.join(" | "));
 await t.page.click('[data-action="lang"]'); await t.page.waitForTimeout(700);
 ok(t.page.url().includes("lang=en") && await t.page.evaluate(() => window.KR_LANG === "en"), "the language button switches to English from fr.html");
@@ -62,6 +67,12 @@ await t.ctx.close();
 t = await open("/index.html?lang=en&duel=daily&src=daily-share");
 await t.page.locator('[data-action="play-duel"]').click();
 ok(await t.page.locator('[data-duel="versus-go"] [data-portrait="base"]').count() === 1, "the shared link opens Daily with the neutral character");
+await t.ctx.close();
+
+t = await open("/index.html?lang=en", () => {
+  localStorage.setItem("kr:duel", JSON.stringify({ history: [{ you: 5, them: 2 }] }));
+});
+ok(await t.page.locator('[data-action="play"]').count() === 1, "Classic stays available when a player has already completed a Duel");
 await t.ctx.close();
 
 await browser.close();

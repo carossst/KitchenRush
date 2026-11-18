@@ -2368,3 +2368,36 @@ body:has(.kr-duel) #update-toast {
   height: auto;
   margin-inline: auto;
 }
+
+.kr-screen--welcome .kr-landing-header-row { justify-content: flex-end; }
+
+.kr-landing-cast {
+  display: flex;
+  width: min(100%, 480px);
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.kr-landing-player {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  flex: 0 0 clamp(88px, 26vw, 112px);
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--r-md);
+  background: radial-gradient(ellipse at 50% 20%, color-mix(in srgb, var(--player-color) 55%, transparent), transparent 70%),
+    rgb(var(--surface));
+  scroll-snap-align: start;
+}
+
+.kr-landing-player canvas { display: block; width: 65px; height: auto; }
+.kr-landing-player strong { font-size: var(--fs-sm); line-height: 1.1; }
+.kr-landing-player span { font-size: var(--fs-xs); color: rgb(var(--text)); }

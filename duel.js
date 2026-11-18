@@ -681,18 +681,20 @@
     for (var i = 0; i < PLAYERS.length; i++) if (PLAYERS[i].id === id && (PLAYERS[i].cost === 0 || (sv.owned && sv.owned[id]))) return PLAYERS[i];
     return PLAYERS[0];
   };
-  Duel.prototype._pname = function (p) {
+  function playerName(p, lang) {
     var cfg = window.KR_CONFIG, fun = !!(cfg && cfg.duelNames === "fun");
-    return (fun && ROSTER.fun[this.lang === "fr" ? "fr" : "en"][p.id]) || ROSTER.neutral[p.id] || p.id;
-  };
+    return (fun && ROSTER.fun[lang === "fr" ? "fr" : "en"][p.id]) || ROSTER.neutral[p.id] || p.id;
+  }
+  Duel.prototype._pname = function (p) { return playerName(p, this.lang); };
   // Look per edition. With duelNames "fun" a character may carry an "inspired" look (`lookFun`, same shape as `look`: hair style, hair colour,
   // skin; generic cartoon traits only, never a portrait). Until the owner supplies those traits, `lookFun` is absent and `look` is used.
-  Duel.prototype._plook = function (p) {
+  function playerLook(p, lang) {
     if (!p) return null;
-    var l = this.lang === "fr" ? "fr" : "en", cfg = window.KR_CONFIG;
+    var l = lang === "fr" ? "fr" : "en", cfg = window.KR_CONFIG;
     var base = (p.look && p.look[l]) || null, fun = !!(cfg && cfg.duelNames === "fun") && p.lookFun && p.lookFun[l];
     return fun ? Object.assign({}, base || {}, fun) : base;   // missing traits (unverified) keep the generic value
-  };
+  }
+  Duel.prototype._plook = function (p) { return playerLook(p, this.lang); };
   Duel.prototype._pstat = function (k) { return (this._player().stats && this._player().stats[k]) || 1; };
   Duel.prototype._chargeMax = function () { return this._player().chargeNeed || CHARGE_MAX; };
   Duel.prototype._capDelay = function (s) { return s * (this._player().lucky ? 0.6 : 1); };
@@ -714,22 +716,59 @@
   };
 
   // Front-view portraits: canvases with data-portrait="<player id>" (a character) or data-opp="1" (the current opponent).
+  function paintPortrait(cv, pal, role) {
+    if (!window.KR_CHARACTERS) return;
+    var g = cv.getContext("2d"); if (!g) return;
+    g.clearRect(0, 0, cv.width, cv.height);
+    window.KR_CHARACTERS.draw(g, { x: cv.width * 0.45, y: cv.height * 0.75, scale: cv.width / 62, now: 0, state: "idle", side: 1, facing: "front", role: role, palette: pal, lookX: 0 });
+  }
+
   Duel.prototype._paintPortraits = function () {
-    if (!this.panelEl || !window.KR_CHARACTERS) return;
+    if (!this.panelEl) return;
     var self = this;
     this.panelEl.querySelectorAll("canvas[data-portrait], canvas[data-opp]").forEach(function (cv) {
-      var g = cv.getContext("2d"); if (!g) return;
-      g.clearRect(0, 0, cv.width, cv.height);
-      var pal, role = "player";
-      if (cv.hasAttribute("data-opp")) { var o = self._opp(); pal = Object.assign({}, o.pal, LOOKS[o.look % LOOKS.length]); role = "opponent"; }
-      else {
-        var id = cv.getAttribute("data-portrait"), P = id === DAILY_PLAYER.id ? DAILY_PLAYER : PLAYERS[0];
-        PLAYERS.forEach(function (p) { if (p.id === id) P = p; });
-        pal = Object.assign({}, HUMAN_PAL, LOOKS[self.look], P.pal, self._plook(P) || {});
+      if (cv.hasAttribute("data-opp")) {
+        var o = self._opp();
+        paintPortrait(cv, Object.assign({}, o.pal, LOOKS[o.look % LOOKS.length]), "opponent");
+      } else {
+        var id = cv.getAttribute("data-portrait");
+        var player = PLAYERS.find(function (p) { return p.id === id; }) || (id === DAILY_PLAYER.id ? DAILY_PLAYER : PLAYERS[0]);
+        paintPortrait(cv, Object.assign({}, HUMAN_PAL, LOOKS[self.look], player.pal, self._plook(player) || {}), "player");
       }
-      window.KR_CHARACTERS.draw(g, { x: cv.width * 0.45, y: cv.height * 0.75, scale: cv.width / 62, now: 0, state: "idle", side: 1, facing: "front", role: role, palette: pal, lookX: 0 });
     });
   };
+
+  var castAnimated = false;
+  function renderLandingCast(host, wording, lang) {
+    if (!host) return;
+    var locale = lang === "fr" ? Object.assign({}, wording.duel, wording.duelFr) : wording.duel || {};
+    var skills = locale.castSkills || {};
+    host.setAttribute("aria-label", locale.castLabel || "Duel players");
+    host.innerHTML = PLAYERS.map(function (p) {
+      return '<li class="kr-landing-player" style="--player-color:' + esc(p.pal.jerseyB) + '">' +
+        '<canvas width="128" height="132" aria-hidden="true"></canvas><strong>' + esc(playerName(p, lang)) + '</strong>' +
+        '<span>' + esc(skills[p.id] || "") + '</span></li>';
+    }).join("");
+    var canvases = host.querySelectorAll("canvas");
+    PLAYERS.forEach(function (p, index) {
+      paintPortrait(canvases[index], Object.assign({}, HUMAN_PAL, LOOKS[0], p.pal, playerLook(p, lang) || {}), "player");
+    });
+    if (castAnimated || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    castAnimated = true;
+    var step = 0;
+    var timer = setInterval(function () {
+      if (!host.isConnected || step >= 4 || host.scrollLeft + host.clientWidth >= host.scrollWidth - 2) {
+        clearInterval(timer);
+        return;
+      }
+      step += 1;
+      var card = host.children[step];
+      host.scrollTo({ left: card.offsetLeft - host.children[0].offsetLeft, behavior: "smooth" });
+    }, 850);
+    ["pointerdown", "wheel", "focusin"].forEach(function (event) {
+      host.addEventListener(event, function () { clearInterval(timer); }, { once: true });
+    });
+  }
   Duel.prototype._drawPortrait = Duel.prototype._paintPortraits;
 
   // ───────────────────────── Fighting-game screens: select, versus, victory ─────────────────────────
@@ -2147,6 +2186,11 @@
 
   window.KR_DUEL = {
     start: function (opts) { return new Duel(opts || {}); },
+    renderLandingCast: renderLandingCast,
+    hasPlayed: function () {
+      var save = loadSave();
+      return save.history.length > 0 || !!save.daily;
+    },
     entry: function () {
       var entry = new URLSearchParams(location.search).get("duel");
       return entry === "daily" || entry === "deep" ? entry : "";

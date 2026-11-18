@@ -64,7 +64,7 @@
     landing: {
       tagline: "L'arcade du pickleball.",
       subtitle: "Visez vos coups, maîtrisez la cuisine, grimpez l'échelle.",
-      ctaDuel: "Jouer au Duel",
+      ctaDuel: "Jouer",
       duelExplain: "Simple ou double contre six adversaires.",
       arcadeLabel: "Modes arcade",
       dailyBadge: "Défi du jour",
