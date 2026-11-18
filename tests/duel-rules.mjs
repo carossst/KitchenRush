@@ -318,7 +318,8 @@ const results = await page.evaluate(() => {
     d._m.pts = ["1:kitchen", "0:net", "1:kitchen", "1:out"];
     const opponent = d._oppIdx(), player = d._player().id, mode = d.mode;
     d._showSplash("lose");
-    const offered = !!d.panelEl.querySelector('[data-duel="splash-drill"]');
+    const offered = !!d.panelEl.querySelector('[data-duel="splash-drill"]') &&
+      d.panelEl.querySelector(".kr-duel-result-note").textContent === d.t.retryTips.kitchen;
     d._panelAction("splash-drill"); d.paused = true;
     const drill = d.drill.id;
     d.drill.attempts = 5;
@@ -352,6 +353,24 @@ const results = await page.evaluate(() => {
     const reset = d.charge === d._chargeMax() && !d._pw("reach");
     d.drill.hits = 5; d.drill.attempts = 5; d._finishDrill();
     return eq([ready, active, reset, before === snapshot(), d.drill], [true, true, true, true, null]);
+  });
+  t("Daily shares from the result with a neutral portrait and independent focus", () => {
+    fresh();
+    d.mode = "doubles";
+    d._panelAction("daily"); d.paused = true;
+    const vs = d.panelEl.querySelector('[data-portrait="base"]') !== null;
+    const stage = d.stage;
+    d.stage = 0; const focus = [d._slowScale(), d._slowBudget()];
+    d.stage = 9; const fixed = JSON.stringify(focus) === JSON.stringify([d._slowScale(), d._slowBudget()]);
+    d.stage = stage;
+    d._panelAction("versus-go"); d.paused = true;
+    const singles = d.actors.length === 2;
+    d.score = [5, 1]; d._afterPoint(); d._showSplash("win");
+    const share = !!d.panelEl.querySelector('[data-duel="share"]') && !!d.panelEl.querySelector('[data-portrait="base"]');
+    d._panelAction("splash-go");
+    const doubles = d.mode === "doubles";
+    d.mode = "singles";
+    return eq([vs, fixed, singles, share, doubles], [true, true, true, true, true]);
   });
   t("corrupted saved data is sanitised", () => {
     d.destroy();

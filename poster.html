@@ -63,17 +63,17 @@
   </div>
   <div class="cta">
     <div class="qr" id="qr" role="img"></div>
-    <div><p class="scan" id="scan"></p><p class="url">carossst.github.io/KitchenRush</p><p class="note" id="note"></p><p class="note" id="by"></p></div>
+    <div><p class="scan" id="scan"></p><p class="url"><a id="challenge-link" href="./?duel=deep">carossst.github.io/KitchenRush</a></p><p class="note" id="note"></p><p class="note" id="by"></p></div>
   </div>
 </main>
 <script src="./qr-vendor.js"></script>
 <script>
 (function () {
   var T = {
-    fr: { tag: "L'arcade du pickleball", sub: "Visez vos coups, maîtrisez la cuisine, grimpez l'échelle.", scan: "Scannez pour jouer", note: "Dans le navigateur, sur téléphone ou ordinateur.", qrAlt: "QR code pour ouvrir Kitchen Rush", clubLabel: "Nom du club ou du coach (facultatif)", clubGo: "Mettre \u00e0 jour le QR", by: "Propos\u00e9 par {name}", shotAlt: "Capture d'un match de Kitchen Rush",
-      feat: [["Duel en simple ou en double", "Choisissez votre côté et votre partenaire IA"], ["Ralenti à la frappe", "Vous choisissez où va la balle"], ["6 adversaires, 6 pouvoirs", "Battez-les pour gagner leurs pouvoirs"], ["Le duel du jour", "Un adversaire pour tout le monde, à partager"]] },
-    en: { tag: "The pickleball arcade", sub: "Aim your shots, own the Kitchen, climb the ladder.", scan: "Scan to play", note: "In your browser, on phone or computer.", qrAlt: "QR code to open Kitchen Rush", clubLabel: "Club or coach name (optional)", clubGo: "Update the QR", by: "Offered by {name}", shotAlt: "Screenshot of a Kitchen Rush match",
-      feat: [["Singles or doubles Duel", "Pick your side and your AI partner"], ["Slow motion at contact", "You choose where the ball goes"], ["6 opponents, 6 powers", "Beat them to earn their powers"], ["The Daily Duel", "One opponent for everyone, shareable"]] }
+    fr: { tag: "L'arcade du pickleball", sub: "Visez vos coups, maîtrisez la cuisine, grimpez l'échelle.", scan: "Scannez pour relever le défi", note: "Dans le navigateur, sur téléphone ou ordinateur.", qrAlt: "QR code pour ouvrir Kitchen Rush", clubLabel: "Nom du club ou du coach (facultatif)", clubGo: "Mettre \u00e0 jour le QR", by: "Propos\u00e9 par {name}", shotAlt: "Capture d'un match de Kitchen Rush",
+      feat: [["Duel en simple ou en double", "Choisissez votre côté et votre partenaire IA"], ["Ralenti à la frappe", "Vous choisissez où va la balle"], ["Défi de cinq balles", "Visez la zone et gagnez des jetons Rush"], ["Le duel du jour", "Un adversaire pour tout le monde, à partager"]] },
+    en: { tag: "The pickleball arcade", sub: "Aim your shots, own the Kitchen, climb the ladder.", scan: "Scan for the challenge", note: "In your browser, on phone or computer.", qrAlt: "QR code to open Kitchen Rush", clubLabel: "Club or coach name (optional)", clubGo: "Update the QR", by: "Offered by {name}", shotAlt: "Screenshot of a Kitchen Rush match",
+      feat: [["Singles or doubles Duel", "Pick your side and your AI partner"], ["Slow motion at contact", "You choose where the ball goes"], ["Five-ball challenge", "Hit the target and earn Rush Tokens"], ["The Daily Duel", "One opponent for everyone, shareable"]] }
   };
   var q = ""; try { q = new URLSearchParams(location.search).get("lang") || ""; } catch (e) { }
   var lang = (q === "en" || q === "fr") ? q : (/^fr/i.test(navigator.language || "") ? "fr" : "en");
@@ -82,11 +82,12 @@
   var club = ""; try { club = (new URLSearchParams(location.search).get("club") || "").trim().slice(0, 40); } catch (e) { }
   function slugOf(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32); }
   function targetUrl(l) {
-    var base = location.origin + location.pathname.replace(/poster\.html$/, ""), slug = slugOf(club), u = l === "fr" ? base + "fr.html" : base + "?lang=en";
-    return slug ? u + (l === "fr" ? "?" : "&") + "src=club-" + slug : u;
+    var base = location.origin + location.pathname.replace(/poster\.html$/, ""), slug = slugOf(club), u = l === "fr" ? base + "fr.html?duel=deep" : base + "?lang=en&duel=deep";
+    return slug ? u + "&src=club-" + slug : u;
   }
   function renderQr(l) {
     var box = document.getElementById("qr"), url = targetUrl(l);
+    document.getElementById("challenge-link").href = url;
     box.setAttribute("aria-label", T[l].qrAlt); box.setAttribute("data-url", url); box.innerHTML = "";
     try { if (typeof qrcode === "function") { var q = qrcode(0, "M"); q.addData(url); q.make(); box.innerHTML = q.createSvgTag(4, 0, T[l].qrAlt); return; } } catch (e) { }
     var img = document.createElement("img"); img.src = "icons/qr-" + l + ".svg"; img.alt = T[l].qrAlt; box.appendChild(img);   // untagged fallback

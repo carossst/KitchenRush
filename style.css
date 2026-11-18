@@ -2365,3 +2365,10 @@ body:has(.kr-duel) #update-toast {
 }
 
 .kr-duel-shot-style[hidden] { display: none; }
+
+.kr-duel-result-portrait {
+  display: block;
+  width: 82px;
+  height: auto;
+  margin-inline: auto;
+}

@@ -407,7 +407,12 @@
             '<p class="kr-landing-tagline">' + escapeHtml(lw.tagline || "") + '</p>' +
             '<p class="kr-subtitle">' + escapeHtml(lw.subtitle || "") + '</p>' +
             (window.KR_DUEL && String(lw.ctaDuel || "").trim()
-              ? '<div class="kr-actions kr-actions--primary-zone"><button class="kr-btn kr-btn--primary kr-btn--duel" data-action="play-duel">' + escapeHtml(lw.ctaDuel) + '</button></div>' +
+              ? '<div class="kr-actions kr-actions--primary-zone"><button class="kr-btn kr-btn--primary kr-btn--duel" data-action="play-duel">' + (function () {
+                  var entry = window.KR_DUEL.entry ? window.KR_DUEL.entry() : "";
+                  var fr = window.KR_LANG === "fr";
+                  return escapeHtml(entry === "deep" ? (fr ? "Jouer le défi de cinq balles" : "Play the five-ball challenge") :
+                    entry === "daily" ? (fr ? "Jouer le Duel du jour" : "Play the Daily Duel") : lw.ctaDuel);
+                })() + '</button></div>' +
                 (String(lw.duelExplain || "").trim() ? '<p class="kr-muted kr-landing-duel-explain">' + escapeHtml(lw.duelExplain) + '</p>' : '') +
                 (String(lw.arcadeLabel || "").trim() ? '<p class="kr-landing-divider">' + escapeHtml(lw.arcadeLabel) + '</p>' : '')
               : '') +

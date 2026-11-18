@@ -41,17 +41,27 @@ await t.ctx.close();
 t = await open("/poster.html?lang=fr&club=Club%20Lyon%20%C3%89t%C3%A9");
 const q = await t.page.evaluate(() => ({ url: document.getElementById("qr").getAttribute("data-url"), svg: !!document.querySelector("#qr svg"), by: document.getElementById("by").textContent }));
 ok(q.svg, "the poster draws the QR code in the browser");
-ok(q.url.endsWith("fr.html?src=club-club-lyon-ete"), "the French QR points to fr.html with the club tag: " + q.url);
+ok(q.url.endsWith("fr.html?duel=deep&src=club-club-lyon-ete"), "the French QR points to fr.html with the club tag: " + q.url);
 ok(q.by.includes("Club Lyon Été"), "the club name is printed on the poster");
 await t.page.emulateMedia({ media: "print" });
 ok(await t.page.evaluate(() => getComputedStyle(document.getElementById("club-form")).display === "none"), "the club form is hidden when printing");
 await t.page.emulateMedia({ media: "screen" });
 await t.page.click('.bar [data-l="en"]');
-ok((await t.page.getAttribute("#qr", "data-url")).includes("?lang=en&src=club-club-lyon-ete"), "the English QR keeps the tag");
+ok((await t.page.getAttribute("#qr", "data-url")).includes("?lang=en&duel=deep&src=club-club-lyon-ete"), "the English QR keeps the tag");
 await t.page.fill("#club-name", "<img src=x onerror=alert(1)>"); await t.page.click("#club-go");
 const safe = await t.page.evaluate(() => ({ url: document.getElementById("qr").getAttribute("data-url"), imgs: document.querySelectorAll("#by img").length }));
 ok(/src=club-img-src-x-onerror-alert-1$/.test(safe.url) && safe.imgs === 0, "a hostile club name is neutralised: " + safe.url);
 ok(t.errors.length === 0, "poster console errors: " + t.errors.join(" | "));
+await t.ctx.close();
+
+t = await open("/fr.html?duel=deep&src=club-test");
+await t.page.locator('[data-action="play-duel"]').click();
+ok(await t.page.locator(".kr-duel-score").textContent() === "0 cibles · 0/5 balles", "the club link starts the French five-ball drill");
+await t.ctx.close();
+
+t = await open("/index.html?lang=en&duel=daily&src=daily-share");
+await t.page.locator('[data-action="play-duel"]').click();
+ok(await t.page.locator('[data-duel="versus-go"] [data-portrait="base"]').count() === 1, "the shared link opens Daily with the neutral character");
 await t.ctx.close();
 
 await browser.close();
