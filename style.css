@@ -2363,3 +2363,5 @@ body:has(.kr-duel) #update-toast {
 .kr-duel-shot-style:not([hidden]) + .kr-duel-coach {
   bottom: calc(62px + env(safe-area-inset-bottom, 0px));
 }
+
+.kr-duel-shot-style[hidden] { display: none; }
