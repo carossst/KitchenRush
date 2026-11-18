@@ -17,18 +17,19 @@ async function run(browser, mode, who) {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  await page.addInitScript(() => { try { if (!localStorage.getItem("kr:duel")) localStorage.setItem("kr:duel", JSON.stringify({ coached: true, picked: true })); } catch (e) { } });
   await page.goto(BASE + "/index.html");
   await page.waitForTimeout(700);
   await page.evaluate(() => { const o = KR_UI.prototype._startDuel; KR_UI.prototype._startDuel = function () { window.__ui = this; return o.call(this); }; });
   await page.click('[data-action="play-duel"]');
   await page.waitForTimeout(300);
-  await page.click('[data-duel="setup-cancel"]');  // open the menu to choose the match type
+  // Returning player (training done, player picked): the Duel opens on its home screen.
   if (mode === "daily") await page.click('[data-duel="daily"]');
-  else { if (mode !== "singles") await page.click('[data-duel="' + mode + '"]'); await page.click('[data-duel="go"]'); await page.click('[data-duel="selok"]'); await page.click('[data-duel="court-ok"]'); }
+  else { if (mode !== "singles") await page.click('[data-duel="' + mode + '"]'); await page.click('[data-duel="mode-arcade"]'); await page.click('[data-duel="selok"]'); await page.click('[data-duel="court-ok"]'); }
   await page.click('[data-duel="versus-go"]');   // skip the VS screen
   let last = "", lastAt = Date.now(), ended = null;
   const t0 = Date.now();
-  while (Date.now() - t0 < 110000) {
+  while (Date.now() - t0 < 240000) {
     await page.waitForTimeout(33);
     const r = await page.evaluate((bot) => {
       const d = window.__ui._duel; if (!d) return { gone: 1 };

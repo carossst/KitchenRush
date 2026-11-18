@@ -691,3 +691,19 @@ npm run build:fr       # regenerate fr.html and manifest.fr.json after changing 
 - Copy: `selectTitle`, `selectOk`, `selectOpen`, `superLine`, `versusVs`, `versusTap`, `splashWin`, `splashBoss`, `splashLose` (EN base + `duelFr`). Tests: 3 new rule tests; `duel-smoke` and `a11y` click through the new screens.
 - Not done: character voice or announcer sounds, a "press start" intro, animated victory poses, a screen to compare characters side by side. Those are the next steps toward the fighting-game feel.
 - Research gap: no dedicated research on Street Fighter or Hearthstone was done for this (general knowledge and the owner's description only). Validate the flow with real players.
+
+## Street Fighter flow, real scoring, retention (version 21)
+- **Flow**: first visit -> **Training** (`_startTraining`: gentle opponent, coach on, first to 5, no coins, no ladder) -> player select -> court select -> VS -> match.
+  Returning players land on the **Duel home** (`_showHome`): Arcade (player -> court -> VS), Daily Duel, Training, singles / doubles left / doubles right,
+  the "Official match" toggle (`save.official`), today's missions, the next unlock, "My player and progress" (the tabbed hub, `_showMenu`) and exit.
+  After a match: splash -> (ending if the boss was beaten) -> hub; "Next opponent" / "Rematch" in the hub goes straight to the VS screen.
+- **Scoring, the owner's "mixed" formula** (`_fmt`): training first to 5; Daily and ladder steps 1-4 rally scoring to 7, win by 2; steps 5-6 rally scoring to 11, win by 2;
+  the final boss, or every match with "Official match" on: real side-out scoring to 11, win by 2 (only the serving side scores; doubles starts "0-0-2", server 1 then
+  server 2 then side out). The call ("4-2-1") shows under the score and in the serve banner (`_scoreCall`). Simplification: servers do not swap court sides after a point.
+- **Retention**: daily missions (3 of `MISSIONS`, same for everyone each UTC day, +15 coins each, `_mission` hooks in points, capsules, super, rally length, wins);
+  day streak (`_checkStreak`: +5 coins per day in a row, max +35, a gap restarts the count); next unlock line; mastery (wins per character, 3 = gold band, 10 = gold trim);
+  character endings (beating the boss with a character unlocks its short ending, `wording.duel.endings`, Progress tab shows n/6).
+- **Feel**: announcer through the browser's speech voice (`_announce`, only when sound is on): "Play!", "Final boss!", the splash title. Victory pose: the portrait swings for 2 s (`_animatePose`, off with reduced motion).
+- Save fields added (all sanitised): `official`, `endings`, `mastery`, `streak`, `missions`. Tests: 10 new rule tests (57 total); smoke starts as a returning player and allows 4 min per match.
+- Not done (owner or later): "challenge a friend" link (needs an entry route in `ui.js`), GoatCounter activation, player partnerships, payment. Match length with the new formats is not measured yet:
+  read `sec` in the exported playtest log after real games and adjust `_fmt`.

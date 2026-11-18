@@ -113,6 +113,18 @@
     var h = hash32("kr-duel-" + key);
     return { key: key, seed: h, idx: h % LADDER.length };
   }
+  function dayKey(off) {
+    var d = new Date(Date.now() + (off || 0) * 864e5), p2 = function (n) { return n < 10 ? "0" + n : "" + n; };
+    return d.getUTCFullYear() + "-" + p2(d.getUTCMonth() + 1) + "-" + p2(d.getUTCDate());
+  }
+  // Daily missions: 3 drawn from this pool for the day (same for everyone), each pays MISSION_REWARD coins once.
+  var MISSIONS = [{ id: "win", n: 1 }, { id: "points", n: 10 }, { id: "caps", n: 3 }, { id: "rally", n: 6 }, { id: "super", n: 2 }];
+  var MISSION_REWARD = 15;
+  function missionsFor(key) {
+    var r = seeded(hash32("kr-missions-" + key)), pool = MISSIONS.slice(), out = [];
+    while (out.length < 3) out.push(pool.splice(Math.floor(r() * pool.length), 1)[0]);
+    return out;
+  }
   function gauss() { return (rand() + rand() + rand() - 1.5) / 0.75; }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
 
@@ -145,6 +157,24 @@
     d.coached = d.coached === true;
     d.sound = d.sound === true;
     d.picked = d.picked === true;
+    d.official = d.official === true;
+    var en = {}, ma = {};
+    PLAYERS.forEach(function (p) {
+      if (d.endings && d.endings[p.id] === true) en[p.id] = true;
+      var w = Math.floor(Number(d.mastery && d.mastery[p.id]) || 0); if (w > 0) ma[p.id] = clamp(w, 0, 9999);
+    });
+    d.endings = en; d.mastery = ma;
+    var st = d.streak;
+    d.streak = (st && typeof st === "object" && /^\d{4}-\d{2}-\d{2}$/.test(String(st.last))) ? { last: String(st.last), n: clamp(Math.floor(Number(st.n) || 1), 1, 9999) } : null;
+    var ms = d.missions;
+    if (ms && typeof ms === "object" && /^\d{4}-\d{2}-\d{2}$/.test(String(ms.key))) {
+      var pr = {}, dn = {};
+      MISSIONS.forEach(function (m) {
+        var v = Math.floor(Number(ms.prog && ms.prog[m.id]) || 0); if (v > 0) pr[m.id] = clamp(v, 0, 9999);
+        if (ms.done && ms.done[m.id] === true) dn[m.id] = true;
+      });
+      d.missions = { key: String(ms.key), prog: pr, done: dn };
+    } else d.missions = null;
     d.shareDay = /^\d{4}-\d{2}-\d{2}$/.test(String(d.shareDay)) ? String(d.shareDay) : "";
     d.coins = clamp(Math.floor(Number(d.coins) || 0), 0, 999999);
     var ownedClean = {};
@@ -181,7 +211,8 @@
     this.raf = 0;
     this._mount();
     this._updateSoundBtn();
-    if (this.save.picked) this._showMenu(); else this._beginMatchSetup();
+    this._checkStreak();
+    if (!this.save.coached) this._startTraining(); else if (!this.save.picked) this._beginMatchSetup(); else this._showHome();
   }
 
   // English is the base dictionary; French overrides it key by key, so a missing key never shows blank.
@@ -255,6 +286,7 @@
   Duel.prototype.destroy = function () {
     RNG = Math.random;
     this._clearScreenTimers();
+    try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) { }
     cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this._onResize);
     document.removeEventListener("keydown", this._onKey);
@@ -291,6 +323,7 @@
 
   Duel.prototype._opp = function () {
     if (this.daily) return LADDER[this.daily.idx];
+    if (this.training) { var tr = Object.assign({}, LADDER[0]); tr.speed *= 0.8; tr.err *= 1.4; tr.react *= 1.4; tr.aggr *= 0.6; return tr; }
     var base = LADDER[this._oppIdx()], extra = this._world() - 1;   // each new world: the same six + boss, tougher
     if (!extra && !this.save.coached && this.stage === 0) {   // tutorial match: a gentler first opponent
       var e = Object.assign({}, base); e.speed *= 0.8; e.err *= 1.4; e.react *= 1.4; e.aggr *= 0.6; return e;
@@ -302,12 +335,13 @@
   };
 
   // The ladder is one "world" long (6 opponents + the boss). Beating the boss starts the next, tougher world.
-  Duel.prototype._oppIdx = function () { return this.daily ? this.daily.idx : this.stage % LADDER.length; };
+  Duel.prototype._oppIdx = function () { return this.daily ? this.daily.idx : this.training ? 0 : this.stage % LADDER.length; };
   Duel.prototype._world = function () { return this.daily ? 1 : Math.floor(this.stage / LADDER.length) + 1; };
 
   // Court for the current match: the one you picked (if unlocked), else the one that goes with the ladder step.
   Duel.prototype._venueId = function () {
     if (this.daily) return AUTO[this.daily.idx % AUTO.length];
+    if (this.training) return "park";
     var sel = this.save.venue;
     if (sel && sel !== "auto" && hasVenue(sel) && this.stage >= VENUES[sel].unlock) return sel;
     return AUTO[this.stage % AUTO.length];
@@ -315,7 +349,7 @@
 
   Duel.prototype._showMenu = function (result, focusAction) {
     this._clearScreenTimers();
-    this.phase = "menu";
+    this.phase = "menu"; this.screen = "hub";
     var t = this.t, opp = this._opp();
     var head = "";
     var sc = this._lastScore, fin = (result && sc) ? ' <span class="kr-duel-final">' + sc[0] + '\u2013' + sc[1] + '</span>' : "";
@@ -352,7 +386,7 @@
         '</div>' + this._dailyHtml() +
         '<p class="kr-duel-how">' + esc(touch ? (t.howTouch || "Drag to move. When time slows, swipe toward where you want the ball.") : (t.howKeys || "Arrows / WASD: move. When time slows, hold a direction and press Space, or click where you want the ball.")) + '</p>' +
         '<p class="kr-duel-how">' + esc(t.capsuleHint || "Grab the falling capsules for a short power.") + '</p>' +
-        '<p class="kr-duel-how">' + esc(t.rules || "First to 5. Serve and return must bounce. No volleys in the Kitchen.") + '</p>' +
+        '<p class="kr-duel-how">' + esc(this._fmtText()) + '</p>' +
         '<button class="kr-btn kr-btn--ghost" data-duel="tutorial">' + esc(t.tutorialBtn || "Replay the tutorial") + '</button>') +
       panel("players", this._playerHtml() +
         '<button class="kr-btn kr-btn--ghost" data-duel="select">' + esc(t.selectOpen || "Open the select screen") + '</button>' +
@@ -360,6 +394,7 @@
       panel("courts", this._venueHtml()) +
       panel("progress", this._progressHtml()) +
       '<button class="kr-btn kr-btn--primary kr-duel-go" data-duel="go">' + esc(result ? (result === "win" ? (t.next || "Next opponent") : (t.retry || "Rematch")) : (t.start || "Start match")) + '</button>' +
+      '<button class="kr-btn kr-btn--ghost" data-duel="home">' + esc(t.homeBack || "Duel home") + '</button>' +
       '<button class="kr-btn kr-btn--ghost" data-duel="exit">' + esc(t.home || "Back to menu") + '</button>' +
       '<button class="kr-btn kr-btn--ghost kr-duel-lang" data-duel="lang" lang="' + (this.lang === "fr" ? "en" : "fr") + '">' + (this.lang === "fr" ? "English" : "Français") + '</button>' +
       '</div>';
@@ -388,6 +423,7 @@
   // Progress tab: recent results, record, win rate from the local playtest log, and the export button.
   Duel.prototype._progressHtml = function () {
     var t = this.t, sv = this.save, h = sv.history || [], wl = String(t.winLetter || "W"), ll = String(t.loseLetter || "L"), out = "";
+    out += '<p class="kr-muted">' + esc((t.endingsLine || "Endings unlocked: {n}/{m}").replace("{n}", Object.keys(sv.endings || {}).length).replace("{m}", PLAYERS.length)) + '</p>';
     if (h.length) {
       out += '<div class="kr-duel-recent" role="list" aria-label="' + esc(t.recent || "Last matches") + '">' + h.slice(-5).map(function (e) {
         var w = e.you > e.them;
@@ -434,7 +470,7 @@
   Duel.prototype._coachTick = function () {
     var el = this.coachEl; if (!el) return;
     var t = this.t, key = "", b = this.ball;
-    if (this.phase !== "menu" && !this.daily && !this.save.coached) {
+    if (this.phase !== "menu" && !this.daily && (this.training || !this.save.coached)) {
       if (this.phase === "serve" && this.server === this.human) key = "coachServe";
       else if (this.phase === "rally" && this.timeScale < 0.7) key = "coachAim";
       else if (this.phase === "rally" && b && b.live && !b.dead && b.lastHitTeam === 1) key = "coachMove";
@@ -499,7 +535,7 @@
       else {
         var id = cv.getAttribute("data-portrait"), P = PLAYERS[0];
         PLAYERS.forEach(function (p) { if (p.id === id) P = p; });
-        pal = Object.assign({}, HUMAN_PAL, LOOKS[self.look], P.pal, self._plook(P) || {});
+        pal = Object.assign({}, HUMAN_PAL, LOOKS[self.look], P.pal, self._plook(P) || {}, self._masteryPal(P));
       }
       window.KR_CHARACTERS.draw(g, { x: cv.width * 0.45, y: cv.height * 0.75, scale: cv.width / 62, now: 0, state: "idle", side: 1, facing: "front", role: role, palette: pal, lookX: 0 });
     });
@@ -519,6 +555,120 @@
     if (P.cost === 0 || sv.owned[pid]) sv.player = pid;
     else if ((sv.coins || 0) >= P.cost) { sv.coins -= P.cost; sv.owned[pid] = true; sv.player = pid; this._sound("milestone"); }
     this.previewPlayer = pid; writeSave(sv);
+  };
+
+  // ───────────────────────── Match format (the "mixed" formula chosen by the owner) ─────────────────────────
+  // Training: first to 5. Daily and the first four ladder steps: rally scoring to 7, win by 2. Steps 5-6: rally scoring to 11, win by 2.
+  // Final boss, or every match when "Official match" is on: real side-out scoring to 11, win by 2 (only the serving side scores; doubles calls "0-0-2").
+  Duel.prototype._fmt = function () {
+    if (this.training) return { id: "training", to: 5, by: 1, sideout: false };
+    if (this.daily) return { id: "short", to: 7, by: 2, sideout: false };
+    var opp = LADDER[this._oppIdx()];
+    if (this.save.official || opp.boss) return { id: "official", to: 11, by: 2, sideout: true };
+    return this._oppIdx() >= 4 ? { id: "long", to: 11, by: 2, sideout: false } : { id: "short", to: 7, by: 2, sideout: false };
+  };
+  Duel.prototype._fmtText = function () {
+    var f = this._fmt(), t = this.t;
+    if (f.sideout) return t.fmtOfficial || "Official: to 11, win by 2, only the serving side scores.";
+    return (f.by > 1 ? (t.fmtRally || "First to {n}, win by 2. Every rally scores.") : (t.fmtTraining || "First to {n}.")).replace("{n}", f.to);
+  };
+  // Score call of official play: server's score, receiver's score, and the server number in doubles ("4-2-1").
+  Duel.prototype._scoreCall = function () {
+    if (!this.score || !this._fmt().sideout || this.phase === "menu") return "";
+    var a = this.serverTeam || 0, s = this.score;
+    return s[a] + "-" + s[1 - a] + (this.mode === "doubles" ? "-" + (this.serverNum || 1) : "");
+  };
+
+  // ───────────────────────── Training, missions, streak, mastery ─────────────────────────
+  Duel.prototype._startTraining = function () {
+    this._clearScreenTimers();
+    this.daily = null; this.training = true; this.mode = "singles"; this._trainingDone = false;
+    this._startMatch();
+    this._banner(this.t.trainingLabel || "TRAINING", 1600, "good");
+  };
+
+  Duel.prototype._missions = function () {
+    var key = dayKey(0), sv = this.save;
+    if (!sv.missions || sv.missions.key !== key) sv.missions = { key: key, prog: {}, done: {} };
+    return { state: sv.missions, list: missionsFor(key) };
+  };
+  Duel.prototype._mission = function (id, v, isMax) {
+    if (this.training) return;
+    var m = this._missions(), def = null;
+    m.list.forEach(function (x) { if (x.id === id) def = x; });
+    if (!def || m.state.done[id]) return;
+    m.state.prog[id] = isMax ? Math.max(m.state.prog[id] || 0, v) : (m.state.prog[id] || 0) + v;
+    if (m.state.prog[id] >= def.n) {
+      m.state.done[id] = true;
+      this.save.coins = clamp((Number(this.save.coins) || 0) + MISSION_REWARD, 0, 999999);
+      writeSave(this.save);
+      if (this.phase !== "menu") this._banner((this.t.missionDone || "Mission complete! +{n} coins").replace("{n}", MISSION_REWARD), 1400, "good");
+    }
+  };
+  Duel.prototype._missionsHtml = function () {
+    var t = this.t, m = this._missions(), names = t.missionNames || {};
+    return '<div class="kr-duel-missions"><p class="kr-duel-kicker">' + esc(t.missionsTitle || "Today's missions") + '</p><ul>' + m.list.map(function (x) {
+      var done = !!m.state.done[x.id], p = Math.min(x.n, m.state.prog[x.id] || 0);
+      return '<li class="' + (done ? "kr-duel-mission--done" : "") + '"><span>' + esc((names[x.id] || x.id).replace("{n}", x.n)) + '</span><b>' + (done ? "\u2713" : p + "/" + x.n) + '</b></li>';
+    }).join("") + '</ul></div>';
+  };
+
+  // Coming back on consecutive days: +5 coins per day of the streak (up to +35). Missing a day only restarts the count.
+  Duel.prototype._checkStreak = function () {
+    var sv = this.save, today = dayKey(0), st = sv.streak;
+    if (st && st.last === today) return;
+    var n = (st && st.last === dayKey(-1)) ? st.n + 1 : 1;
+    sv.streak = { last: today, n: n };
+    this._streakBonus = n > 1 ? 5 * Math.min(n, 7) : 0;
+    if (this._streakBonus) sv.coins = clamp((Number(sv.coins) || 0) + this._streakBonus, 0, 999999);
+    writeSave(sv);
+  };
+
+  Duel.prototype._mastery = function (p) { var w = (this.save.mastery || {})[p.id] || 0; return w >= 10 ? 2 : w >= 3 ? 1 : 0; };
+  Duel.prototype._masteryPal = function (p) {
+    if (!p || !p.look) return {};
+    var lv = this._mastery(p);
+    return lv >= 2 ? { band: "#ffd60a", trim: "#ffd60a" } : lv >= 1 ? { band: "#ffd60a" } : {};
+  };
+
+  Duel.prototype._nextUnlockHtml = function () {
+    var t = this.t, sv = this.save, coins = sv.coins || 0, self = this, next = null;
+    PLAYERS.forEach(function (p) { if (p.cost > 0 && !(sv.owned && sv.owned[p.id]) && (!next || p.cost < next.cost)) next = p; });
+    if (!next) return "";
+    var txt = coins >= next.cost ? (t.nextUnlockReady || "You can unlock {name}!") : (t.nextUnlock || "{n} more coins for {name}").replace("{n}", next.cost - coins);
+    return '<p class="kr-duel-unlock">' + esc(txt.replace("{name}", self._pname(next))) + '</p>';
+  };
+
+  // Duel home (the "title screen"): modes, format, missions, streak, next unlock.
+  Duel.prototype._showHome = function (focusAction) {
+    this._clearScreenTimers();
+    this.phase = "menu"; this.screen = "home"; this.daily = null; this.training = false;
+    var t = this.t, sv = this.save, m = this.mode, s = this.side, st = sv.streak;
+    function opt(id, label, on) { return '<button class="kr-duel-opt' + (on ? " kr-duel-opt--on" : "") + '" data-duel="' + id + '" aria-pressed="' + (on ? "true" : "false") + '">' + esc(label) + '</button>'; }
+    var dk = dailyInfo().key, dailyDone = !!(sv.daily && sv.daily.key === dk);
+    this.panelEl.innerHTML =
+      '<div class="kr-duel-card kr-duel-home">' +
+      '<p class="kr-duel-kicker">KITCHEN RUSH</p><h2 class="kr-duel-name kr-duel-title" tabindex="-1">' + esc(t.homeTitle || "DUEL") + '</h2>' +
+      (this._streakBonus ? '<p class="kr-duel-earn">' + esc((t.streakBonus || "Day {n} in a row! +{c} coins").replace("{n}", st.n).replace("{c}", this._streakBonus)) + '</p>' :
+        (st && st.n > 1 ? '<p class="kr-muted">' + esc((t.streakLine || "Streak: {n} days").replace("{n}", st.n)) + '</p>' : "")) +
+      '<button class="kr-btn kr-btn--primary kr-duel-go" data-duel="mode-arcade">' + esc(t.homeArcade || "Arcade") + '<small>' + esc(t.homeArcadeSub || "Climb the ladder, beat the boss") + '</small></button>' +
+      '<button class="kr-btn kr-btn--secondary" data-duel="daily">' + esc(t.homeDaily || "Daily Duel") + (dailyDone ? " \u2713" : "") + '</button>' +
+      '<button class="kr-btn kr-btn--secondary" data-duel="mode-training">' + esc(t.homeTraining || "Training") + '<small>' + esc(t.homeTrainingSub || "Serve, bounce and the Kitchen") + '</small></button>' +
+      '<div class="kr-duel-opts" role="group" aria-label="' + esc(t.modeAria || "Match type") + '">' +
+        opt("singles", t.singles || "Singles", m === "singles") +
+        opt("left", t.doublesLeft || "Doubles · Left", m === "doubles" && s === "left") +
+        opt("right", t.doublesRight || "Doubles · Right", m === "doubles" && s === "right") + '</div>' +
+      '<button class="kr-duel-opt kr-duel-official' + (sv.official ? " kr-duel-opt--on" : "") + '" data-duel="official" aria-pressed="' + (sv.official ? "true" : "false") + '">' + esc(t.homeOfficial || "Official match: to 11, real scoring") + '</button>' +
+      this._missionsHtml() + this._nextUnlockHtml() +
+      '<button class="kr-btn kr-btn--ghost" data-duel="hub">' + esc(t.homeHub || "My player and progress") + '</button>' +
+      '<button class="kr-btn kr-btn--ghost" data-duel="exit">' + esc(t.home || "Back to menu") + '</button></div>';
+    this._streakBonus = 0;
+    this.panelEl.classList.add("kr-duel-panel--on");
+    this.scoreEl.textContent = "";
+    this._setupActors();
+    var target = focusAction && this.panelEl.querySelector('[data-duel="' + focusAction + '"]');
+    target = target || this.panelEl.querySelector(".kr-duel-go");
+    if (target) try { target.focus({ preventScroll: true }); } catch (_) { }
   };
 
   Duel.prototype._beginMatchSetup = function () {
@@ -563,6 +713,7 @@
       '<strong class="kr-duel-hero-name">' + esc(this._pname(P)) + '</strong>' +
       '<p class="kr-duel-super">' + esc(sup) + '</p>' +
       '<p class="kr-muted">' + esc(sk[P.id] || "") + '</p>' +
+      '<p class="kr-muted">' + esc((t.masteryLine || "Wins with this player: {n}").replace("{n}", (sv.mastery || {})[P.id] || 0)) + (this._mastery(P) ? " " + "\u2605".repeat(this._mastery(P)) : "") + '</p>' +
       (this.matchSetup && equipped ? '<p class="kr-duel-equipped">' + esc(label) + '</p>' :
         '<button class="kr-btn kr-btn--secondary" data-duel="selact-' + P.id + '"' + ((equipped || (!owned && !afford)) ? " disabled" : "") + '>' + esc(label) + '</button>') + '</div></div>' +
       '<div class="kr-duel-roster" role="group" aria-label="' + esc(t.playerLabel || "My player") + '">' + tiles + '</div>' +
@@ -651,7 +802,57 @@
     this.panelEl.classList.add("kr-duel-panel--on");
     this._paintPortraits();
     var b = this.panelEl.querySelector(".kr-duel-splash"); if (b) try { b.focus({ preventScroll: true }); } catch (_) { }
-    this._splashT = setTimeout(function () { self._splashT = 0; if (self.root) self._showMenu(self._lastResult); }, won ? 1700 : 900);
+    if (won) this._animatePose(this.panelEl.querySelector(".kr-duel-splash canvas"), me);
+    this._announce(title);
+    this._splashT = setTimeout(function () { self._splashT = 0; if (self.root) self._afterSplash(); }, won ? 2200 : 1100);
+  };
+
+  // After the splash: a character ending (boss beaten), the end of training, or the match menu.
+  Duel.prototype._afterSplash = function () {
+    this._clearScreenTimers();
+    if (this._pendingEnding) { var e = this._pendingEnding; this._pendingEnding = null; this._showEnding(e); return; }
+    if (this._trainingDone) { this._trainingDone = false; this.training = false; this._lastResult = null; if (!this.save.picked) this._beginMatchSetup(); else this._showHome(); return; }
+    this._showMenu(this._lastResult);
+  };
+
+  Duel.prototype._showEnding = function (pid) {
+    var t = this.t, P = PLAYERS[0];
+    PLAYERS.forEach(function (p) { if (p.id === pid) P = p; });
+    var name = this._pname(P), seen = Object.keys(this.save.endings || {}).length;
+    this.screen = "ending"; this.phase = "menu";
+    this.panelEl.innerHTML =
+      '<div class="kr-duel-card kr-duel-ending" role="group" aria-label="' + esc((t.endingTitle || "{name}'s ending").replace("{name}", name)) + '">' +
+      '<h2 class="kr-duel-name" tabindex="-1">' + esc((t.endingTitle || "{name}'s ending").replace("{name}", name)) + '</h2>' +
+      '<canvas width="180" height="200" aria-hidden="true" data-portrait="' + P.id + '"></canvas>' +
+      '<p class="kr-duel-ending-text">' + esc(((t.endings || {})[P.id] || "").replace(/\{name\}/g, name)) + '</p>' +
+      '<p class="kr-muted">' + esc((t.endingsLine || "Endings unlocked: {n}/{m}").replace("{n}", seen).replace("{m}", PLAYERS.length)) + '</p>' +
+      '<button class="kr-btn kr-btn--primary kr-duel-go" data-duel="ending-ok">' + esc(t.selectOk || "Continue") + '</button></div>';
+    this.panelEl.classList.add("kr-duel-panel--on");
+    this._paintPortraits();
+    var h = this.panelEl.querySelector("h2"); if (h) try { h.focus({ preventScroll: true }); } catch (_) { }
+  };
+
+  // Victory pose: the character swings in a loop for a moment (skipped with reduced motion).
+  Duel.prototype._animatePose = function (cv, P) {
+    if (!cv || !window.KR_CHARACTERS || (this.fx && this.fx.reduced)) return;
+    var g = cv.getContext("2d"); if (!g) return;
+    var pal = Object.assign({}, HUMAN_PAL, LOOKS[this.look], P.pal, this._plook(P) || {}, this._masteryPal(P)), t0 = performance.now(), self = this;
+    (function frame(now) {
+      if (!cv.isConnected || !self.root || now - t0 > 2000) return;
+      var k = ((now - t0) % 650) / 650;
+      g.clearRect(0, 0, cv.width, cv.height);
+      window.KR_CHARACTERS.draw(g, { x: cv.width * 0.45, y: cv.height * 0.75 - Math.abs(Math.sin(k * Math.PI)) * 8, scale: cv.width / 62, now: now, state: "swing", swingT: k, side: 1, facing: "front", role: "player", palette: pal, lookX: 0 });
+      requestAnimationFrame(frame);
+    })(t0);
+  };
+
+  // Announcer: the browser's own voice, only when the player turned the sound on.
+  Duel.prototype._announce = function (text) {
+    try {
+      if (!this.save.sound || !text || !window.speechSynthesis || typeof SpeechSynthesisUtterance !== "function") return;
+      var u = new SpeechSynthesisUtterance(String(text)); u.lang = this.lang === "fr" ? "fr-FR" : "en-US"; u.rate = 1.05; u.pitch = 0.9;
+      window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+    } catch (_) { }
   };
 
   Duel.prototype._pw = function (key) {
@@ -676,6 +877,7 @@
     var key = this._equippedKey();
     if (!key || this.daily || this.phase === "menu" || (this.charge || 0) < this._chargeMax() || this._pw("any")) return;
     if (this._m) this._m.powers++;
+    this._mission("super", 1);
     this.power = { key: key, until: this.now + POWER_SECONDS };
     this.charge = 0;
     this.flashUntil = this.now + 0.3; this._flashKey = key;
@@ -795,8 +997,9 @@
     }
     if (a === "select") { this.previewPlayer = null; this._showSelect(); return; }
     if (a === "versus-go") { this._clearScreenTimers(); this._startMatch(); return; }
-    if (a === "splash-go") { this._clearScreenTimers(); this._showMenu(this._lastResult); return; }
-    if (a === "tutorial") { this.save.coached = false; writeSave(this.save); this.tab = "play"; this._showMenu(this._lastResult); return; }
+    if (a === "splash-go") { this._afterSplash(); return; }
+    if (a === "ending-ok") { this._showMenu(this._lastResult); return; }
+    if (a === "tutorial") { this._startTraining(); return; }
     if (a === "export") { this._export(); return; }
     if (a.indexOf("tab-") === 0) {
       var tb = a.slice(4);
@@ -816,7 +1019,12 @@
       else if (hasVenue(vid)) this.venueMsg = (this.t.venueLocked || "Reach opponent {n} to unlock").replace("{n}", VENUES[vid].unlock + 1);
       this._showMenu(this._lastResult, a); return;
     }
-    if (a === "go") { this._beginMatchSetup(); return; }
+    if (a === "go") { if (this._lastResult && this._lastDailyIdx == null) { this.daily = null; this._showVersus(); } else this._beginMatchSetup(); return; }
+    if (a === "mode-arcade") { this._beginMatchSetup(); return; }
+    if (a === "mode-training") { this._startTraining(); return; }
+    if (a === "home") { this._lastResult = null; this._showHome(); return; }
+    if (a === "hub") { this._showMenu(this._lastResult); return; }
+    if (a === "official") { this.save.official = !this.save.official; writeSave(this.save); this._rerender(a); return; }
     if (a === "daily") { var di = dailyInfo(); this.daily = di; this.mode = "singles"; this._showVersus(); return; }
     if (a === "share") { this._share(); return; }
     if (a === "card") { this._saveCard(); return; }
@@ -825,8 +1033,9 @@
     else if (a === "singles") this.mode = "singles";
     else { this.mode = "doubles"; this.side = a; }
     this.save.mode = this.mode; this.save.side = this.side; this.save.look = this.look; writeSave(this.save);
-    this._showMenu(this._lastResult, a);
+    this._rerender(a);
   };
+  Duel.prototype._rerender = function (focus) { if (this.screen === "home") this._showHome(focus); else this._showMenu(this._lastResult, focus); };
 
   // ───────────────────────── Match setup ─────────────────────────
   Duel.prototype._setupActors = function () {
@@ -838,7 +1047,7 @@
     }
     var A = [];
     var oppPal = Object.assign({}, opp.pal, LOOKS[opp.look % LOOKS.length]);
-    var humanPal = Object.assign({}, HUMAN_PAL, LOOKS[this.look], this._player().pal, this._plook(this._player()) || {});
+    var humanPal = Object.assign({}, HUMAN_PAL, LOOKS[this.look], this._player().pal, this._plook(this._player()) || {}, this._masteryPal(this._player()));
     var allyLook = LOOKS[(this.look + 3) % LOOKS.length];
     this.human = actor(0, true, hx, -15, null, humanPal, dbl ? (hx < 0 ? [-99, 0] : [0, 99]) : [-99, 99]);
     A.push(this.human);
@@ -861,7 +1070,7 @@
     this.capsule = null; this.capSpawnIn = null; this._rage = false; this._lastBoss = false; this._lastEarn = 0; this._coachHits = 0; this._coachKey = "";
     this._m = { t0: Date.now(), maxRally: 0, caps: 0, powers: 0, pts: [] };
     this._visitMatches = (this._visitMatches || 0) + 1;
-    this._track(this.daily ? "daily-start" : "duel-start");
+    if (!this.training) this._track(this.daily ? "daily-start" : "duel-start");
     if (this._visitMatches === 2) this._track("duel-second");
     this.charge = this._player().startCharge || 0;
     this.power = null;
@@ -869,8 +1078,10 @@
     this._setupActors();
     this.serverTeam = 0;
     this.serveTurn = [0, 0];
+    this.serverNum = (this._fmt().sideout && this.mode === "doubles") ? 2 : 1;   // official doubles starts "0-0-2"
     this._updateScore();
     this._beginServe();
+    this._announce(this._opp().boss ? (this.t.announceBoss || "Final boss!") : (this.t.announceGo || "Play!"));
     if (this._opp().boss) { this._banner((this.t.bossIntro || "FINAL BOSS: {name}").replace("{name}", this._opp().name), 2200, "bad"); this.shakeUntil = this.now + 0.3; }
   };
 
@@ -887,12 +1098,16 @@
     this.capsule = null;
     this.ball = { x: srv.x + 1.2, y: srv.y, z: 3.4, vx: 0, vy: 0, vz: 0, live: false, held: true, lastHitTeam: srv.team, bounces: 0, hits: 0, isServe: true, id: (this.ballId = (this.ballId || 0) + 1) };
     if (this.fx) this.fx.trailClear();
-    this._banner(srv.human ? (this.t.yourServe || "Your serve — swing to serve") : "", 0);
+    var call = this._scoreCall();
+    this._banner((call ? call + " \u00b7 " : "") + (srv.human ? (this.t.yourServe || "Your serve — swing to serve") : ""), 0);
+    this._updateScore();
   };
 
   Duel.prototype._updateScore = function () {
     var opp = this._opp();
-    this.scoreEl.innerHTML = '<span class="kr-duel-you">' + esc(this.t.you || "YOU") + '</span><b>' + this.score[0] + '</b><i>–</i><b>' + this.score[1] + '</b><span class="kr-duel-them">' + esc(opp.name) + '</span>';
+    var call = this._scoreCall();
+    this.scoreEl.innerHTML = '<span class="kr-duel-you">' + esc(this.t.you || "YOU") + '</span><b>' + this.score[0] + '</b><i>–</i><b>' + this.score[1] + '</b><span class="kr-duel-them">' + esc(opp.name) + '</span>' +
+      (call ? '<small class="kr-duel-call">' + esc((this.t.callLabel || "Call: {c}").replace("{c}", call)) + '</small>' : "");
   };
 
   Duel.prototype._banner = function (text, ms, kind) {
@@ -1000,6 +1215,7 @@
     b.live = true; b.held = false; b.lastHitTeam = a.team; b.bounces = 0; b.hits += 1; b.id = ++this.ballId;
     b.rate = 1 + clamp(Math.max(0, b.hits - 1) * 0.035, 0, 0.3);
     if (this._m) this._m.maxRally = Math.max(this._m.maxRally, b.hits);
+    this._mission("rally", b.hits, true);
     if (a.human) { this._coachHits = (this._coachHits || 0) + 1; if (this._coachHits >= 4 && !this.daily && !this.save.coached) { this.save.coached = true; writeSave(this.save); this._track("tutorial-complete"); } }   // rally ramp: the ball runs up to 30% faster on the same arc
     b.isServe = b.hits === 1;
     a.swingAnim = this.now + 0.3; a.swung = true;
@@ -1105,16 +1321,28 @@
     var b = this.ball; if (b) b.live = false;
     this.phase = "point";
     this.phaseAt = this.now;
-    this.score[team] += 1;
+    var fmt = this._fmt(), scored = true;
+    if (fmt.sideout) {
+      // Official (side-out) scoring: only the serving side scores. In doubles a lost rally passes the serve to the partner (server 2), then to the other side.
+      if (team === this.serverTeam) this.score[team] += 1;
+      else {
+        scored = false;
+        if (this.mode === "doubles" && this.serverNum === 1) { this.serverNum = 2; this.serveTurn[this.serverTeam] += 1; }
+        else { this.serverTeam = team; this.serverNum = 1; this.serveTurn[team] += 1; }
+      }
+    } else {
+      this.score[team] += 1;
+      this.serveTurn[team] += (this.serverTeam === team) ? 0 : 1;
+      this.serverTeam = team;
+    }
     if (this._m && this._m.pts.length < 40) this._m.pts.push(team + ":" + reason);
     if (team === 0 && !this.daily && !this._pw("any")) this.charge = Math.min(this._chargeMax(), (this.charge || 0) + 1);
-    this.serveTurn[team] += (this.serverTeam === team) ? 0 : 1;
-    this.serverTeam = team;
+    if (team === 0 && scored) this._mission("points", 1);
     this._updateScore();
     var t = this.t, mine = team === 0;
     var why = { out: t.out || "Out!", net: t.net || "Net!", twoBounce: t.twoBounce || "It had to bounce!", kitchen: t.kitchen || "Kitchen fault!", serveShort: t.serveShort || "Serve too short!", winner: "" }[reason] || "";
-    this._banner((why ? why + " " : "") + (mine ? (t.yourPoint || "Your point") : (t.theirPoint || "Their point")), 1300, mine ? "good" : "bad");
-    if (!mine && this._opp().boss && !this._rage && this.score[1] >= 3) { this._rage = true; this.shakeUntil = this.now + 0.4; this._banner(t.bossRage || "RAGE!", 1500, "bad"); }
+    this._banner((why ? why + " " : "") + (scored ? (mine ? (t.yourPoint || "Your point") : (t.theirPoint || "Their point")) : (t.sideOut || "Side out")), 1300, mine ? "good" : "bad");
+    if (!mine && this._opp().boss && !this._rage && this.score[1] >= Math.round(fmt.to * 0.55)) { this._rage = true; this.shakeUntil = this.now + 0.4; this._banner(t.bossRage || "RAGE!", 1500, "bad"); }
     this._sound(mine ? "milestone" : "fault");
     if (!mine) this._buzz("fault");
     if (mine && this.fx && b) { var p = this._project(b.x, b.y, b.z); this.fx.burst(p.x, p.y, ["#ffd60a", "#ffffff", "#3fd0ff"], 16, { speed: 300, up: 120, rect: true }); }
@@ -1122,8 +1350,18 @@
   };
 
   Duel.prototype._afterPoint = function () {
-    var s = this.score, lead = Math.abs(s[0] - s[1]);
-    if ((s[0] >= WIN_SCORE || s[1] >= WIN_SCORE) && lead >= 1) {
+    var s = this.score, lead = Math.abs(s[0] - s[1]), fmt = this._fmt();
+    if ((s[0] >= fmt.to || s[1] >= fmt.to) && lead >= fmt.by && this.training) {
+      // Training: no coins, no ladder, no history; it completes the tutorial and leads to the player select screen.
+      this._lastScore = [s[0], s[1]]; this._lastEarn = 0; this._lastBoss = false;
+      this.save.coached = true; writeSave(this.save); this._track("tutorial-complete");
+      this._trainingDone = true; this._lastResult = s[0] > s[1] ? "win" : "lose";
+      this._banner("", 0); this.phase = "menu";
+      var selfT = this;
+      setTimeout(function () { if (selfT.root && selfT.phase === "menu") selfT._showSplash(selfT._lastResult); }, 500);
+      return;
+    }
+    if ((s[0] >= fmt.to || s[1] >= fmt.to) && lead >= fmt.by) {
       var won = s[0] > s[1], sv = this.save, idx = this._oppIdx(), isDaily = !!this.daily;
       this._lastScore = [s[0], s[1]];
       this._logMatch(won, s, isDaily);
@@ -1142,8 +1380,14 @@
       } else {
         sv.history = (sv.history || []).concat([{ d: Date.now(), stage: this.stage, mode: this.mode, you: s[0], them: s[1] }]).slice(-HISTORY_MAX);
         if (won) { sv.beaten = sv.beaten || {}; sv.beaten[idx] = true; sv.bestMargin = Math.max(Number(sv.bestMargin) || 0, s[0] - s[1]); }
-        if (won) { this.stage += 1; this.save.stage = this.stage; this.save.wins = (Number(this.save.wins) || 0) + 1; }
+        if (won) {
+          var pid = this._player().id;
+          sv.mastery = sv.mastery || {}; sv.mastery[pid] = (sv.mastery[pid] || 0) + 1;
+          if (this._lastBoss) { sv.endings = sv.endings || {}; sv.endings[pid] = true; this._pendingEnding = pid; }
+          this.stage += 1; this.save.stage = this.stage; this.save.wins = (Number(this.save.wins) || 0) + 1;
+        }
       }
+      if (won) this._mission("win", 1);
       if (won) { if (this.fx) { this.fx.confetti(this.W, this.H); if (this._lastBoss) this.fx.confetti(this.W, this.H); } this._sound("newBest"); }
       else this._sound("gameOver");
       writeSave(this.save);
@@ -1499,6 +1743,7 @@
   Duel.prototype._collectCapsule = function () {
     var c = this.capsule; if (!c) return;
     if (this._m) this._m.caps++;
+    this._mission("caps", 1);
     this.charge = Math.min(this._chargeMax(), (this.charge || 0) + 1);
     this.capsule = null; this.capSpawnIn = 6 + rand() * 5;
     this.flashUntil = this.now + 0.2; this._flashKey = c.kind;

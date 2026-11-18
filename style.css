@@ -2337,3 +2337,21 @@ body:has(.kr-duel) #update-toast {
 }
 
 .kr-duel-vs-action { grid-column: 1 / -1; }
+
+/* ── Duel home, missions, score call, endings ── */
+.kr-duel-home { gap: var(--space-3); }
+.kr-duel-title { font-size: 2.6rem; font-style: italic; letter-spacing: 0.04em; margin: 0; }
+.kr-duel-home .kr-btn small { display: block; font-size: 0.78rem; font-weight: 500; opacity: 0.85; }
+.kr-duel-official { width: 100%; }
+.kr-duel-missions { padding: var(--gap-2); border-radius: var(--r-md); background: rgb(var(--bg) / var(--kr-a-40)); }
+.kr-duel-missions ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.kr-duel-missions li { display: flex; justify-content: space-between; gap: var(--space-3); }
+.kr-duel-mission--done { opacity: 0.7; }
+.kr-duel-mission--done b { color: rgb(var(--accent-warm)); }
+.kr-duel-unlock { margin: 0; text-align: center; color: rgb(var(--accent-warm)); font-weight: 600; }
+.kr-duel-call { display: block; width: 100%; text-align: center; font-size: 0.75rem; opacity: 0.85; }
+.kr-duel-ending { align-items: center; text-align: center; }
+.kr-duel-ending canvas { width: 140px; height: auto; }
+.kr-duel-ending-text { font-size: 1.05rem; line-height: 1.45; }
+.kr-duel-score { flex-wrap: wrap; justify-content: center; }
+.kr-duel-home .kr-btn { flex-direction: column; gap: 2px; }

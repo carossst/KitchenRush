@@ -30,6 +30,8 @@ for (const [path, name] of [["/index.html?lang=en", "landing (English)"], ["/fr.
 }
 await page.goto(BASE + "/index.html?lang=en"); await page.waitForTimeout(500);
 await page.click('[data-action="play-duel"]'); await page.waitForTimeout(500);
+await scan("Duel home");
+await page.click('[data-duel="hub"]'); await page.waitForTimeout(300);
 await page.locator('[data-duel="tab-play"]').focus();
 await page.keyboard.press("ArrowRight");
 assert.equal(await page.locator('[data-duel="tab-players"]:focus[aria-selected="true"]').count(), 1);

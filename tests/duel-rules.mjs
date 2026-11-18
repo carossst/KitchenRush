@@ -18,8 +18,8 @@ await page.waitForTimeout(300);
 const results = await page.evaluate(() => {
   const out = [], d0 = window.__ui._duel, T = KR_DUEL._test;
   const t = (name, fn) => { try { const r = fn(); out.push([name, r === true, r === true ? "" : String(r)]); } catch (e) { out.push([name, false, "threw " + e.message]); } };
-  const d = d0;
-  const fresh = () => { d.save.coached = true; d._startMatch(); d.paused = true; d.phase = "rally"; d.power = null; d.charge = 0; d.score = [0, 0]; };
+  const d = d0; d.training = false; d._trainingDone = false;   // the page opens on training (first visit); rule tests start from a normal match
+  const fresh = () => { d.training = false; d.save.coached = true; d._startMatch(); d.paused = true; d.phase = "rally"; d.power = null; d.charge = 0; d.score = [0, 0]; };
   const ball = (o) => Object.assign({ x: 0, y: 0, z: 1, vx: 0, vy: 0, vz: 0, live: true, held: false, dead: false, lastHitTeam: 0, bounces: 0, hits: 2, isServe: false, id: ++d.ballId }, o);
   const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b) || ("got " + JSON.stringify(a) + " expected " + JSON.stringify(b));
   const hitter = (x, y) => { d.human.x = x; d.human.y = y; return d.human; };
@@ -84,18 +84,18 @@ const results = await page.evaluate(() => {
     fresh(); d.capsule = { x: 3, y: -12, kind: "sprint", born: d.now - 20, until: d.now - 1 }; d._capsules(0.016);
     return eq([got, d.capsule === null, d._pw("any")], [[1, false, true], true, false]);
   });
-  t("the boss: stage 7 is the boss, rage triggers at 3 points", () => {
+  t("the boss: stage 7 is the boss, official scoring, rage triggers at 6 points", () => {
     d.stage = 6; const boss = d._opp(); d._startMatch(); d.paused = true;
-    for (let i = 0; i < 3; i++) { d.phase = "rally"; d._point(1, "winner"); }
+    for (let i = 0; i < 7; i++) { d.phase = "rally"; d._point(1, "winner"); }
     const r = d._rage; d.stage = 0;
     return eq([boss.boss === true, boss.name, r], [true, "Captain Kitchen", true]);
   });
-  t("coins: a win vs opponent 1 pays 25, a loss little, the Daily once a day", () => {
-    fresh(); d.save.coins = 0; d.score = [5, 2]; d._afterPoint(); const win = d.save.coins; d.stage = 0;
-    fresh(); d.save.coins = 0; d.score = [3, 5]; d._afterPoint(); const lose = d.save.coins; d.stage = 0;
-    fresh(); d.save.coins = 0; d.save.daily = null; d.daily = { key: "2099-01-01", idx: 0, seed: 1 }; d.score = [5, 1]; d._afterPoint(); const d1 = d.save.coins;
-    fresh(); d.save.coins = 0; d.daily = { key: "2099-01-01", idx: 0, seed: 1 }; d.score = [5, 1]; d._afterPoint(); const d2 = d.save.coins; d.save.daily = null; d.stage = 0;
-    return eq([win, lose, d1, d2], [25, 9, 25, 0]);
+  t("coins: a 7-2 win vs opponent 1 pays 27, a loss little, the Daily once a day", () => {
+    fresh(); d.save.coins = 0; d.score = [7, 2]; d._afterPoint(); const win = d.save.coins; d.stage = 0;
+    fresh(); d.save.coins = 0; d.score = [3, 7]; d._afterPoint(); const lose = d.save.coins; d.stage = 0;
+    fresh(); d.save.coins = 0; d.save.daily = null; d.daily = { key: "2099-01-01", idx: 0, seed: 1 }; d.score = [7, 1]; d._afterPoint(); const d1 = d.save.coins;
+    fresh(); d.save.coins = 0; d.daily = { key: "2099-01-01", idx: 0, seed: 1 }; d.score = [7, 1]; d._afterPoint(); const d2 = d.save.coins; d.save.daily = null; d.stage = 0;
+    return eq([win, lose, d1, d2], [27, 9, 25, 0]);
   });
   t("shop: no purchase without coins, one purchase, equip only what you own", () => {
     fresh(); d.save.coins = 100; d.save.owned = {}; d.save.player = "touch";
@@ -114,7 +114,7 @@ const results = await page.evaluate(() => {
   t("tutorial: the first match is gentler and completes the tutorial", () => {
     d.save.coached = false; d.stage = 0; const easy = d._opp(), base = KR_DUEL.ladder[0];
     const a = [easy.speed < base.speed, easy.err > base.err];
-    d._startMatch(); d.paused = true; d.phase = "rally"; d.score = [5, 1]; d._afterPoint(); d.stage = 0;
+    d._startMatch(); d.paused = true; d.phase = "rally"; d.score = [7, 1]; d._afterPoint(); d.stage = 0;
     const done = d.save.coached, back = d._opp().speed === base.speed; d.save.coached = true;
     return eq([a, done, back], [[true, true], true, true]);
   });
@@ -145,9 +145,9 @@ const results = await page.evaluate(() => {
     d._panelAction("venue-auto"); return eq([msg, kept], [true, "auto"]);
   });
   t("playtest log: one entry per match, exportable, capped", () => {
-    localStorage.removeItem("kr:duel-stats"); fresh(); d.score = [5, 2]; d._afterPoint(); d.stage = 0;
+    localStorage.removeItem("kr:duel-stats"); fresh(); d.score = [7, 2]; d._afterPoint(); d.stage = 0;
     const log = JSON.parse(localStorage.getItem("kr:duel-stats")), ex = JSON.parse(d._exportData());
-    return eq([log.length, log[0].you, log[0].them, Array.isArray(log[0].pts), ex.matches.length, ex.app], [1, 5, 2, true, 1, "kitchen-rush-duel"]);
+    return eq([log.length, log[0].you, log[0].them, Array.isArray(log[0].pts), ex.matches.length, ex.app], [1, 7, 2, true, 1, "kitchen-rush-duel"]);
   });
   t("sound is off by default, the visible button toggles it, vibration respects reduced motion", () => {
     const calls = [], hap = [], old = [d.opts.sound, d.opts.haptic, d.opts.setSound];
@@ -166,7 +166,7 @@ const results = await page.evaluate(() => {
     return eq([a, b, c], [10, 10, 20]);
   });
   t("the playtest log keeps the campaign source tag", () => {
-    localStorage.removeItem("kr:duel-stats"); localStorage.setItem("kr:src", "club-test"); fresh(); d.score = [5, 2]; d._afterPoint(); d.stage = 0;
+    localStorage.removeItem("kr:duel-stats"); localStorage.setItem("kr:src", "club-test"); fresh(); d.score = [7, 2]; d._afterPoint(); d.stage = 0;
     const log = JSON.parse(localStorage.getItem("kr:duel-stats")); localStorage.removeItem("kr:src");
     return eq(typeof log[0].src, "string");
   });
@@ -232,10 +232,77 @@ const results = await page.evaluate(() => {
     return eq([players, courts, back, d.save.venue, vs, d.panelEl.classList.contains("kr-duel-panel--on"), d.phase === "serve" || d.phase === "rally"], [6, 8, true, "park", [true, "menu", 2], false, true]);
   });
   t("victory splash shows the result and returns to the menu", () => {
-    d._lastScore = [5, 2]; d._lastEarn = 25; d._lastBoss = false; d._lastResult = "win"; d._showSplash("win");
+    d._lastScore = [5, 2]; d._lastEarn = 25; d._lastBoss = false; d._pendingEnding = null; d._trainingDone = false; d._lastResult = "win"; d._showSplash("win");
     const sp = [!!d.panelEl.querySelector(".kr-duel-splash--win"), d.panelEl.textContent.indexOf("5\u20132") >= 0];
     d._panelAction("splash-go");
     return eq([sp, d.phase, !!d.panelEl.querySelector(".kr-duel-tab")], [[true, true], "menu", true]);
+  });
+  t("match format: training 5, ladder 7 then 11, boss and Official mode use real scoring", () => {
+    const keep = [d.stage, d.save.official]; d.save.official = false;
+    d.training = true; const tr = d._fmt().to; d.training = false;
+    d.stage = 0; const a = [d._fmt().to, d._fmt().sideout]; d.stage = 4; const b = d._fmt().to; d.stage = 6; const c = [d._fmt().to, d._fmt().sideout];
+    d.stage = 1; d.save.official = true; const o = d._fmt().sideout;
+    d.stage = keep[0]; d.save.official = keep[1];
+    return eq([tr, a, b, c, o], [5, [7, false], 11, [11, true], true]);
+  });
+  t("win by 2: 7-6 goes on, 8-6 ends", () => {
+    fresh(); d.score = [7, 6]; d._afterPoint(); const goes = d.phase !== "menu";
+    fresh(); d.save.coins = 0; d.score = [8, 6]; d._afterPoint(); const ends = d.phase === "menu"; d.stage = 0;
+    return eq([goes, ends], [true, true]);
+  });
+  t("official singles: only the server scores, a lost serve is a side out", () => {
+    d.save.official = true; d.mode = "singles"; fresh(); d.save.official = true;
+    d._point(1, "winner"); const a = [d.score.slice(), d.serverTeam];
+    d.phase = "rally"; d._point(1, "winner"); const b = [d.score.slice(), d.serverTeam, d._scoreCall()];
+    d.save.official = false;
+    return eq([a, b], [[[0, 0], 1], [[0, 1], 1, "1-0"]]);
+  });
+  t("official doubles: starts 0-0-2, server 1 then server 2, then side out", () => {
+    d.save.official = true; d.mode = "doubles"; d.side = "right"; d._startMatch(); d.paused = true; d.phase = "rally";
+    const start = d._scoreCall();
+    d._point(1, "winner"); const after1 = [d.serverTeam, d.serverNum];
+    d.phase = "rally"; d._point(0, "winner"); const after2 = [d.serverTeam, d.serverNum, d.score.slice()];
+    d.phase = "rally"; d._point(0, "winner"); const after3 = [d.serverTeam, d.serverNum];
+    d.save.official = false; d.mode = "singles";
+    return eq([start, after1, after2, after3], ["0-0-2", [1, 1], [1, 2, [0, 0]], [0, 1]]);
+  });
+  t("training: no coins, completes the tutorial, then the player select", () => {
+    d.save.coached = false; d.save.picked = false; d.save.coins = 0; d._startTraining(); d.paused = true;
+    const f = d._fmt().to; d.score = [5, 2]; d._afterPoint();
+    const r = [f, d.save.coins, d.save.coached, d._trainingDone]; d._afterSplash();
+    const sel = !!d.panelEl.querySelector(".kr-duel-roster") && d.training === false;
+    d.save.picked = true; d.matchSetup = false;
+    return eq([r, sel], [[5, 0, true, true], true]);
+  });
+  t("daily missions: progress, reward once", () => {
+    d.training = false; d.save.missions = null; d.save.coins = 0; const m = d._missions(), id = m.list[0].id, n = m.list[0].n;
+    d._mission(id, n, id === "rally"); const c1 = d.save.coins; d._mission(id, n, id === "rally"); const c2 = d.save.coins;
+    return eq([m.list.length, new Set(m.list.map((x) => x.id)).size, c1, c2, d.save.missions.done[id]], [3, 3, 15, 15, true]);
+  });
+  t("day streak: consecutive day pays, a gap restarts", () => {
+    const day = (o) => new Date(Date.now() + o * 864e5).toISOString().slice(0, 10);
+    d.save.coins = 0; d.save.streak = { last: day(-1), n: 2 }; d._checkStreak(); const a = [d.save.streak.n, d.save.coins];
+    d.save.streak = { last: day(-5), n: 9 }; d._checkStreak(); const b = d.save.streak.n; d._checkStreak(); const c = d.save.streak.n;
+    d._streakBonus = 0;
+    return eq([a, b, c], [[3, 15], 1, 1]);
+  });
+  t("beating the boss unlocks the character's ending", () => {
+    d.save.endings = {}; d.save.player = "touch"; d.stage = 6; fresh(); d.stage = 6; d.save.official = false; d.score = [11, 3]; d._afterPoint();
+    const got = [!!d.save.endings.touch, d._pendingEnding]; d._afterSplash();
+    const shown = !!d.panelEl.querySelector(".kr-duel-ending-text") && d.panelEl.querySelector(".kr-duel-ending-text").textContent.length > 20;
+    d.stage = 0; d.save.stage = 0;
+    return eq([got, shown], [[true, "touch"], true]);
+  });
+  t("mastery: 3 wins with a character gives a gold band", () => {
+    const P = T.cast[0]; d.save.mastery = {}; const a = d._masteryPal(P).band; d.save.mastery = { [P.id]: 3 }; const b = d._masteryPal(P).band; d.save.mastery = {};
+    return eq([a, b], [undefined, "#ffd60a"]);
+  });
+  t("Duel home: modes, missions, next unlock, Official toggle", () => {
+    d.save.coins = 100; d.save.owned = {}; d._showHome();
+    const has = ["mode-arcade", "daily", "mode-training", "official", "hub"].every((k) => !!d.panelEl.querySelector('[data-duel="' + k + '"]'));
+    const ms = d.panelEl.querySelectorAll(".kr-duel-missions li").length, un = (d.panelEl.querySelector(".kr-duel-unlock") || {}).textContent || "";
+    const before = d.save.official; d._panelAction("official"); const after = d.save.official; d._panelAction("official");
+    return eq([has, ms, /20/.test(un), before !== after, d.screen], [true, 3, true, true, "home"]);
   });
   t("corrupted saved data is sanitised", () => {
     d.destroy();
