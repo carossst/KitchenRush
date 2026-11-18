@@ -22,9 +22,9 @@ async function run(browser, mode, who) {
   await page.evaluate(() => { const o = KR_UI.prototype._startDuel; KR_UI.prototype._startDuel = function () { window.__ui = this; return o.call(this); }; });
   await page.click('[data-action="play-duel"]');
   await page.waitForTimeout(300);
-  await page.click('[data-duel="selok"]');   // first visit: the character select screen comes first
+  await page.click('[data-duel="setup-cancel"]');  // open the menu to choose the match type
   if (mode === "daily") await page.click('[data-duel="daily"]');
-  else { if (mode !== "singles") await page.click('[data-duel="' + mode + '"]'); await page.click('[data-duel="go"]'); }
+  else { if (mode !== "singles") await page.click('[data-duel="' + mode + '"]'); await page.click('[data-duel="go"]'); await page.click('[data-duel="selok"]'); await page.click('[data-duel="court-ok"]'); }
   await page.click('[data-duel="versus-go"]');   // skip the VS screen
   let last = "", lastAt = Date.now(), ended = null;
   const t0 = Date.now();

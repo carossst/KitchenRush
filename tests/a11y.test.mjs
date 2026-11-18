@@ -59,7 +59,19 @@ console.log("ok   Duel menu keyboard navigation, player preview focus and short-
 
 for (const tab of ["play", "players", "courts", "progress"]) { await page.click('[data-duel="tab-' + tab + '"]'); await page.waitForTimeout(150); await scan("Duel menu, tab " + tab); }
 await page.click('[data-duel="tab-players"]'); await page.click('[data-duel="select"]'); await page.waitForTimeout(200); await scan("Duel select screen");
-await page.click('[data-duel="selok"]'); await page.click('[data-duel="tab-play"]'); await page.click('[data-duel="go"]'); await page.waitForTimeout(200); await scan("Duel versus screen");
+await page.click('[data-duel="selok"]'); await page.click('[data-duel="tab-play"]'); await page.click('[data-duel="go"]');
+await page.click('[data-duel="sel-sprint"]');
+assert.equal(await page.locator('.kr-duel-equipped').textContent(), "Equipped");
+await page.click('[data-duel="sel-reach"]');
+assert.equal(await page.locator('[data-duel="selok"]').isEnabled(), false);
+await page.click('[data-duel="sel-sprint"]');
+await page.click('[data-duel="selok"]');
+assert.equal(await page.locator('[data-court-preview]:visible').count(), 8);
+assert.equal(await page.locator('.kr-duel-steps [aria-current="step"]').textContent(), "Court");
+await page.click('[data-duel="court-park"]');
+assert.equal(await page.locator('.kr-duel-court-hero canvas').getAttribute("data-court-preview"), "park");
+await scan("Duel court selection");
+await page.click('[data-duel="court-ok"]'); await page.waitForTimeout(200); await scan("Duel versus screen");
 await page.click('[data-duel="versus-go"]'); await page.waitForTimeout(800); await scan("Duel in match");
 for (const [path, name] of [["/poster.html?lang=en&club=Test", "poster"]]) { await page.goto(BASE + path); await page.waitForTimeout(600); await scan(name); }
 
