@@ -210,6 +210,27 @@ const results = await page.evaluate(() => {
     window.KR_CONFIG.duelNames = "neutral"; d.lang = window.KR_LANG || "en";
     return eq([n, keep, none, en], ["#f7d7bd", true, true, true]);
   });
+  t("select screen: 6 tiles, preview, buy, continue goes to the menu", () => {
+    d.save.owned = {}; d.save.coins = 130; d.save.player = "touch"; d.save.picked = false; d.previewPlayer = null; d._showSelect();
+    const tiles = d.panelEl.querySelectorAll(".kr-duel-tile").length, hero = !!d.panelEl.querySelector(".kr-duel-super");
+    d._panelAction("sel-sprint"); const prev = [d.previewPlayer, d.panelEl.querySelector(".kr-duel-hero-name").textContent.length > 0];
+    d._panelAction("selact-sprint"); const bought = [d.save.coins, !!d.save.owned.sprint, d.save.player];
+    d._panelAction("selok"); const after = [d.save.picked, d.phase, !!d.panelEl.querySelector(".kr-duel-tab")];
+    d.save.owned = {}; d.save.coins = 0; d.save.player = "touch"; d.previewPlayer = null;
+    return eq([tiles, hero, prev, bought, after], [6, true, ["sprint", true], [10, true, "sprint"], [true, "menu", true]]);
+  });
+  t("versus screen shows before the match and starts it on tap", () => {
+    d.save.coached = true; d._showMenu(); d._panelAction("go");
+    const vs = [!!d.panelEl.querySelector(".kr-duel-versus"), d.phase, d.panelEl.querySelectorAll("canvas").length];
+    d._panelAction("versus-go"); d.paused = true;
+    return eq([vs, d.panelEl.classList.contains("kr-duel-panel--on"), d.phase === "serve" || d.phase === "rally"], [[true, "menu", 2], false, true]);
+  });
+  t("victory splash shows the result and returns to the menu", () => {
+    d._lastScore = [5, 2]; d._lastEarn = 25; d._lastBoss = false; d._lastResult = "win"; d._showSplash("win");
+    const sp = [!!d.panelEl.querySelector(".kr-duel-splash--win"), d.panelEl.textContent.indexOf("5\u20132") >= 0];
+    d._panelAction("splash-go");
+    return eq([sp, d.phase, !!d.panelEl.querySelector(".kr-duel-tab")], [[true, true], "menu", true]);
+  });
   t("corrupted saved data is sanitised", () => {
     d.destroy();
     localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999, venue: "../x", coached: "yes", sound: "yes", shareDay: "bad", coins: -5, owned: { sprint: true, hacker: true }, player: "hacker" }));

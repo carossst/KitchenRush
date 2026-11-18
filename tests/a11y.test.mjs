@@ -13,7 +13,7 @@ const KNOWN = {};
 
 const browser = await chromium.launch();
 const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
-await page.addInitScript(() => { try { localStorage.setItem("kr:duel", JSON.stringify({ coached: true, stage: 3, coins: 150, owned: { sprint: true }, beaten: { 0: true, 1: true, 2: true }, history: [{ you: 5, them: 2, stage: 0 }] })); } catch (e) { } });
+await page.addInitScript(() => { try { localStorage.setItem("kr:duel", JSON.stringify({ coached: true, picked: true, stage: 3, coins: 150, owned: { sprint: true }, beaten: { 0: true, 1: true, 2: true }, history: [{ you: 5, them: 2, stage: 0 }] })); } catch (e) { } });
 let failed = 0;
 
 async function scan(name) {
@@ -58,7 +58,9 @@ assert.equal(menuFitsAtScrollStart, true);
 console.log("ok   Duel menu keyboard navigation, player preview focus and short-screen scrolling");
 
 for (const tab of ["play", "players", "courts", "progress"]) { await page.click('[data-duel="tab-' + tab + '"]'); await page.waitForTimeout(150); await scan("Duel menu, tab " + tab); }
-await page.click('[data-duel="tab-play"]'); await page.click('[data-duel="go"]'); await page.waitForTimeout(800); await scan("Duel in match");
+await page.click('[data-duel="tab-players"]'); await page.click('[data-duel="select"]'); await page.waitForTimeout(200); await scan("Duel select screen");
+await page.click('[data-duel="selok"]'); await page.click('[data-duel="tab-play"]'); await page.click('[data-duel="go"]'); await page.waitForTimeout(200); await scan("Duel versus screen");
+await page.click('[data-duel="versus-go"]'); await page.waitForTimeout(800); await scan("Duel in match");
 for (const [path, name] of [["/poster.html?lang=en&club=Test", "poster"]]) { await page.goto(BASE + path); await page.waitForTimeout(600); await scan(name); }
 
 await browser.close();

@@ -680,3 +680,14 @@ npm run build:fr       # regenerate fr.html and manifest.fr.json after changing 
   Its report says mobile checks were done in a desktop browser only: a real-phone test is still open.
 - To verify after a deploy: open the game normally, reload once more (the service worker updates on the second load), then check the Players tab shows a portrait.
 - Branches: `main` is the only live branch; `improve/pickleball-rally` is kept as a read-only reference (PR #1 closed). Do not port its `players.js` (real names).
+
+## Fighting-game screens (version 20)
+- **Character select** (`_showSelect`, actions `sel-<id>`, `selact-<id>`, `selok`, `select`): a roster of 6 tiles (portrait, name, price or star), a large preview with the super power line (`superLine`),
+  buy or equip, then Continue. It opens first on a player's first visit (`save.picked`), and from the Players tab ("Open the select screen"). Portraits are drawn by `_paintPortraits`
+  (`canvas[data-portrait]` for a character, `canvas[data-opp]` for the opponent).
+- **Versus screen** (`_showVersus`, action `versus-go`): before every match (and the Daily), you vs the opponent with the court name; a tap, Enter or Space skips it, otherwise the match starts
+  after 1.9 s (0.9 s with reduced motion). `go` and `daily` now lead here, not straight to `_startMatch`.
+- **Victory splash** (`_showSplash`, action `splash-go`): after a match, "VICTORY!" / "BOSS DEFEATED!" / a gentle defeat line with the character, the score and the coins, then the menu.
+- Copy: `selectTitle`, `selectOk`, `selectOpen`, `superLine`, `versusVs`, `versusTap`, `splashWin`, `splashBoss`, `splashLose` (EN base + `duelFr`). Tests: 3 new rule tests; `duel-smoke` and `a11y` click through the new screens.
+- Not done: character voice or announcer sounds, a "press start" intro, animated victory poses, a screen to compare characters side by side. Those are the next steps toward the fighting-game feel.
+- Research gap: no dedicated research on Street Fighter or Hearthstone was done for this (general knowledge and the owner's description only). Validate the flow with real players.

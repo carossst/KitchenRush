@@ -22,8 +22,10 @@ async function run(browser, mode, who) {
   await page.evaluate(() => { const o = KR_UI.prototype._startDuel; KR_UI.prototype._startDuel = function () { window.__ui = this; return o.call(this); }; });
   await page.click('[data-action="play-duel"]');
   await page.waitForTimeout(300);
+  await page.click('[data-duel="selok"]');   // first visit: the character select screen comes first
   if (mode === "daily") await page.click('[data-duel="daily"]');
   else { if (mode !== "singles") await page.click('[data-duel="' + mode + '"]'); await page.click('[data-duel="go"]'); }
+  await page.click('[data-duel="versus-go"]');   // skip the VS screen
   let last = "", lastAt = Date.now(), ended = null;
   const t0 = Date.now();
   while (Date.now() - t0 < 110000) {
@@ -51,7 +53,9 @@ async function run(browser, mode, who) {
   }
   if (!ended) { if (!failed) fail(mode + ":" + who + " match did not end in time"); }
   else {
-    await page.waitForTimeout(1300);
+    await page.waitForSelector('[data-duel="splash-go"]', { timeout: 4000 });   // the victory / defeat splash comes first
+    await page.click('[data-duel="splash-go"]');
+    await page.waitForTimeout(300);
     const info = await page.evaluate(() => {
       const s = JSON.parse(localStorage.getItem("kr:duel") || "{}");
       const first = document.querySelector(".kr-duel-start, .kr-duel-go")?.textContent;
