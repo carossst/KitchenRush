@@ -207,7 +207,6 @@
     this._updateSoundBtn();
     if (this.opts.entry === "daily") this._panelAction("daily");
     else if (this.opts.entry === "deep") this._startDrill("deep");
-    else if (this.save.picked) this._showMenu();
     else this._beginMatchSetup();
   }
 
@@ -226,9 +225,10 @@
       '<div class="kr-duel-hud"><button class="kr-btn-icon kr-duel-exit" aria-label="' + esc(this.t.exit || "Exit") + '">✕</button>' +
       '<div class="kr-duel-score" aria-live="polite"></div><button class="kr-btn-icon kr-duel-sound" aria-pressed="false"></button></div>' +
       '<div class="kr-duel-banner" aria-live="polite"></div>' +
-      '<button class="kr-duel-power" hidden></button>' +
-      '<button class="kr-duel-shot-style kr-btn kr-btn--secondary" hidden></button>' +
+      '<div class="kr-duel-controls">' +
       '<div class="kr-duel-coach" role="status" aria-live="polite" hidden></div>' +
+      '<button class="kr-duel-power" hidden></button>' +
+      '<button class="kr-duel-shot-style kr-btn kr-btn--secondary" hidden></button></div>' +
       '<div class="kr-duel-panel"></div>';
     document.body.appendChild(root);
     this.root = root;
@@ -349,6 +349,16 @@
     return AUTO[this.stage % AUTO.length];
   };
 
+  Duel.prototype._modeHtml = function () {
+    var t = this.t;
+    var m = this.mode, s = this.side;
+    function opt(id, label, on) { return '<button class="kr-duel-opt' + (on ? " kr-duel-opt--on" : "") + '" data-duel="' + id + '" aria-pressed="' + (on ? "true" : "false") + '">' + esc(label) + '</button>'; }
+    return '<div class="kr-duel-opts" role="group" aria-label="' + esc(t.modeAria || "Match type") + '">' +
+      opt("singles", t.singles || "Singles", m === "singles") +
+      opt("left", t.doublesLeft || "Doubles · Left", m === "doubles" && s === "left") +
+      opt("right", t.doublesRight || "Doubles · Right", m === "doubles" && s === "right") + '</div>';
+  };
+
   Duel.prototype._difficultyHtml = function () {
     var t = this.t, current = this.save.difficulty;
     var labels = t.difficultyLevels || { relaxed: "Relaxed", standard: "Standard", challenge: "Challenge" };
@@ -371,8 +381,6 @@
     if (result === "lose") head = '<p class="kr-duel-result kr-duel-result--lose">' + esc(t.lose || "So close. Run it back.") + fin + '</p>';
     if (result === "win" && this._lastBoss) head += '<p class="kr-muted">' + esc((t.worldUp || "World {w} unlocked: tougher opponents").replace("{w}", this._world())) + '</p>';
     if (result && this._lastEarn) head += '<p class="kr-duel-earn">' + esc((t.earned || "+{n} coins").replace("{n}", this._lastEarn)) + '</p>';
-    var m = this.mode, s = this.side;
-    function opt(id, label, on) { return '<button class="kr-duel-opt' + (on ? " kr-duel-opt--on" : "") + '" data-duel="' + id + '" aria-pressed="' + (on ? "true" : "false") + '">' + esc(label) + '</button>'; }
     var touch = this._isTouch;
     var tabs = ["play", "players", "courts", "progress"], tab = (this.tab && tabs.indexOf(this.tab) >= 0) ? this.tab : "play", tabNames = t.tabs || {};
     function tabBtn(id) {
@@ -393,11 +401,7 @@
       (opp.trait && t.traits ? '<p class="kr-muted kr-duel-trait">' + esc((t.traitLabel || "Style: {x}").replace("{x}", t.traits[opp.trait] || "")) + '</p>' : "") +
       '<div class="kr-duel-tabs" role="tablist">' + tabs.map(tabBtn).join("") + '</div>' +
       panel("play", this._goalHtml(result) +
-        '<div class="kr-duel-opts" role="group" aria-label="' + esc(t.modeAria || "Match type") + '">' +
-          opt("singles", t.singles || "Singles", m === "singles") +
-          opt("left", t.doublesLeft || "Doubles · Left", m === "doubles" && s === "left") +
-          opt("right", t.doublesRight || "Doubles · Right", m === "doubles" && s === "right") +
-        '</div>' + this._difficultyHtml() + this._dailyHtml() +
+        this._modeHtml() + this._difficultyHtml() + this._dailyHtml() +
         (this.save.picked ? '<button class="kr-btn kr-btn--secondary" data-duel="resume">' +
           esc((t.resumeMatch || "Resume: {player} · {court}").replace("{player}", this._pname(this._player()))
             .replace("{court}", (t.venues || {})[this._venueId()] || this._venueId())) + '</button>' : '') +
@@ -790,7 +794,7 @@
         '<button class="kr-btn kr-btn--secondary" data-duel="selact-' + P.id + '"' + ((equipped || (!owned && !afford)) ? " disabled" : "") + '>' + esc(label) + '</button>') + '</div></div>' +
       '<div class="kr-duel-roster" role="group" aria-label="' + esc(t.playerLabel || "My player") + '">' + tiles + '</div>' +
       (this.matchSetup && sv.shopPower ? this._powerLine() : '') +
-      (this.matchSetup ? this._difficultyHtml() : '') +
+      (this.matchSetup ? this._modeHtml() + this._difficultyHtml() : '') +
       '<button class="kr-btn kr-btn--primary kr-duel-go" data-duel="selok"' + (this.matchSetup && !equipped ? ' disabled' : '') + '>' + esc(this.matchSetup ? (t.setupNextCourt || "Choose court") : (t.selectOk || "Continue")) + '</button>' +
       (this.matchSetup ? '<button class="kr-btn kr-btn--ghost" data-duel="setup-cancel">' + esc(t.home || "Back to menu") + '</button>' : '') + '</div>';
     this.panelEl.classList.add("kr-duel-panel--on");
@@ -1088,7 +1092,7 @@
     if (a === "versus-go") { this._clearScreenTimers(); this._startMatch(); return; }
     if (a === "splash-next") {
       if (this._lastDailyIdx != null) return;
-      if (this._lastResult === "win") this._showVersus();
+      if (this._lastResult === "win") this._beginMatchSetup();
       else if (this._lastResult === "lose") this._startMatch();
       return;
     }
@@ -1122,7 +1126,8 @@
     else if (a === "singles") this.mode = "singles";
     else { this.mode = "doubles"; this.side = a; }
     this.save.mode = this.mode; this.save.side = this.side; this.save.look = this.look; writeSave(this.save);
-    this._showMenu(this._lastResult, a);
+    if (this.matchSetup) this._showSelect(a);
+    else this._showMenu(this._lastResult, a);
   };
 
   // ───────────────────────── Match setup ─────────────────────────
@@ -1205,7 +1210,9 @@
       this._banner(message, 0);
       return;
     }
-    this._banner(srv.human ? (this.t.yourServe || "Your serve — swing to serve") : "", 0);
+    var instruction = this._isTouch ? (this.t.yourServeTouch || "Swipe up on the right, then release to serve.") :
+      (this.t.yourServe || "Press Space or click to serve.");
+    this._banner(srv.human ? instruction : "", 0);
   };
 
   Duel.prototype._updateScore = function () {
