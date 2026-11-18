@@ -7,8 +7,8 @@ let failed = 0, checks = 0;
 const ok = (c, m) => { checks++; if (!c) { failed++; console.error("FAIL", m); } };
 
 const browser = await chromium.launch();
-async function open(path, setup) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } }), page = await ctx.newPage(), errors = [];
+async function open(path, setup, reducedMotion = 'no-preference') {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion }), page = await ctx.newPage(), errors = [];
   page.on("pageerror", (e) => errors.push(e.message)); page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
   if (setup) await page.addInitScript(setup);
   await page.goto(BASE + path); await page.waitForTimeout(700);
@@ -73,6 +73,11 @@ t = await open("/index.html?lang=en", () => {
   localStorage.setItem("kr:duel", JSON.stringify({ history: [{ you: 5, them: 2 }] }));
 });
 ok(await t.page.locator('[data-action="play"]').count() === 1, "Classic stays available when a player has already completed a Duel");
+await t.ctx.close();
+
+t = await open("/index.html?lang=en", null, "reduce");
+await t.page.waitForTimeout(500);
+ok(await t.page.locator(".kr-landing-cast").evaluate((cast) => cast.scrollLeft === 0), "the welcome cast stays still with reduced motion");
 await t.ctx.close();
 
 await browser.close();
