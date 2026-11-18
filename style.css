@@ -2076,6 +2076,12 @@ button.kr-duel-chip.kr-duel-chip--eq {
   background: rgb(var(--bg) / var(--kr-a-40));
 }
 
+.kr-duel-portrait {
+  width: 120px;
+  height: auto;
+  max-width: 40vw;
+}
+
 .kr-duel-detail .kr-muted {
   margin: 0;
 }

@@ -668,3 +668,6 @@ npm run build:fr       # regenerate fr.html and manifest.fr.json after changing 
   written agreement is potentially sensitive for all 12; photographs seen are references, not reproducible. Keep `duelNames: "neutral"` until the legal check and the players' agreement.
 - **Beard:** `characters.js` supports `pal.beard = true` (hair-coloured cap on the lower face, front view; the mouth is redrawn in the skin colour on top). Used for the French Sprint
   character's inspired look (owner's information, not from the research); accessories (headband, cap, glasses) are still not drawn.
+- **Accessories and portrait (added before merging PR #13):** `characters.js` draws `pal.acc` = `cap` | `capBack` | `glasses` (cap colour `pal.capColor`, default the shirt colour; colours were not
+  verified, only the presence of the cap or glasses). The Players tab now shows a front-view portrait (`_drawPortrait`) of the previewed character. Cyril Peltier's slot: short dark hair, light skin,
+  beard, backwards cap (from a photo the owner sent). The "headband" of the research is the existing coloured band every character already wears.

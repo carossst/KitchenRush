@@ -63,22 +63,22 @@
   var PLAYERS = [
     { id: "touch",     sup: "touch",     cost: 0,   pal: { jerseyA: "#d5b4ff", jerseyB: "#7b4dff", shorts: "#2b1a5c" }, stats: { focus: 1.4 },
       look: { fr: { hairStyle: "short", hair: "#20182e", skin: "#e2ab82" }, en: { hairStyle: "short", hair: "#4a2c17", skin: "#f4c7a1" } },
-      lookFun: { fr: { hairStyle: "curly", hair: "#352820", skin: "#c68c5e" }, en: { hairStyle: "short", hair: "#79553f", skin: "#f4c7a1" } } },
+      lookFun: { fr: { hairStyle: "curly", hair: "#352820", skin: "#c68c5e" }, en: { hairStyle: "short", hair: "#79553f", skin: "#f4c7a1", acc: "cap" } } },
     { id: "sprint",    sup: "sprint",    cost: 120, pal: { jerseyA: "#9af0c4", jerseyB: "#22b07d", shorts: "#0e4f3a" }, stats: { speed: 1.12 },
       look: { fr: { hairStyle: "curly", hair: "#1d1512", skin: "#c68c5e" }, en: { hairStyle: "short", hair: "#1d1512", skin: "#a8734d" } },
-      lookFun: { fr: { hairStyle: "curly", hair: "#29221e", skin: "#e2ab82", beard: true }, en: { hairStyle: "short", hair: "#382b25", skin: "#f4c7a1" } } },
+      lookFun: { fr: { hairStyle: "curly", hair: "#29221e", skin: "#e2ab82", beard: true }, en: { hairStyle: "short", hair: "#382b25", skin: "#f4c7a1", acc: "cap" } } },
     { id: "reach",     sup: "reach",     cost: 160, pal: { jerseyA: "#ffe27a", jerseyB: "#f5a524", shorts: "#7a4b12" }, stats: { reach: 1.15 },
       look: { fr: { hairStyle: "short", hair: "#c9632b", skin: "#f7d7bd" }, en: { hairStyle: "ponytail", hair: "#e8c66a", skin: "#f1c9a5" } },
-      lookFun: { fr: { skin: "#f4c7a1" }, en: { hairStyle: "ponytail", hair: "#bb925e", skin: "#f4c7a1" } } },
+      lookFun: { fr: { hairStyle: "short", hair: "#4a3a2c", skin: "#f4c7a1", beard: true, acc: "capBack", capColor: "#f1efe6" }, en: { hairStyle: "ponytail", hair: "#bb925e", skin: "#f4c7a1", acc: "glasses" } } },
     { id: "precision", sup: "precision", cost: 200, pal: { jerseyA: "#8ad8ff", jerseyB: "#0f6fd6", shorts: "#06254d" }, stats: {}, startCharge: 1,
       look: { fr: { hairStyle: "bob", hair: "#4a2c17", skin: "#f1c9a5" }, en: { hairStyle: "curly", hair: "#15131c", skin: "#6b4226" } },
-      lookFun: { fr: { hairStyle: "ponytail", hair: "#705342", skin: "#f4c7a1" }, en: { hairStyle: "ponytail", hair: "#29211f", skin: "#a8734d" } } },
+      lookFun: { fr: { hairStyle: "ponytail", hair: "#705342", skin: "#f4c7a1" }, en: { hairStyle: "ponytail", hair: "#29211f", skin: "#a8734d", acc: "cap" } } },
     { id: "power",     sup: "power",     cost: 240, pal: { jerseyA: "#ff9d8a", jerseyB: "#e2452f", shorts: "#6b1408" }, stats: {}, smash: true,
       look: { fr: { hairStyle: "long", hair: "#c9632b", skin: "#f7d7bd" }, en: { hairStyle: "short", hair: "#d9d9e3", skin: "#f4c7a1" } },
       lookFun: { fr: { hairStyle: "bun", hair: "#c6ae83", skin: "#f4c7a1" }, en: { hairStyle: "short", hair: "#896647", skin: "#f4c7a1" } } },
     { id: "pass",      sup: "pass",      cost: 280, pal: { jerseyA: "#ffb3c7", jerseyB: "#ff5d8f", shorts: "#ffffff" }, stats: {}, lucky: true,
       look: { fr: { hairStyle: "bun", hair: "#101018", skin: "#e2ab82" }, en: { hairStyle: "ponytail", hair: "#6b3a1e", skin: "#f4c7a1" } },
-      lookFun: { fr: { hairStyle: "ponytail", hair: "#a07c52", skin: "#f4c7a1" }, en: { hairStyle: "ponytail", hair: "#604537", skin: "#f4c7a1" } } }
+      lookFun: { fr: { hairStyle: "ponytail", hair: "#a07c52", skin: "#f4c7a1" }, en: { hairStyle: "ponytail", hair: "#604537", skin: "#f4c7a1", acc: "cap" } } }
   ];
   // The Daily Duel is played on equal terms: a plain character with no super power and no passive.
   var DAILY_PLAYER = { id: "base", sup: "", cost: 0, pal: {}, stats: {}, look: null };
@@ -340,6 +340,7 @@
     this.panelEl.classList.add("kr-duel-panel--on");
     this.scoreEl.textContent = "";
     this._setupActors();
+    this._drawPortrait();
     var go = this.panelEl.querySelector(".kr-duel-go");
     if (go) try { go.focus({ preventScroll: true }); } catch (_) { }
   };
@@ -452,8 +453,20 @@
     var label = equipped ? (t.playerEquipped || "Equipped") : owned ? (t.playerEquip || "Equip") : afford ? (t.playerBuy || "Buy for {n} coins").replace("{n}", P.cost) : (t.playerMissing || "Need {n} more coins").replace("{n}", P.cost - coins);
     return '<p class="kr-duel-coins">' + esc((t.coins || "Coins: {n}").replace("{n}", coins)) + "</p>" +
       '<div class="kr-duel-venues" role="group" aria-label="' + esc(t.playerLabel || "My player") + '">' + chips + "</div>" +
-      '<div class="kr-duel-detail"><strong>' + esc(this._pname(P)) + '</strong><p class="kr-muted">' + esc(sk[P.id] || "") + '</p>' +
+      '<div class="kr-duel-detail"><canvas class="kr-duel-portrait" width="180" height="200" aria-hidden="true" data-portrait="' + P.id + '"></canvas><strong>' + esc(this._pname(P)) + '</strong><p class="kr-muted">' + esc(sk[P.id] || "") + '</p>' +
       '<button class="kr-btn kr-btn--secondary" data-duel="act-' + P.id + '"' + ((equipped || (!owned && !afford)) ? " disabled" : "") + ">" + esc(label) + "</button></div>";
+  };
+
+  // Front-view portrait of the character being previewed in the Players tab.
+  Duel.prototype._drawPortrait = function () {
+    var cv = this.panelEl && this.panelEl.querySelector("canvas[data-portrait]");
+    if (!cv || !window.KR_CHARACTERS) return;
+    var id = cv.getAttribute("data-portrait"), P = PLAYERS[0], g = cv.getContext("2d");
+    PLAYERS.forEach(function (p) { if (p.id === id) P = p; });
+    if (!g) return;
+    g.clearRect(0, 0, cv.width, cv.height);
+    var pal = Object.assign({}, HUMAN_PAL, LOOKS[this.look], P.pal, this._plook(P) || {});
+    window.KR_CHARACTERS.draw(g, { x: 90, y: 150, scale: 3.6, now: 0, state: "idle", side: 1, facing: "front", role: "player", palette: pal, lookX: 0 });
   };
 
   Duel.prototype._pw = function (key) {

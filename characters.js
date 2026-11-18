@@ -93,7 +93,7 @@
    *   facing : "back" (player) or "front" (opponent)
    *   lookX  : -1..1, where the eyes look (front view only)
    *   palette: optional overrides merged over the role palette; also `hairStyle`:
-   *            short | ponytail | bob | long | bun | curly
+   *            short | ponytail | bob | long | bun | curly; `beard` (true); `acc`: cap | capBack | glasses (+ `capColor`)
  *   swingT : optional 0..1 swing progress
    *   lite   : skip gradients and small details (low perf tier)
    */
@@ -240,6 +240,13 @@
       roundRect(ctx, hx - 10.6, hy - 5.2, 21.2, 3.4, 1.6);
       ctx.fill();
       ctx.stroke();
+      // Optional cap (pal.acc "cap" or "capBack"; colour pal.capColor, default the shirt colour)
+      if (pal.acc === "cap" || pal.acc === "capBack") {
+        ctx.fillStyle = pal.capColor || pal.jerseyB;
+        ctx.beginPath(); ctx.arc(hx, hy, 10.6, Math.PI * 1.0, Math.PI * 2.0); ctx.closePath(); ctx.fill(); ctx.stroke();
+        if (pal.acc === "cap") { ctx.beginPath(); ctx.ellipse(hx, hy - 2.4, 11.4, 2.6, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+        else { ctx.fillStyle = "rgba(11,16,38,0.35)"; ctx.fillRect(hx - 1, hy - 10.4, 2, 4.6); }
+      }
       // Eyes follow the ball
       var look = Math.max(-1, Math.min(1, Number(opts.lookX) || 0)) * 1.5;
       ctx.fillStyle = OUTLINE;
@@ -247,6 +254,11 @@
       ctx.ellipse(hx - 3.6 + look, hy + 1.6, 1.25, swinging ? 0.9 : 1.7, 0, 0, Math.PI * 2);
       ctx.ellipse(hx + 3.6 + look, hy + 1.6, 1.25, swinging ? 0.9 : 1.7, 0, 0, Math.PI * 2);
       ctx.fill();
+      if (pal.acc === "glasses") {
+        ctx.lineWidth = 1.1; ctx.strokeStyle = OUTLINE;
+        ctx.beginPath(); ctx.arc(hx - 3.6, hy + 1.6, 3.1, 0, Math.PI * 2); ctx.moveTo(hx + 6.7, hy + 1.6); ctx.arc(hx + 3.6, hy + 1.6, 3.1, 0, Math.PI * 2);
+        ctx.moveTo(hx - 0.5, hy + 1.2); ctx.lineTo(hx + 0.5, hy + 1.2); ctx.stroke();
+      }
       // Optional beard (pal.beard = true): a hair-coloured cap over the lower face, drawn under the mouth
       if (pal.beard) {
         ctx.fillStyle = pal.hair;
@@ -287,6 +299,12 @@
       roundRect(ctx, hx - 10.4, hy - 3.4, 20.8, 3.2, 1.5);
       ctx.fill();
       ctx.stroke();
+      if (pal.acc === "cap" || pal.acc === "capBack") {
+        ctx.fillStyle = pal.capColor || pal.jerseyB;
+        ctx.beginPath(); ctx.arc(hx, hy, 10.6, Math.PI * 1.0, Math.PI * 2.0); ctx.closePath(); ctx.fill(); ctx.stroke();
+        if (pal.acc === "capBack") { ctx.beginPath(); ctx.ellipse(hx, hy - 1.2, 9.4, 3.2, 0, 0, Math.PI); ctx.fill(); ctx.stroke(); }
+        else { ctx.fillStyle = "rgba(11,16,38,0.35)"; ctx.fillRect(hx - 3, hy - 2.6, 6, 2); }
+      }
       // Ears
       ctx.fillStyle = pal.skin;
       ctx.beginPath();
