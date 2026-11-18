@@ -140,12 +140,18 @@
       var counters = this._store("getCounters") || {};
       var runCompletes = counters.runCompletes || 0;
       var isFirstLanding = !this._store("hasFirstRunFramingSeen");
+      var duel = window.KR_DUEL;
+      var duelEntry = duel && duel.entry ? duel.entry() : "";
+      var simpleLanding = duel && (duelEntry || (isFirstLanding && !(duel.hasPlayed && duel.hasPlayed())));
+      var fr = window.KR_LANG === "fr";
+      var duelLabel = duelEntry === "deep" ? (fr ? "Jouer le défi de cinq balles" : "Play the five-ball challenge") :
+        duelEntry === "daily" ? (fr ? "Jouer le Duel du jour" : "Play the Daily Duel") : lw.ctaDuel;
 
       var ctaLabel = (runCompletes > 0)
         ? escapeHtml(lw.ctaPlayAfterFirstRun || lw.ctaPlay || "")
         : escapeHtml(lw.ctaPlay || "");
 
-      var showPowerBall = !isFirstLanding && this._canShowPowerBall(STATES.LANDING);
+      var showPowerBall = !simpleLanding && !isFirstLanding && this._canShowPowerBall(STATES.LANDING);
       var solved = !!(this._store("hasPowerBallHintSolved"));
       var powerBallHtml = showPowerBall
         ? '<button class="kr-btn-icon' + (solved ? "" : " kr-btn-icon--tease") + '" data-kr-secret="power-ball" aria-label="' + escapeHtml((w?.sprint || {}).chestAria || "") + '">\uD83D\uDFE1</button>' : "";
@@ -391,30 +397,30 @@
           );
 
       this.appEl.innerHTML =
-        '<div class="kr-screen kr-screen--landing">' +
+        '<div class="kr-screen kr-screen--landing' + (simpleLanding ? ' kr-screen--welcome' : '') + '">' +
           '<div class="kr-landing-header"><div class="kr-landing-header-row">' +
-            '<button class="kr-btn-icon" data-action="howto" aria-label="' + escapeHtml((w?.system || {}).more || "") + '">?</button>' +
+            (simpleLanding ? '' : '<button class="kr-btn-icon" data-action="howto" aria-label="' + escapeHtml((w?.system || {}).more || "") + '">?</button>') +
             '<button class="kr-btn-icon kr-lang-btn" data-action="lang" lang="' + (window.KR_LANG === "fr" ? "en" : "fr") + '" aria-label="' + (window.KR_LANG === "fr" ? "EN, English" : "FR, Fran\u00e7ais") + '">' + (window.KR_LANG === "fr" ? "EN" : "FR") + '</button>' +
             powerBallHtml +
           '</div></div>' +
           '<div class="kr-landing-body">' +
-            '<div class="kr-hero" aria-hidden="true"><div class="kr-hero-court"><span class="kr-hero-net"></span></div><span class="kr-hero-ball"></span></div>' +
+            (duel && duel.renderLandingCast ? '<ul class="kr-landing-cast" tabindex="0"></ul>' : '') +
             (function (name) {
               var parts = name.split(" ");
               var last = parts.length > 1 ? parts.pop() : "";
               return '<h1 class="kr-wordmark">' + escapeHtml(parts.join(" ")) + (last ? ' <span class="kr-wordmark-accent">' + escapeHtml(last) + '</span>' : '') + '</h1>';
             })(String((cfg && cfg.identity && cfg.identity.appName) || "Kitchen Rush")) +
             '<p class="kr-landing-tagline">' + escapeHtml(lw.tagline || "") + '</p>' +
-            '<p class="kr-subtitle">' + escapeHtml(lw.subtitle || "") + '</p>' +
-            (window.KR_DUEL && String(lw.ctaDuel || "").trim()
-              ? '<div class="kr-actions kr-actions--primary-zone"><button class="kr-btn kr-btn--primary kr-btn--duel" data-action="play-duel">' + escapeHtml(lw.ctaDuel) + '</button></div>' +
-                (String(lw.duelExplain || "").trim() ? '<p class="kr-muted kr-landing-duel-explain">' + escapeHtml(lw.duelExplain) + '</p>' : '') +
-                (String(lw.arcadeLabel || "").trim() ? '<p class="kr-landing-divider">' + escapeHtml(lw.arcadeLabel) + '</p>' : '')
+            (simpleLanding ? '' : '<p class="kr-subtitle">' + escapeHtml(lw.subtitle || "") + '</p>') +
+            (duel && String(duelLabel || "").trim()
+              ? '<div class="kr-actions kr-actions--primary-zone"><button class="kr-btn kr-btn--primary kr-btn--duel" data-action="play-duel">' + escapeHtml(duelLabel) + '</button></div>' +
+                (!simpleLanding && String(lw.arcadeLabel || "").trim() ? '<p class="kr-landing-divider">' + escapeHtml(lw.arcadeLabel) + '</p>' : '')
               : '') +
-            firstLandingHtml +
+            (simpleLanding ? "" : firstLandingHtml) +
           '</div>' +
         '</div>';
 
+      if (duel && duel.renderLandingCast) duel.renderLandingCast(this.appEl.querySelector(".kr-landing-cast"), w, fr ? "fr" : "en");
       this._reattachFooter();
     };
 

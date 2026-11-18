@@ -30,8 +30,16 @@ for (const [path, name] of [["/index.html?lang=en", "landing (English)"], ["/fr.
 }
 await page.goto(BASE + "/index.html?lang=en"); await page.waitForTimeout(500);
 await page.click('[data-action="play-duel"]'); await page.waitForTimeout(500);
-await scan("Duel home");
-await page.click('[data-duel="hub"]'); await page.waitForTimeout(300);
+assert.equal(await page.locator('[data-duel="selok"]:visible').count(), 1);
+assert.equal(await page.getByRole("tablist").count(), 0);
+await page.click('[data-duel="left"]');
+assert.equal(await page.locator('[data-duel="left"]').getAttribute("aria-pressed"), "true");
+await page.click('[data-duel="singles"]');
+await page.click('[data-duel="selok"]');
+assert.equal(await page.locator('[data-duel="court-ok"]:visible').count(), 1);
+assert.equal(await page.getByRole("tablist").count(), 0);
+await page.click('[data-duel="setup-back"]');
+await page.click('[data-duel="setup-cancel"]');
 await page.locator('[data-duel="tab-play"]').focus();
 await page.keyboard.press("ArrowRight");
 assert.equal(await page.locator('[data-duel="tab-players"]:focus[aria-selected="true"]').count(), 1);
@@ -75,6 +83,21 @@ assert.equal(await page.locator('.kr-duel-court-hero canvas').getAttribute("data
 await scan("Duel court selection");
 await page.click('[data-duel="court-ok"]'); await page.waitForTimeout(200); await scan("Duel versus screen");
 await page.click('[data-duel="versus-go"]'); await page.waitForTimeout(800); await scan("Duel in match");
+await page.setViewportSize({ width: 320, height: 568 });
+const hud = await page.locator(".kr-duel-controls").evaluate((el) => {
+  const coach = el.querySelector(".kr-duel-coach");
+  const power = el.querySelector(".kr-duel-power");
+  const old = [coach.hidden, coach.textContent, power.hidden, power.textContent];
+  coach.hidden = false;
+  coach.textContent = "À droite, glissez vers la zone visée, puis relâchez pour frapper après le rebond.";
+  power.hidden = false;
+  power.textContent = "Toucher 1/3";
+  const text = coach.getBoundingClientRect(), button = power.getBoundingClientRect();
+  [coach.hidden, coach.textContent, power.hidden, power.textContent] = old;
+  return { separate: text.bottom <= button.top, fits: text.left >= 0 && text.right <= 320 };
+});
+assert.deepEqual(hud, { separate: true, fits: true });
+await page.setViewportSize({ width: 390, height: 844 });
 for (const [path, name] of [["/poster.html?lang=en&club=Test", "poster"]]) { await page.goto(BASE + path); await page.waitForTimeout(600); await scan(name); }
 
 await browser.close();
