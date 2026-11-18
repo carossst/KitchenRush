@@ -36,12 +36,12 @@ Run all three before every Duel change. Poster QR: `python3 tools/make-qr.py` (n
 - Soft currency only: no real money, no random paid packs.
 - No real athlete names (including pun or lookalike names) until there is permission; the rally branch's `players.js` must not be ported.
 - PR #1 (rally branch) is closed; the branch stays as a reference. Merge only when the owner says "fusionne" (draft PRs first).
-**Open decisions** (waiting for the owner; see the character-select analysis): fictional archetypes first, which French players to approach,
-keep or remove capsules once supers exist, cast size (6 recommended), final public domain, payment architecture.
+**Open decisions** (see the character-select analysis): confirm the 6 slots and the lookalike names, confirm the capsule change (+1 super charge),
+the legal check before names go live, final public domain, payment architecture. Already decided: 6 characters, same in both editions, only the names differ.
 
 **Goal of the 2026-11-18 batch (done, version 17):** make the game safe to hand around and easy to distribute: CI on every PR, a French entry page,
 a shareable score image, a tagged-link pilot with optional anonymous statistics, sound and vibration rules, and locked documentation.
-Details in "Goal, CI and tooling (version 17)" at the end of this file. **The CI workflow has never run on GitHub yet**: check the first PR run.
+Details in "Goal, CI and tooling (version 17)" at the end of this file. **CI ran green on GitHub for PR #12** (jobs "Syntax and fast tests" and "Browser tests", about 4 minutes).
 
 **Priorities next** (from the owner to-do list and the audit): 1) human playtest on real phones and read the exported playtest data
 (Progress tab "Copy my playtest data"); 2) sound design and haptics; 3) daily quests and coin sinks (cosmetics, upgrades), raise prices;
@@ -531,7 +531,11 @@ picker); the **risk is the names**, not the selector.
   revenue share or flat fee; right of withdrawal; visual approval; parental consent for minors). Do not mention anyone publicly before signature.
 - Process: list players; approach agents or federations (PPA, MLP, FFP; check league trademarks); French players first (small scene, the owner's
   media is a lever; offer visibility and a dedicated character with the power they choose, no money at first); written simple agreement; IP lawyer review.
-- Decision taken in this session: **do not ship lookalike or pun names.** Ship fictional archetypes; add real names only with a signed agreement.
+- **Owner's decision (2026-11-18), overriding the counsel profile's recommendation:** the characters get names that SOUND LIKE the real players (puns/lookalikes, for example
+  "Bon Jonesy"), American-sounding in the US edition and French-sounding in the French edition. The legal profile rated this HIGH risk (see above); the owner has been told and
+  chose to go ahead. Safeguards agreed to propose: names evoke by sound only (no likeness, nickname or signature move copied), a config switch
+  (`roster names: neutral | lookalike`, default neutral) so nothing evoking a real person goes live until the owner flips it after a legal check, and the mapping
+  "real name -> lookalike name" is kept OUT of this public repository (only the final in-game names are committed). Real names stay forbidden without a signed agreement.
   The roster data must make names swappable per edition so that a licence costs nothing technically.
 - One profile (product) called lookalikes "risk-free": the legal profile contradicts it; follow the legal profile.
 
@@ -565,8 +569,9 @@ Safe slice in 4 steps: 1) roster data per edition + existing picker; 2) super = 
 4) sound + hit stop + tests.
 
 **Unverified by all profiles**: real balance of the 6 powers, mobile UI and haptics, the legal analysis, the appetite of real players for an agreement.
-**Decisions needed from the owner**: confirm archetypes-first (no lookalikes); which French players to approach first; keep or remove capsules once supers
-exist; initial cast size (recommended 6).
+**Owner decisions of 2026-11-18**: (1) lookalike names as above; (2) the owner approaches the French players herself; (3) capsules: she leans to keep them and asked for an
+opinion (recommended: keep, but a capsule gives +1 super charge instead of a random power, so there is no second power system); (4) cast of 6 characters, same in both
+editions: same stats, same super, same unlock order and timing; ONLY the display name (and flavour) changes between the French and the American universe.
 
 ## Ideas to take from `carossst/pickleballgame` (the Pickleball Rules Quiz) - read-only review, 2026-11-17
 
@@ -618,7 +623,7 @@ npm run test:smoke     # bot-played matches (about 5 min); CI runs two scenarios
 npm run build:fr       # regenerate fr.html and manifest.fr.json after changing index.html or manifest.json
 ```
 - **CI** (`.github/workflows/test.yml`): job "fast" (syntax + fast tests) and job "browser" (rules, pages, a11y, two smoke scenarios). It was written and
-  its steps were run locally, but the workflow itself has not run on GitHub: fix it on the first red run.
+  it ran green on GitHub for PR #12; if a later run is red, fix the cause (never skip a test).
 - **a11y**: `tests/a11y.test.mjs` fails on serious or critical axe violations not listed in `KNOWN` (currently empty). It found one real defect, fixed: the
   language button's accessible name did not contain its visible text ("FR"); it is now "FR, Francais".
   Locally, install axe outside the repo if Playwright is global: `npm i axe-core` in a temp folder and set `NODE_PATH`.
