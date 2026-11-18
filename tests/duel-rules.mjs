@@ -313,6 +313,46 @@ const results = await page.evaluate(() => {
     const balance = d.save.coins; d._panelAction("shop-native");
     return eq([refused, bought, balance, daily, d.save.shopPower], [39, [40, "reach", true], 40, "", ""]);
   });
+  t("a loss suggests a drill and returns to the same matchup", () => {
+    fresh(); d.save.venue = "park"; d.daily = null; d._lastDailyIdx = null; d._lastResult = "lose"; d.phase = "menu";
+    d._m.pts = ["1:kitchen", "0:net", "1:kitchen", "1:out"];
+    const opponent = d._oppIdx(), player = d._player().id, mode = d.mode;
+    d._showSplash("lose");
+    const offered = !!d.panelEl.querySelector('[data-duel="splash-drill"]');
+    d._panelAction("splash-drill"); d.paused = true;
+    const drill = d.drill.id;
+    d.drill.attempts = 5;
+    d._finishDrill();
+    d._panelAction("drill-rematch"); d.paused = true;
+    return eq([offered, drill, d.drill, d.phase, d._oppIdx(), d._player().id, d._venueId(), d.mode],
+      [true, "soft", null, "serve", opponent, player, "park", mode]);
+  });
+  t("drill marks a missed bounce and can switch pace without changing target", () => {
+    d._panelAction("drill-soft"); d.paused = true; d.phase = "rally";
+    const touch = d._returnShot(0.3, -0.8, d.drill.style);
+    d.shotStyleEl.click();
+    const drive = d._returnShot(0.3, -0.8, d.drill.style);
+    d.ball = ball({ x: -8, y: 4, z: 0.01, vz: -2, lastHitTeam: 0, bounces: 0 });
+    d._stepBall(0.016);
+    const mark = d.drill.mark;
+    const feedback = d.bannerEl.textContent === d.t.drillMissReasons.left;
+    d._finishDrill();
+    return eq([touch.tx === drive.tx, touch.ty === drive.ty, touch.speed < drive.speed, touch.loft, drive.loft,
+      mark.x, mark.y, mark.hit, feedback, d.shotStyleEl.hidden],
+      [true, true, true, true, false, -8, 4, false, true, true]);
+  });
+  t("power trial is charged on every feed and does not change wallet, equipment or records", () => {
+    const snapshot = () => JSON.stringify([d.save.coins, d.save.shopPower, d.save.powerLicenses, d.save.drillBests]);
+    const before = snapshot();
+    d._panelAction("trial-reach"); d.paused = true;
+    const ready = d.charge === d._chargeMax() && d._equippedKey() === "reach";
+    d._activatePower();
+    const active = d._pw("reach");
+    d._beginServe();
+    const reset = d.charge === d._chargeMax() && !d._pw("reach");
+    d.drill.hits = 5; d.drill.attempts = 5; d._finishDrill();
+    return eq([ready, active, reset, before === snapshot(), d.drill], [true, true, true, true, null]);
+  });
   t("corrupted saved data is sanitised", () => {
     d.destroy();
     localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999, venue: "../x", coached: "yes", sound: "yes", shareDay: "bad", coins: -5, owned: { sprint: true, hacker: true }, player: "hacker" }));

@@ -2350,3 +2350,16 @@ body:has(.kr-duel) #update-toast {
   border-radius: var(--r-md);
 }
 .kr-duel-training p { margin: 0; }
+
+.kr-duel-shot-style {
+  position: absolute;
+  z-index: 2;
+  bottom: max(var(--gap-3), env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  min-height: 44px;
+}
+
+.kr-duel-shot-style:not([hidden]) + .kr-duel-coach {
+  bottom: calc(62px + env(safe-area-inset-bottom, 0px));
+}

@@ -224,6 +224,7 @@
       '<div class="kr-duel-score" aria-live="polite"></div><button class="kr-btn-icon kr-duel-sound" aria-pressed="false"></button></div>' +
       '<div class="kr-duel-banner" aria-live="polite"></div>' +
       '<button class="kr-duel-power" hidden></button>' +
+      '<button class="kr-duel-shot-style kr-btn kr-btn--secondary" hidden></button>' +
       '<div class="kr-duel-coach" role="status" aria-live="polite" hidden></div>' +
       '<div class="kr-duel-panel"></div>';
     document.body.appendChild(root);
@@ -234,6 +235,7 @@
     this.bannerEl = root.querySelector(".kr-duel-banner");
     this.panelEl = root.querySelector(".kr-duel-panel");
     this.powerEl = root.querySelector(".kr-duel-power");
+    this.shotStyleEl = root.querySelector(".kr-duel-shot-style");
     this.coachEl = root.querySelector(".kr-duel-coach");
     this.soundEl = root.querySelector(".kr-duel-sound");
 
@@ -249,6 +251,11 @@
     root.querySelector(".kr-duel-exit").addEventListener("click", function () { self.destroy(); });
     this.soundEl.addEventListener("click", function () { self._toggleSound(); });
     this.powerEl.addEventListener("click", function () { self._activatePower(); });
+    this.shotStyleEl.addEventListener("click", function () {
+      if (!self.drill || !self.drill.style) return;
+      self.drill.style = self.drill.style === "touch" ? "drive" : "touch";
+      self._syncShotStyle();
+    });
     this.panelEl.addEventListener("click", function (e) {
       var b = e.target.closest("[data-duel]");
       if (b) self._panelAction(b.getAttribute("data-duel"));
@@ -493,7 +500,9 @@
           .replace("{n}", afford ? cost : cost - sv.coins);
       return '<article><strong>' + esc(self._powerName(id)) + '</strong><p>' + esc((t.powerDescs || [])[POWERS.indexOf(id)] || "") +
         '</p><button class="kr-btn kr-btn--secondary" data-duel="shop-power-' + id + '" aria-pressed="' + active + '"' +
-        (!owned && sv.coins < cost ? ' disabled' : '') + '>' + esc(label) + '<span class="sr-only"> ' + esc(self._powerName(id)) + '</span></button></article>';
+        (!owned && sv.coins < cost ? ' disabled' : '') + '>' + esc(label) + '<span class="sr-only"> ' + esc(self._powerName(id)) + '</span></button>' +
+        '<button class="kr-btn kr-btn--ghost" data-duel="trial-' + id + '">' + esc(t.shopTry || "Try") +
+        '<span class="sr-only"> ' + esc(self._powerName(id)) + '</span></button></article>';
     }).join("");
     this._openTrainingPanel(html + '<button class="kr-btn kr-btn--ghost" data-duel="shop-back">' + esc(t.resultMenu || "Duel menu") + '</button>', focusAction);
   };
@@ -511,8 +520,38 @@
     this._showShop("shop-power-" + id);
   };
 
+  Duel.prototype._recommendDrill = function () {
+    var map = { net: "deep", out: "angle", twoBounce: "deep", kitchen: "soft", serveShort: "deep", winner: "deep" };
+    var counts = {}, best = 0, reason = this._lastFault;
+    ((this._m && this._m.pts) || []).forEach(function (point) {
+      var code = point.slice(2);
+      if (point.slice(0, 2) !== "1:" || !map[code]) return;
+      counts[code] = (counts[code] || 0) + 1;
+      if (counts[code] > best) { best = counts[code]; reason = code; }
+    });
+    return map[reason] || "deep";
+  };
+
+  Duel.prototype._startDrill = function (id, trialPower) {
+    this.daily = null;
+    this.drill = { id: id, attempts: 0, hits: 0, trialPower: trialPower || "", style: id === "soft" ? "touch" : "" };
+    this._startMatch();
+  };
+
+  Duel.prototype._syncShotStyle = function () {
+    var el = this.shotStyleEl;
+    el.hidden = !this.drill || !this.drill.style;
+    if (!el.hidden) {
+      var styles = this.t.drillShotStyles || { touch: "Touch", drive: "Drive" };
+      el.textContent = (this.t.drillShotStyle || "Shot: {name}").replace("{name}", styles[this.drill.style]);
+      el.setAttribute("aria-label", (this.t.drillShotSwitch || "{name}. Switch shot type.").replace("{name}", styles[this.drill.style]));
+    }
+  };
+
   Duel.prototype._drillTarget = function () {
-    var cfg = DRILLS[this.drill.id], center = this.drill.id === "angle" ? (this.drill.attempts % 2 ? 6 : -6) : 0;
+    var cfg = DRILLS[this.drill.id];
+    var attempt = this.phase === "point" ? this.drill.attempts - 1 : this.drill.attempts;
+    var center = this.drill.id === "angle" ? (attempt % 2 ? 6 : -6) : 0;
     return { left: center - cfg.halfWidth, right: center + cfg.halfWidth, near: cfg.y[0], far: cfg.y[1] };
   };
 
@@ -532,7 +571,18 @@
     g.restore();
   };
 
-  Duel.prototype._drillAttempt = function (hit) {
+  Duel.prototype._drawDrillBounce = function (g) {
+    var mark = this.drill.mark;
+    if (!mark) return;
+    var p = this._project(mark.x, mark.y, 0);
+    g.save();
+    g.fillStyle = mark.hit ? "#d9ff78" : "#ff9d79";
+    g.strokeStyle = "#121b2a"; g.lineWidth = 2;
+    g.beginPath(); g.ellipse(p.x, p.y, 8, 5, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.restore();
+  };
+
+  Duel.prototype._drillAttempt = function (hit, reason) {
     if (this.phase !== "rally") return;
     if (this.ball) this.ball.live = false;
     this.phase = "point";
@@ -540,24 +590,32 @@
     this.drill.attempts += 1;
     if (hit) this.drill.hits += 1;
     this._updateScore();
-    this._banner(hit ? (this.t.drillHit || "Target hit!") : (this.t.drillMiss || "Target missed"), 1300, hit ? "good" : "bad");
+    var miss = (this.t.drillMissReasons || {})[reason] || (this.t.drillMiss || "Target missed");
+    this._banner(hit ? (this.t.drillHit || "Target hit!") : miss, 1300, hit ? "good" : "bad");
     this._sound(hit ? "milestone" : "fault");
   };
 
   Duel.prototype._finishDrill = function () {
     var round = this.drill, cfg = DRILLS[round.id], sv = this.save, t = this.t;
     var previous = sv.drillBests[round.id];
-    var earn = previous < cfg.goal && round.hits >= cfg.goal ? cfg.reward : 0;
-    sv.drillBests[round.id] = Math.max(previous, round.hits);
-    sv.coins = clamp(sv.coins + earn, 0, 999999);
-    writeSave(sv);
+    var earn = 0;
+    if (!round.trialPower) {
+      if (previous < cfg.goal && round.hits >= cfg.goal) earn = cfg.reward;
+      sv.drillBests[round.id] = Math.max(previous, round.hits);
+      sv.coins = clamp(sv.coins + earn, 0, 999999);
+      writeSave(sv);
+    }
     this.drill = null;
+    this.power = null;
+    this._syncShotStyle();
     this._banner("", 0);
     var result = (t.drillResult || "Targets hit: {n}/{total}").replace("{n}", round.hits).replace("{total}", DRILL_BALLS);
-    var title = (t.drillNames || {})[round.id] || (t.practiceTitle || "Drills");
+    var title = round.trialPower ? this._powerName(round.trialPower) : (t.drillNames || {})[round.id] || (t.practiceTitle || "Drills");
+    var retry = round.trialPower ? "trial-" + round.trialPower : "drill-" + round.id;
     this._openTrainingPanel('<h2 class="kr-duel-name" tabindex="-1">' + esc(title) + '</h2>' + '<p>' + esc(result) + '</p>' +
       (earn ? '<p class="kr-duel-coins">' + esc((t.earned || "+{n} Rush Tokens").replace("{n}", earn)) + '</p>' : '') +
-      '<button class="kr-btn kr-btn--primary" data-duel="drill-' + round.id + '">' + esc(t.retry || "Retry") + '</button>' +
+      (this.drillReturn ? '<button class="kr-btn kr-btn--primary" data-duel="drill-rematch">' + esc(t.retry || "Rematch") + '</button>' : '') +
+      '<button class="kr-btn ' + (this.drillReturn ? 'kr-btn--secondary' : 'kr-btn--primary') + '" data-duel="' + retry + '">' + esc(t.drillAgain || "Try again") + '</button>' +
       '<button class="kr-btn kr-btn--secondary" data-duel="practice">' + esc(t.practiceTitle || "Drills") + '</button>' +
       '<button class="kr-btn kr-btn--ghost" data-duel="shop">' + esc(t.shopTitle || "Power shop") + '</button>');
   };
@@ -676,6 +734,7 @@
 
   Duel.prototype._beginMatchSetup = function () {
     this.daily = null;
+    this.drillReturn = false;
     this.matchSetup = true;
     this.previewPlayer = null;
     this.previewVenue = this.save.venue || "auto";
@@ -798,6 +857,7 @@
     var t = this.t, won = result === "win", sc = this._lastScore, daily = this._lastDailyIdx != null;
     var title = won ? (this._lastBoss ? (t.splashBoss || "BOSS DEFEATED!") : (t.splashWin || "VICTORY!")) : (t.splashLose || "Not this time");
     var me = this._player();
+    var drill = !won && !daily ? this._recommendDrill() : "";
     var next = won ? (t.next || "Next opponent") : (t.retry || "Rematch");
     var note = won ? (t.nextRival || "Next: {name}").replace("{name}", this._opp().name) : (t.retryTips || {})[this._lastFault] || "";
     this.panelEl.innerHTML =
@@ -807,6 +867,8 @@
       '<span class="kr-duel-splash-score">' + (sc ? sc[0] + '\u2013' + sc[1] : "") + (this._lastEarn ? " \u00b7 " + esc((t.earned || "+{n} coins").replace("{n}", this._lastEarn)) : "") + '</span></div>' +
       (!daily && note ? '<p class="kr-duel-result-note">' + esc(note) + '</p>' : '') +
       (!daily ? '<button class="kr-btn kr-btn--primary" data-duel="splash-next">' + esc(next) + '</button>' : '') +
+      (drill ? '<button class="kr-btn kr-btn--secondary" data-duel="splash-drill">' +
+        esc((t.drillRecommended || "Practise: {name}").replace("{name}", (t.drillNames || {})[drill] || drill)) + '</button>' : '') +
       '<button class="kr-btn ' + (daily ? 'kr-btn--primary' : 'kr-btn--ghost') + '" data-duel="splash-go">' +
       esc(daily ? (t.selectOk || "Continue") : (t.resultMenu || "Duel menu")) + '</button></div>';
     this.panelEl.classList.add("kr-duel-panel--on");
@@ -823,7 +885,8 @@
 
   // The super power is the character's own (none in the Daily Duel).
   Duel.prototype._equippedKey = function () {
-    if (this.daily || this.drill) return "";
+    if (this.daily) return "";
+    if (this.drill) return this.drill.trialPower || "";
     return this.save.shopPower || this._player().sup || "";
   };
 
@@ -924,17 +987,28 @@
     if (a === "exit") { this.destroy(); return; }
     if (a === "practice") { this._showPractice(); return; }
     if (a === "shop") { this._showShop(); return; }
-    if (a === "practice-back") { this.tab = "play"; this._showMenu(this._lastResult, "practice"); return; }
-    if (a === "shop-back") { this.tab = "play"; this._showMenu(this._lastResult, "shop"); return; }
+    if (a === "practice-back") { this.drillReturn = false; this.tab = "play"; this._showMenu(this._lastResult, "practice"); return; }
+    if (a === "shop-back") { this.drillReturn = false; this.tab = "play"; this._showMenu(this._lastResult, "shop"); return; }
     if (a === "shop-native") { this.save.shopPower = ""; writeSave(this.save); this._showShop(a); return; }
     if (a.indexOf("shop-power-") === 0) { this._chooseShopPower(a.slice(11)); return; }
+    if (a === "splash-drill" && this._lastResult === "lose" && this._lastDailyIdx == null) {
+      this.drillReturn = true;
+      this._startDrill(this._recommendDrill());
+      return;
+    }
+    if (a === "drill-rematch" && this.drillReturn) {
+      this.drillReturn = false;
+      this._startMatch();
+      return;
+    }
+    if (a.indexOf("trial-") === 0) {
+      var trialId = a.slice(6);
+      if (Object.prototype.hasOwnProperty.call(POWER_SHOP, trialId)) this._startDrill("deep", trialId);
+      return;
+    }
     if (a.indexOf("drill-") === 0) {
       var id = a.slice(6);
-      if (Object.prototype.hasOwnProperty.call(DRILLS, id)) {
-        this.daily = null;
-        this.drill = { id: id, attempts: 0, hits: 0 };
-        this._startMatch();
-      }
+      if (Object.prototype.hasOwnProperty.call(DRILLS, id)) this._startDrill(id);
       return;
     }
     if (a.indexOf("pl-") === 0) { this.previewPlayer = a.slice(3); this._showMenu(this._lastResult, a); return; }
@@ -1010,7 +1084,7 @@
       this._showMenu(this._lastResult, a); return;
     }
     if (a === "go") { this._beginMatchSetup(); return; }
-    if (a === "daily") { var di = dailyInfo(); this.daily = di; this.mode = "singles"; this._showVersus(); return; }
+    if (a === "daily") { var di = dailyInfo(); this.drillReturn = false; this.daily = di; this.mode = "singles"; this._showVersus(); return; }
     if (a === "share") { this._share(); return; }
     if (a === "card") { this._saveCard(); return; }
     if (a === "lang") { this.lang = this.lang === "fr" ? "en" : "fr"; this.save.lang = this.lang; this.t = this._dict(); this._bg = null; }
@@ -1072,6 +1146,7 @@
     this.serverTeam = this.drill || this._guidedReturn ? 1 : 0;
     this.serveTurn = [0, 0];
     this._updateScore();
+    this._syncShotStyle();
     this._beginServe();
     if (!this.drill && this._opp().boss) { this._banner((this.t.bossIntro || "FINAL BOSS: {name}").replace("{name}", this._opp().name), 2200, "bad"); this.shakeUntil = this.now + 0.3; }
   };
@@ -1090,7 +1165,13 @@
     this.ball = { x: srv.x + 1.2, y: srv.y, z: 3.4, vx: 0, vy: 0, vz: 0, live: false, held: true, lastHitTeam: srv.team, bounces: 0, hits: 0, isServe: true, id: (this.ballId = (this.ballId || 0) + 1) };
     if (this.fx) this.fx.trailClear();
     if (this.drill) {
-      this._banner((this.t.drillGoals || {})[this.drill.id] || "", 0);
+      this.drill.mark = null;
+      if (this.drill.trialPower) {
+        this.power = null;
+        this.charge = this._chargeMax();
+      }
+      var message = this.drill.trialPower ? (this.t.shopTrialHelp || "Activate the charged super and try a return.") : (this.t.drillGoals || {})[this.drill.id] || "";
+      this._banner(message, 0);
       return;
     }
     this._banner(srv.human ? (this.t.yourServe || "Your serve — swing to serve") : "", 0);
@@ -1120,6 +1201,7 @@
     if (k === "Escape" && down) { this.destroy(); return; }
     if (k === "m" && down && !e.repeat) { this._toggleSound(); return; }
     if (this.phase === "menu") return;
+    if (k === " " && e.target === this.shotStyleEl) return;
     if (k === "e" && down && !e.repeat) { this._activatePower(); return; }
     if (map[k]) { this.keys[map[k]] = down; e.preventDefault(); }
     if (k === " " && down && !e.repeat) { e.preventDefault(); this._swing((this.keys.r ? 1 : 0) - (this.keys.l ? 1 : 0), (this.keys.u ? 1 : 0) - (this.keys.d ? 1 : 0)); }
@@ -1177,6 +1259,7 @@
     var h = this.human;
     if (this.phase !== "serve" && this.phase !== "rally") return;
     h.aimX = ax; h.aimY = ay;
+    h.shotStyle = this.drill && this.drill.style;
     h.swingUntil = this.now + 0.26;
     h.swingAnim = this.now + 0.3;
     h.swung = false;
@@ -1192,10 +1275,20 @@
     return { tx: ax * 8.3, ty: dir * depth, speed: speed };
   }
 
+  Duel.prototype._returnShot = function (ax, ay, style) {
+    var shot = aimToShot(ax, ay, 1);
+    if (style) {
+      shot.speed = style === "touch" ? 23 : 45;
+      shot.loft = style === "touch";
+      shot.noSmash = true;
+    }
+    return shot;
+  };
+
   Duel.prototype._launch = function (a, shot, sigma, badness) {
     var b = this.ball, dir = a.team === 0 ? 1 : -1;
     var pw = a.human && this._pw("power"), pp = a.human && this._player().smash;
-    var smash = !shot.loft && b.z > (pw ? 4.2 : pp ? 4.8 : 5.4) && Math.abs(shot.ty) > 8 && !b.held;
+    var smash = !shot.noSmash && !shot.loft && b.z > (pw ? 4.2 : pp ? 4.8 : 5.4) && Math.abs(shot.ty) > 8 && !b.held;
     var speed = (smash ? 58 : shot.speed) * (pw ? 1.15 : pp ? 1.06 : 1);
     if (a.human && this._pw("precision")) sigma *= 0.45;
     // (Rally ramp is applied as the ball clock rate `b.rate`, set below: speeding up the shot itself cannot work
@@ -1334,7 +1427,7 @@
   // ───────────────────────── Rules ─────────────────────────
   Duel.prototype._point = function (team, reason) {
     if (this.phase === "point" || this.phase === "menu") return;
-    if (this.drill) { this._drillAttempt(false); return; }
+    if (this.drill) { this._drillAttempt(false, reason); return; }
     var b = this.ball; if (b) b.live = false;
     this.phase = "point";
     this._guidedReturn = false;
@@ -1423,8 +1516,11 @@
       if (b.bounces === 1) {
         if (this.drill && b.lastHitTeam === 0) {
           var target = this._drillTarget();
-          this._drillAttempt(side === 1 && inCourt && b.x >= target.left && b.x <= target.right &&
-            b.y >= target.near && b.y <= target.far);
+          var miss = b.y < target.near ? "short" : b.y > target.far ? "long" :
+            b.x < target.left ? "left" : b.x > target.right ? "right" : "";
+          var hit = side === 1 && inCourt && !miss;
+          this.drill.mark = { x: b.x, y: b.y, hit: hit };
+          this._drillAttempt(hit, miss);
           return;
         }
         if (side === b.lastHitTeam) this._point(1 - b.lastHitTeam, "net");
@@ -1468,7 +1564,7 @@
     }
 
     if (this.phase === "rally" && this.now < h.swingUntil && !h.swung) {
-      if (this._tryHit(h, aimToShot(h.aimX, h.aimY, 1), 0.55)) h.swung = true;
+      if (this._tryHit(h, this._returnShot(h.aimX, h.aimY, h.shotStyle), 0.55)) h.swung = true;
     }
     if (this._shotAttempt != null && (h.swung || this.now >= h.swingUntil)) {
       if (this.phase === "rally" && b.id === this._shotAttempt && !h.swung) {
@@ -1986,7 +2082,10 @@
     var z = this.fx ? this.fx.getZoom(this.now * 1000) : 1;
     if (z !== 1) { g.translate(W / 2, H * 0.55); g.scale(z, z); g.translate(-W / 2, -H * 0.55); }
 
-    if (this.drill && this.phase !== "point") this._drawDrillTarget(g);
+    if (this.drill) {
+      this._drawDrillTarget(g);
+      this._drawDrillBounce(g);
+    }
     this._drawAim(g);
     this._drawPowerFx(g);
     this._drawCapsule(g);
