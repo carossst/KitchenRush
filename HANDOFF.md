@@ -667,7 +667,16 @@ npm run build:fr       # regenerate fr.html and manifest.fr.json after changing 
   Accessories (headband, cap, glasses) were found for several players but the renderer has none: open item. The research itself says publishing such looks without the player's
   written agreement is potentially sensitive for all 12; photographs seen are references, not reproducible. Keep `duelNames: "neutral"` until the legal check and the players' agreement.
 - **Beard:** `characters.js` supports `pal.beard = true` (hair-coloured cap on the lower face, front view; the mouth is redrawn in the skin colour on top). Used for the French Sprint
-  character's inspired look (owner's information, not from the research); accessories (headband, cap, glasses) are still not drawn.
+  character's inspired look (owner's information, not from the research); cap and glasses are drawn since the accessories change below.
 - **Accessories and portrait (added before merging PR #13):** `characters.js` draws `pal.acc` = `cap` | `capBack` | `glasses` (cap colour `pal.capColor`, default the shirt colour; colours were not
   verified, only the presence of the cap or glasses). The Players tab now shows a front-view portrait (`_drawPortrait`) of the previewed character. Cyril Peltier's slot: short dark hair, light skin,
   beard, backwards cap (from a photo the owner sent). The "headband" of the research is the existing coloured band every character already wears.
+
+## State after PR #13 (version 19, merged to main as 6ee8cd7)
+- Everything above is in `main`; no unmerged work of this session remains. The Players tab shows a front-view portrait; the cast, names switch, inspired looks, beard, cap and glasses are live in code
+  but names and looks stay generic until `KR_CONFIG.duelNames` is set to `"fun"` (do that only after the legal check and the players' agreement).
+- A second AI reviewed the Duel menu and added three accessibility fixes on the PR (version 18 -> 19): arrow keys, Home and End switch tabs and each tab is linked to its panel
+  (`tests/a11y.test.mjs` covers it); keyboard focus stays on the selected or equipped character, also after court or mode changes; on short screens the top of the menu scrolls into reach.
+  Its report says mobile checks were done in a desktop browser only: a real-phone test is still open.
+- To verify after a deploy: open the game normally, reload once more (the service worker updates on the second load), then check the Players tab shows a portrait.
+- Branches: `main` is the only live branch; `improve/pickleball-rally` is kept as a read-only reference (PR #1 closed). Do not port its `players.js` (real names).
