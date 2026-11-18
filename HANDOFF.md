@@ -34,10 +34,10 @@ Run all three before every Duel change. Poster QR: `python3 tools/make-qr.py` (n
 
 **Locked decisions** (confirmed by the owner; do not reopen without her agreement)
 - Soft currency only: no real money, no random paid packs.
-- No real athlete names (including pun or lookalike names) until there is permission; the rally branch's `players.js` must not be ported.
+- No real athlete names in the repo (pun names exist behind `duelNames: "fun"`, default neutral, by the owner's decision, pending a legal check); the rally branch's `players.js` must not be ported.
 - PR #1 (rally branch) is closed; the branch stays as a reference. Merge only when the owner says "fusionne" (draft PRs first).
-**Open decisions** (see the character-select analysis): confirm the 6 slots and the lookalike names, confirm the capsule change (+1 super charge),
-the legal check before names go live, final public domain, payment architecture. Already decided: 6 characters, same in both editions, only the names differ.
+**Open decisions**: the legal check before `duelNames` is switched to `"fun"`, native-speaker review of the 12 pun names and of the per-edition looks, final public domain,
+payment architecture. Decided and DONE in this PR: 6 characters (same in both editions, only names and look differ), per-edition look, capsule = +1 super charge, names switch (default neutral).
 
 **Goal of the 2026-11-18 batch (done, version 17):** make the game safe to hand around and easy to distribute: CI on every PR, a French entry page,
 a shareable score image, a tagged-link pilot with optional anonymous statistics, sound and vibration rules, and locked documentation.
@@ -442,10 +442,16 @@ Arkanoid-inspired additions to the Duel (ideas from the original game, not from 
 First version of a progression economy, deliberately **soft-currency only**: no real money, no random packs.
 - **Coins** are earned by playing (`_afterPoint`): win = 20 + 6 x opponent index + 10 x (world - 1) + 60 for a boss kill,
   plus 1 per point scored; a loss pays 6 + points scored; the Daily Duel pays 25 (win) or 10 (loss) once a day, first attempt only.
-- **Players** (`PLAYERS` in `duel.js`, fictional names): Alex (free, balanced), Sasha (+12% speed, starts with 1 charge, 120),
-  Wen (+15% reach, 150), Tomi (+40% slow motion, 200), Priya (easier, faster smashes, 220), Lola (capsules sooner/longer/easier, 240),
-  Chen (power needs 2 points instead of 3, 260). Each also sets the jersey colours; hair and skin stay your own "look".
-  Skills are read through `_player()`, `_pstat()`, `_chargeMax()`, `_capDelay()`. The Daily Duel always uses Alex (equal terms).
+- **Players = the cast of 6** (`PLAYERS` in `duel.js`, replaces the old 7 fictional players). One character per super power, identical in both
+  editions (stats, super, price, unlock order); only the display name and, per edition, the drawn look (`look: { fr, en }`: hair style, hair, skin) differ.
+  `id`/super/price/passive: `touch` (free, +40% slow motion), `sprint` (120, +12% speed), `reach` (160, +15% reach), `precision` (200, starts with 1 charge),
+  `power` (240, easier faster smashes), `pass` (280, capsules sooner/longer/easier). The character's super (`sup`) is always theirs (`_equippedKey()`);
+  beating opponents no longer grants powers (the Progress shelf only shows the opponents beaten). The Daily Duel uses `DAILY_PLAYER` (no super, no passive: equal terms).
+  Names come from `ROSTER`: `neutral` (invented: Alex, Sam, Lou, Nina, Max, Kit; the default) or `fun` (pun names, per language). Switch with
+  `KR_CONFIG.duelNames` in `config.js` (`"neutral"` or `"fun"`); keep `"neutral"` until the legal check (see the analysis below). Skills are read through
+  `_player()`, `_pstat()`, `_chargeMax()` (always 3), `_capDelay()`, `_pname()`, `_plook()`. Old saves with former player ids fall back to `touch` (coins kept).
+  The real-player mapping behind the pun names is NOT in this repo (owner holds it); the owner chose the inspiration slots and the French/US pairs herself.
+- **Capsules** now give **+1 super charge** (no random power): `_collectCapsule` (the change announced in the owner decisions).
 - **UI**: the match menu shows the coin balance and one chip per player (tap to equip; tap an affordable locked one to buy it;
   unaffordable ones are greyed with the price in the tooltip). Result lines show "+n coins".
 - **Save** (`kr:duel`): `coins`, `owned`, `player`, all sanitised on load. It is client-side only, so a user can edit it:
@@ -645,3 +651,11 @@ npm run build:fr       # regenerate fr.html and manifest.fr.json after changing 
 - New files: `analytics.js`, `share-card.js`, `qr-vendor.js`, `PILOT.md`, `package.json`, `package-lock.json`, `fr.html`, `manifest.fr.json`, `tools/make-fr.mjs`,
   `.github/workflows/test.yml`, `tests/{pages,modules,pages-browser,a11y}.test.mjs`. The `index.html` descriptions now mention the Duel.
 - Not done from the quiz review: server leaderboard, SEO page generator, newsletter, bundle build (deliberately postponed or skipped, see that section).
+
+## Character select: the 6-character cast (implemented on PR #12, version 17)
+- Owner choices: names must be funny but not suggestive or weird (no body, sex, violence, origin or skin-colour jokes; cooking or sport puns); option 2 for looks (a palette per
+  edition, so the American Precision character is drawn as a Black woman and the French one as a different look); the three French removals; capsules give +1 charge.
+- Pun names (final, in `ROSTER.fun`): FR: Jay Devine-Tout, Noe Clic-Clac, Cyril Patissier, Myriam Dans-le-Mille, Valentine Vermicelle, Laura Rock-Chef.
+  US: Bon Jonesy, JW Jetson, Anna Leigh Watermelon, Tyra Bullseye, Hayden Patty-Melt, Anna Bright-Whisk. Alternatives the owner liked: see chat history (not stored).
+- Tests: `tests/duel-rules.mjs` covers the cast (same stats per edition, neutral by default, one super per character, looks per edition), capsules and the shop.
+- Not done: a dedicated fighting-game style selection screen (the Players tab is the selection for now), distinct portraits, a second look pass by a designer.

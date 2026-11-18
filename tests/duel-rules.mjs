@@ -52,12 +52,12 @@ const results = await page.evaluate(() => {
     return eq([before, d._tryHit(h, { tx: 0, ty: 15, speed: 30 }, 0)], [false, true]);
   });
   t("winning a point charges the power; firing it spends the charge and expires", () => {
-    fresh(); d.save.beaten = { 0: true }; d.save.equipped = "reach";
+    fresh(); d.save.owned = { reach: true }; d.save.player = "reach";
     d._point(0, "winner"); const c1 = d.charge; d.phase = "rally"; d.charge = 3; d._activatePower();
     const active = d._pw("reach"), spent = d.charge; d.now += 11;
     return eq([c1, active, spent, d._pw("reach")], [1, true, 0, false]);
   });
-  t("power cannot fire without a full charge", () => { fresh(); d.save.beaten = { 0: true }; d.save.equipped = "reach"; d.charge = 2; d._activatePower(); return eq(d._pw("any"), false); });
+  t("power cannot fire without a full charge", () => { fresh(); d.save.owned = { reach: true }; d.save.player = "reach"; d.charge = 2; d._activatePower(); return eq(d._pw("any"), false); });
   t("seeded RNG is reproducible and seed-sensitive", () => {
     const a = T.seeded(42), b = T.seeded(42), c = T.seeded(43), xa = [], xb = [], xc = [];
     for (let i = 0; i < 20; i++) { xa.push(a()); xb.push(b()); xc.push(c()); }
@@ -78,11 +78,11 @@ const results = await page.evaluate(() => {
     fresh(); d.daily = { key: "2026-01-01", idx: 0, seed: 1 }; d.capsule = null; d.capSpawnIn = 0; d.ball = ball({ hits: 3 }); d._capsules(0.016); const none = d.capsule === null; d.daily = null;
     return eq([okSpawn, none], [true, true]);
   });
-  t("catching a capsule grants its power; an old capsule vanishes", () => {
-    fresh(); const h = hitter(3, -12); d.capsule = { x: 3, y: -12, kind: "sprint", born: d.now - 2, until: d.now + 5 }; d._capsules(0.016);
-    const got = [d._pw("sprint"), d.capsule === null];
+  t("catching a capsule gives +1 super charge (no random power); an old capsule vanishes", () => {
+    fresh(); const h = hitter(3, -12); d.charge = 0; d.capsule = { x: 3, y: -12, kind: "sprint", born: d.now - 2, until: d.now + 5 }; d._capsules(0.016);
+    const got = [d.charge, d._pw("any"), d.capsule === null];
     fresh(); d.capsule = { x: 3, y: -12, kind: "sprint", born: d.now - 20, until: d.now - 1 }; d._capsules(0.016);
-    return eq([got, d.capsule === null, d._pw("any")], [[true, true], true, false]);
+    return eq([got, d.capsule === null, d._pw("any")], [[1, false, true], true, false]);
   });
   t("the boss: stage 7 is the boss, rage triggers at 3 points", () => {
     d.stage = 6; const boss = d._opp(); d._startMatch(); d.paused = true;
@@ -98,18 +98,18 @@ const results = await page.evaluate(() => {
     return eq([win, lose, d1, d2], [25, 9, 25, 0]);
   });
   t("shop: no purchase without coins, one purchase, equip only what you own", () => {
-    fresh(); d.save.coins = 100; d.save.owned = {}; d.save.player = "alex";
-    d._panelAction("act-sasha"); const a1 = [d.save.coins, !!d.save.owned.sasha, d.save.player];
-    d.save.coins = 130; d._panelAction("act-sasha"); const a2 = [d.save.coins, !!d.save.owned.sasha, d.save.player];
-    d.save.player = "alex"; d._panelAction("act-sasha"); const a3 = [d.save.coins, d.save.player];
-    d._panelAction("act-nobody"); d.save.player = "alex"; d.save.owned = {};
-    return eq([a1, a2, a3], [[100, false, "alex"], [10, true, "sasha"], [10, "sasha"]]);
+    fresh(); d.save.coins = 100; d.save.owned = {}; d.save.player = "touch";
+    d._panelAction("act-sprint"); const a1 = [d.save.coins, !!d.save.owned.sprint, d.save.player];
+    d.save.coins = 130; d._panelAction("act-sprint"); const a2 = [d.save.coins, !!d.save.owned.sprint, d.save.player];
+    d.save.player = "touch"; d._panelAction("act-sprint"); const a3 = [d.save.coins, d.save.player];
+    d._panelAction("act-nobody"); d.save.player = "touch"; d.save.owned = {};
+    return eq([a1, a2, a3], [[100, false, "touch"], [10, true, "sprint"], [10, "sprint"]]);
   });
   t("player skills apply; the Daily always uses the base player", () => {
-    fresh(); d.save.owned = { chen: true, sasha: true }; d.save.player = "sasha"; const sp = d._pstat("speed"); d._startMatch(); d.paused = true; const start = d.charge;
-    d.save.player = "chen"; const need = d._chargeMax();
-    d.daily = { key: "2099-01-01", idx: 0, seed: 1 }; const dly = d._player().id; d.daily = null; d.save.player = "alex"; d.save.owned = {};
-    return eq([sp, start, need, dly], [1.12, 1, 2, "alex"]);
+    fresh(); d.save.owned = { precision: true, sprint: true }; d.save.player = "sprint"; const sp = d._pstat("speed"); d._startMatch(); d.paused = true; const s0 = d.charge;
+    d.save.player = "precision"; d._startMatch(); d.paused = true; const start = d.charge, need = d._chargeMax();
+    d.daily = { key: "2099-01-01", idx: 0, seed: 1 }; const dly = [d._player().id, d._equippedKey(), d._pstat("speed")]; d.daily = null; d.save.player = "touch"; d.save.owned = {};
+    return eq([sp, s0, start, need, dly], [1.12, 0, 1, 3, ["base", "", 1]]);
   });
   t("tutorial: the first match is gentler and completes the tutorial", () => {
     d.save.coached = false; d.stage = 0; const easy = d._opp(), base = KR_DUEL.ladder[0];
@@ -132,12 +132,12 @@ const results = await page.evaluate(() => {
     return eq([sel, vis, d.tab], [["false", "true", "false", "false"], [false, true, false, false], "play"]);
   });
   t("player preview: tapping explains, the action button buys only when affordable", () => {
-    d.save.owned = {}; d.save.coins = 0; d.save.player = "alex"; d._showMenu(); d._panelAction("pl-lola");
-    const b1 = d.panelEl.querySelector('[data-duel="act-lola"]'), r1 = [d.previewPlayer, b1 && b1.disabled, d.save.coins];
-    d.save.coins = 300; d._panelAction("pl-lola"); const b2 = d.panelEl.querySelector('[data-duel="act-lola"]'), r2 = b2 && b2.disabled;
-    d._panelAction("act-lola"); const r3 = [!!d.save.owned.lola, d.save.coins, d.save.player];
-    d.save.owned = {}; d.save.coins = 0; d.save.player = "alex"; d.previewPlayer = null;
-    return eq([r1, r2, r3], [["lola", true, 0], false, [true, 60, "lola"]]);
+    d.save.owned = {}; d.save.coins = 0; d.save.player = "touch"; d._showMenu(); d._panelAction("pl-pass");
+    const b1 = d.panelEl.querySelector('[data-duel="act-pass"]'), r1 = [d.previewPlayer, b1 && b1.disabled, d.save.coins];
+    d.save.coins = 300; d._panelAction("pl-pass"); const b2 = d.panelEl.querySelector('[data-duel="act-pass"]'), r2 = b2 && b2.disabled;
+    d._panelAction("act-pass"); const r3 = [!!d.save.owned.pass, d.save.coins, d.save.player];
+    d.save.owned = {}; d.save.coins = 0; d.save.player = "touch"; d.previewPlayer = null;
+    return eq([r1, r2, r3], [["pass", true, 0], false, [true, 20, "pass"]]);
   });
   t("a locked court explains itself when tapped and is not selected", () => {
     d.stage = 0; d.save.venue = "auto"; d._showMenu(); d._panelAction("venue-stadium");
@@ -185,11 +185,27 @@ const results = await page.evaluate(() => {
     d.power = null; d._powerHud(); d._drawPowerFx(d.ctx); d._drawPowerTint(d.ctx);
     return true;
   });
+  t("cast: same stats in both editions, names change, neutral by default", () => {
+    const names = (lang, mode) => { d.lang = lang; window.KR_CONFIG.duelNames = mode; return T.cast.map((p) => d._pname(p)); };
+    const neutral = names("fr", "neutral"), neutralEn = names("en", "neutral"), fr = names("fr", "fun"), en = names("en", "fun");
+    window.KR_CONFIG.duelNames = "neutral"; d.lang = window.KR_LANG || "en";
+    const uniq = (a) => new Set(a).size === a.length && a.every((x) => x && x.length < 30);
+    return eq([T.cast.length, eq(neutral, neutralEn), uniq(fr), uniq(en), JSON.stringify(fr) === JSON.stringify(en), uniq(neutral)], [6, true, true, true, false, true]);
+  });
+  t("cast: one super power per character, free first, rising prices, a look per edition", () => {
+    const sups = T.cast.map((p) => p.sup).sort(), costs = T.cast.map((p) => p.cost);
+    const looks = T.cast.every((p) => p.look && p.look.fr && p.look.en && p.look.fr.skin && p.look.en.skin);
+    return eq([sups, costs[0], costs.every((c, i) => i === 0 || c > costs[i - 1]), looks], [[...T.POWERS].sort(), 0, true, true]);
+  });
+  t("the character look follows the edition", () => {
+    const pr = T.cast.find((p) => p.id === "precision"); d.lang = "fr"; const f = d._plook(pr); d.lang = "en"; const e = d._plook(pr); d.lang = window.KR_LANG || "en";
+    return eq([f.skin !== e.skin, !!f.hairStyle && !!e.hairStyle], [true, true]);
+  });
   t("corrupted saved data is sanitised", () => {
     d.destroy();
-    localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999, venue: "../x", coached: "yes", sound: "yes", shareDay: "bad", coins: -5, owned: { chen: true, hacker: true }, player: "hacker" }));
+    localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999, venue: "../x", coached: "yes", sound: "yes", shareDay: "bad", coins: -5, owned: { sprint: true, hacker: true }, player: "hacker" }));
     window.__ui._startDuel(); const s = window.__ui._duel.save;
-    return eq([Array.isArray(s.history), Object.keys(s.beaten), s.equipped, s.daily, s.lang, s.bestMargin, s.venue, s.coins, Object.keys(s.owned), s.player, s.coached, s.sound, s.shareDay], [true, ["2"], "", null, "", 99, "auto", 0, ["chen"], "alex", false, false, ""]);
+    return eq([Array.isArray(s.history), Object.keys(s.beaten), s.equipped, s.daily, s.lang, s.bestMargin, s.venue, s.coins, Object.keys(s.owned), s.player, s.coached, s.sound, s.shareDay], [true, ["2"], "", null, "", 99, "auto", 0, ["sprint"], "touch", false, false, ""]);
   });
   return out;
 });

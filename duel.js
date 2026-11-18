@@ -49,17 +49,33 @@
     stadium: { unlock: 6, sky: ["#0a0a14", "#2a1a05"], stars: true, scene: "beams", stand: ["#2b2108", "#14100a"], crowd: ["#ffd23f", "#ffffff", "#ff9f1c", "#f4f1de"], ground: ["#1b1b24", "#20202b"], board: ["#14100a", "#ffd23f"], apron: "#7a5c12", court: "#1d3a8a", kitN: "#c0392b", kitF: "#d9503f", line: "#ffd23f" }
   };
   function hasVenue(id) { return Object.prototype.hasOwnProperty.call(VENUES, id); }
-  // Players you can own (fictional names). `stats` multiply base values; the other fields are passive skills.
-  // Soft currency only: coins are earned by playing (see _afterPoint). No real money, no random packs.
+  // The cast: 6 characters, identical in both editions (same stats, same super power, same unlock order and price).
+  // Only the display name (and, where it matters, the drawn look) depends on the language. Soft currency only.
+  // `sup` is the super power the character always has (charged by points and capsules). `look` is drawn per edition.
+  // Names: "neutral" (default, invented names) or "fun" (pun names); chosen by KR_CONFIG.duelNames. No real names here.
+  var ROSTER = {
+    neutral: { touch: "Alex", sprint: "Sam", reach: "Lou", precision: "Nina", power: "Max", pass: "Kit" },
+    fun: {
+      fr: { touch: "Jay Devine-Tout", sprint: "No\u00e9 Clic-Clac", reach: "Cyril P\u00e2tissier", precision: "Myriam Dans-le-Mille", power: "Valentine Vermicelle", pass: "Laura Rock-Chef" },
+      en: { touch: "Bon Jonesy", sprint: "JW Jetson", reach: "Anna Leigh Watermelon", precision: "Tyra Bullseye", power: "Hayden Patty-Melt", pass: "Anna Bright-Whisk" }
+    }
+  };
   var PLAYERS = [
-    { id: "alex",  name: "Alex",  cost: 0,   pal: {},                                                                 stats: {} },
-    { id: "sasha", name: "Sasha", cost: 120, pal: { jerseyA: "#9af0c4", jerseyB: "#22b07d", shorts: "#0e4f3a" }, stats: { speed: 1.12 }, startCharge: 1 },
-    { id: "wen",   name: "Wen",   cost: 150, pal: { jerseyA: "#ffe27a", jerseyB: "#f5a524", shorts: "#7a4b12" }, stats: { reach: 1.15 } },
-    { id: "tomi",  name: "Tomi",  cost: 200, pal: { jerseyA: "#d5b4ff", jerseyB: "#7b4dff", shorts: "#2b1a5c" }, stats: { focus: 1.4 } },
-    { id: "priya", name: "Priya", cost: 220, pal: { jerseyA: "#ff9d8a", jerseyB: "#e2452f", shorts: "#6b1408" }, stats: {}, smash: true },
-    { id: "chen",  name: "Chen",  cost: 260, pal: { jerseyA: "#8ad8ff", jerseyB: "#0f6fd6", shorts: "#06254d" }, stats: {}, chargeNeed: 2 },
-    { id: "lola",  name: "Lola",  cost: 240, pal: { jerseyA: "#ffb3c7", jerseyB: "#ff5d8f", shorts: "#ffffff" }, stats: {}, lucky: true }
+    { id: "touch",     sup: "touch",     cost: 0,   pal: { jerseyA: "#d5b4ff", jerseyB: "#7b4dff", shorts: "#2b1a5c" }, stats: { focus: 1.4 },
+      look: { fr: { hairStyle: "short", hair: "#20182e", skin: "#e2ab82" }, en: { hairStyle: "short", hair: "#4a2c17", skin: "#f4c7a1" } } },
+    { id: "sprint",    sup: "sprint",    cost: 120, pal: { jerseyA: "#9af0c4", jerseyB: "#22b07d", shorts: "#0e4f3a" }, stats: { speed: 1.12 },
+      look: { fr: { hairStyle: "curly", hair: "#1d1512", skin: "#c68c5e" }, en: { hairStyle: "short", hair: "#1d1512", skin: "#a8734d" } } },
+    { id: "reach",     sup: "reach",     cost: 160, pal: { jerseyA: "#ffe27a", jerseyB: "#f5a524", shorts: "#7a4b12" }, stats: { reach: 1.15 },
+      look: { fr: { hairStyle: "short", hair: "#c9632b", skin: "#f7d7bd" }, en: { hairStyle: "ponytail", hair: "#e8c66a", skin: "#f1c9a5" } } },
+    { id: "precision", sup: "precision", cost: 200, pal: { jerseyA: "#8ad8ff", jerseyB: "#0f6fd6", shorts: "#06254d" }, stats: {}, startCharge: 1,
+      look: { fr: { hairStyle: "bob", hair: "#4a2c17", skin: "#f1c9a5" }, en: { hairStyle: "curly", hair: "#15131c", skin: "#6b4226" } } },
+    { id: "power",     sup: "power",     cost: 240, pal: { jerseyA: "#ff9d8a", jerseyB: "#e2452f", shorts: "#6b1408" }, stats: {}, smash: true,
+      look: { fr: { hairStyle: "long", hair: "#c9632b", skin: "#f7d7bd" }, en: { hairStyle: "short", hair: "#d9d9e3", skin: "#f4c7a1" } } },
+    { id: "pass",      sup: "pass",      cost: 280, pal: { jerseyA: "#ffb3c7", jerseyB: "#ff5d8f", shorts: "#ffffff" }, stats: {}, lucky: true,
+      look: { fr: { hairStyle: "bun", hair: "#101018", skin: "#e2ab82" }, en: { hairStyle: "ponytail", hair: "#6b3a1e", skin: "#f4c7a1" } } }
   ];
+  // The Daily Duel is played on equal terms: a plain character with no super power and no passive.
+  var DAILY_PLAYER = { id: "base", sup: "", cost: 0, pal: {}, stats: {}, look: null };
   var ALLY = { name: "Partner", speed: 12.5, react: 0.25, err: 1.6, aggr: 0.5, lobP: 0.08, dinkP: 0.25, volley: true, judge: 0.8, pace: 0.95,
     pal: { jerseyA: "#ffb3c7", jerseyB: "#ff5d8f", shorts: "#ffffff", hair: "#6b3a1e", band: "#3fd0ff", paddle: "#3fd0ff" } };
   // Player looks: varied hair and skin so everyone can find themselves. Cycled from the match menu.
@@ -127,7 +143,7 @@
     var ownedClean = {};
     PLAYERS.forEach(function (p) { if (p.cost > 0 && d.owned && d.owned[p.id] === true) ownedClean[p.id] = true; });
     d.owned = ownedClean;
-    d.player = PLAYERS.some(function (p) { return p.id === d.player && (p.cost === 0 || ownedClean[p.id]); }) ? d.player : "alex";
+    d.player = PLAYERS.some(function (p) { return p.id === d.player && (p.cost === 0 || ownedClean[p.id]); }) ? d.player : "touch";
     var dd = d.daily;
     d.daily = (dd && typeof dd === "object" && /^\d{4}-\d{2}-\d{2}$/.test(String(dd.key)))
       ? { key: String(dd.key), you: clamp(Math.floor(Number(dd.you) || 0), 0, 99), them: clamp(Math.floor(Number(dd.them) || 0), 0, 99), idx: clamp(Math.floor(Number(dd.idx) || 0), 0, 99) } : null;
@@ -308,7 +324,7 @@
         '<p class="kr-duel-how">' + esc(t.rules || "First to 5. Serve and return must bounce. No volleys in the Kitchen.") + '</p>' +
         '<button class="kr-btn kr-btn--ghost" data-duel="tutorial">' + esc(t.tutorialBtn || "Replay the tutorial") + '</button>') +
       panel("players", this._playerHtml() +
-        '<button class="kr-btn kr-btn--secondary kr-duel-look" data-duel="look">' + esc(t.changeLook || "Change my look") + '</button>' + this._collectionHtml()) +
+        this._collectionHtml()) +
       panel("courts", this._venueHtml()) +
       panel("progress", this._progressHtml()) +
       '<button class="kr-btn kr-btn--primary kr-duel-go" data-duel="go">' + esc(result ? (result === "win" ? (t.next || "Next opponent") : (t.retry || "Rematch")) : (t.start || "Start match")) + '</button>' +
@@ -351,14 +367,11 @@
     return '<div class="kr-duel-stats">' + out + '</div>';
   };
 
-  // Players tab: opponents beaten (each gives a power you can equip) and the equipped power.
+  // Players tab: opponents beaten (a trophy shelf) and the character's super power.
   Duel.prototype._collectionHtml = function () {
-    var t = this.t, sv = this.save, self = this;
+    var t = this.t, sv = this.save;
     return '<div class="kr-duel-chips" aria-label="' + esc(t.collection || "Opponents beaten") + '">' + LADDER.map(function (o, i) {
-      var on = sv.beaten && sv.beaten[i];
-      if (!on) return '<span class="kr-duel-chip">?</span>';
-      var eq = POWERS[i] === self._equippedKey();
-      return '<button class="kr-duel-chip kr-duel-chip--on' + (eq ? " kr-duel-chip--eq" : "") + '" data-duel="eq-' + i + '" aria-pressed="' + (eq ? "true" : "false") + '" title="' + esc((t.powerDescs || [])[i] || "") + '">' + (eq ? "★ " : "✓ ") + esc(o.name) + '</button>';
+      return (sv.beaten && sv.beaten[i]) ? '<span class="kr-duel-chip kr-duel-chip--on">\u2713 ' + esc(o.name) + '</span>' : '<span class="kr-duel-chip">?</span>';
     }).join("") + '</div>' + this._powerLine();
   };
 
@@ -400,10 +413,16 @@
   // ───────────────────────── Powers ─────────────────────────
   // The player you picked (Alex in the Daily Duel, so everyone plays on equal terms).
   Duel.prototype._player = function () {
-    var id = this.daily ? "alex" : this.save.player, sv = this.save;
+    if (this.daily) return DAILY_PLAYER;
+    var id = this.save.player, sv = this.save;
     for (var i = 0; i < PLAYERS.length; i++) if (PLAYERS[i].id === id && (PLAYERS[i].cost === 0 || (sv.owned && sv.owned[id]))) return PLAYERS[i];
     return PLAYERS[0];
   };
+  Duel.prototype._pname = function (p) {
+    var cfg = window.KR_CONFIG, fun = !!(cfg && cfg.duelNames === "fun");
+    return (fun && ROSTER.fun[this.lang === "fr" ? "fr" : "en"][p.id]) || ROSTER.neutral[p.id] || p.id;
+  };
+  Duel.prototype._plook = function (p) { return (p && p.look && p.look[this.lang === "fr" ? "fr" : "en"]) || null; };
   Duel.prototype._pstat = function (k) { return (this._player().stats && this._player().stats[k]) || 1; };
   Duel.prototype._chargeMax = function () { return this._player().chargeNeed || CHARGE_MAX; };
   Duel.prototype._capDelay = function (s) { return s * (this._player().lucky ? 0.6 : 1); };
@@ -412,15 +431,15 @@
     var t = this.t, sv = this.save, cur = this._player(), sk = t.playerSkill || {}, coins = sv.coins || 0;
     var pid = this.previewPlayer || cur.id, P = cur;
     PLAYERS.forEach(function (p) { if (p.id === pid) P = p; });
-    var chips = PLAYERS.map(function (p) {
+    var self = this, chips = PLAYERS.map(function (p) {
       var owned = p.cost === 0 || !!(sv.owned && sv.owned[p.id]), a = p.pal.jerseyA || HUMAN_PAL.jerseyA, b = p.pal.jerseyB || HUMAN_PAL.jerseyB;
-      return '<button class="kr-duel-chip' + (cur.id === p.id ? " kr-duel-chip--eq" : "") + (P.id === p.id ? " kr-duel-chip--pick" : "") + '" data-duel="pl-' + p.id + '" aria-pressed="' + (P.id === p.id ? "true" : "false") + '"><i class="kr-duel-swatch" style="background:linear-gradient(135deg,' + a + "," + b + ')"></i>' + esc(p.name) + (owned ? "" : " · " + p.cost) + "</button>";
+      return '<button class="kr-duel-chip' + (cur.id === p.id ? " kr-duel-chip--eq" : "") + (P.id === p.id ? " kr-duel-chip--pick" : "") + '" data-duel="pl-' + p.id + '" aria-pressed="' + (P.id === p.id ? "true" : "false") + '"><i class="kr-duel-swatch" style="background:linear-gradient(135deg,' + a + "," + b + ')"></i>' + esc(self._pname(p)) + (owned ? "" : " · " + p.cost) + "</button>";
     }).join("");
     var owned = P.cost === 0 || !!(sv.owned && sv.owned[P.id]), equipped = cur.id === P.id, afford = coins >= P.cost;
     var label = equipped ? (t.playerEquipped || "Equipped") : owned ? (t.playerEquip || "Equip") : afford ? (t.playerBuy || "Buy for {n} coins").replace("{n}", P.cost) : (t.playerMissing || "Need {n} more coins").replace("{n}", P.cost - coins);
     return '<p class="kr-duel-coins">' + esc((t.coins || "Coins: {n}").replace("{n}", coins)) + "</p>" +
       '<div class="kr-duel-venues" role="group" aria-label="' + esc(t.playerLabel || "My player") + '">' + chips + "</div>" +
-      '<div class="kr-duel-detail"><strong>' + esc(P.name) + '</strong><p class="kr-muted">' + esc(sk[P.id] || "") + '</p>' +
+      '<div class="kr-duel-detail"><strong>' + esc(this._pname(P)) + '</strong><p class="kr-muted">' + esc(sk[P.id] || "") + '</p>' +
       '<button class="kr-btn kr-btn--secondary" data-duel="act-' + P.id + '"' + ((equipped || (!owned && !afford)) ? " disabled" : "") + ">" + esc(label) + "</button></div>";
   };
 
@@ -430,19 +449,14 @@
     return key === "any" || p.key === key;
   };
 
-  // Equipped power if owned, else the most recently earned one, else "".
-  Duel.prototype._equippedKey = function () {
-    var sv = this.save, owned = function (key) { return !!(sv.beaten && sv.beaten[POWERS.indexOf(key)]); };
-    if (sv.equipped && owned(sv.equipped)) return sv.equipped;
-    for (var i = POWERS.length - 1; i >= 0; i--) if (owned(POWERS[i])) return POWERS[i];
-    return "";
-  };
+  // The super power is the character's own (none in the Daily Duel).
+  Duel.prototype._equippedKey = function () { return this._player().sup || ""; };
 
   Duel.prototype._powerName = function (key) { var i = POWERS.indexOf(key); return (this.t.powerNames || [])[i] || key; };
 
   Duel.prototype._powerLine = function () {
     var t = this.t, key = this._equippedKey();
-    if (!key) return '<p class="kr-muted kr-duel-powerline">' + esc(t.powerNone || "Beat an opponent to earn a power.") + '</p>';
+    if (!key) return '<p class="kr-muted kr-duel-powerline">' + esc(t.powerNone || "Win points and catch capsules to charge your super power.") + '</p>';
     var i = POWERS.indexOf(key);
     return '<p class="kr-muted kr-duel-powerline">' + esc((t.powerEquip || "Power: {name} \u2014 {desc}").replace("{name}", this._powerName(key)).replace("{desc}", (t.powerDescs || [])[i] || "")) + '</p>';
   };
@@ -560,11 +574,6 @@
       else if (hasVenue(vid)) this.venueMsg = (this.t.venueLocked || "Reach opponent {n} to unlock").replace("{n}", VENUES[vid].unlock + 1);
       this._showMenu(this._lastResult); return;
     }
-    if (a.indexOf("eq-") === 0) {
-      var qi = Number(a.slice(3));
-      if (this.save.beaten && this.save.beaten[qi] && POWERS[qi]) { this.save.equipped = POWERS[qi]; writeSave(this.save); }
-      this._showMenu(this._lastResult); return;
-    }
     if (a === "go") { this.daily = null; this._startMatch(); return; }
     if (a === "daily") { var di = dailyInfo(); this.daily = di; this.mode = "singles"; this._startMatch(); return; }
     if (a === "share") { this._share(); return; }
@@ -587,7 +596,7 @@
     }
     var A = [];
     var oppPal = Object.assign({}, opp.pal, LOOKS[opp.look % LOOKS.length]);
-    var humanPal = Object.assign({}, HUMAN_PAL, LOOKS[this.look], this._player().pal);
+    var humanPal = Object.assign({}, HUMAN_PAL, LOOKS[this.look], this._player().pal, this._plook(this._player()) || {});
     var allyLook = LOOKS[(this.look + 3) % LOOKS.length];
     this.human = actor(0, true, hx, -15, null, humanPal, dbl ? (hx < 0 ? [-99, 0] : [0, 99]) : [-99, 99]);
     A.push(this.human);
@@ -1227,7 +1236,7 @@
   Duel.prototype._spawnCapsule = function () {
     var h = this.human, lo = Math.max(-8, h.zone[0] + 1), hi = Math.min(8, h.zone[1] - 1);
     if (lo >= hi) { lo = -8; hi = 8; }
-    this.capsule = { x: lo + rand() * (hi - lo), y: -(9 + rand() * 8), kind: POWERS[Math.floor(rand() * POWERS.length)], born: this.now, until: this.now + CAPSULE_LIFE * (this._player().lucky ? 1.3 : 1) };
+    this.capsule = { x: lo + rand() * (hi - lo), y: -(9 + rand() * 8), kind: this._equippedKey() || POWERS[Math.floor(rand() * POWERS.length)], born: this.now, until: this.now + CAPSULE_LIFE * (this._player().lucky ? 1.3 : 1) };
   };
 
   Duel.prototype._capsules = function (dt) {
@@ -1243,16 +1252,17 @@
     if (this.now - c.born > 0.9 && Math.hypot(h.x - c.x, h.y - c.y) < 2.1 * (this._player().lucky ? 1.25 : 1)) this._collectCapsule();
   };
 
+  // A caught capsule gives +1 super charge (never a random power).
   Duel.prototype._collectCapsule = function () {
     var c = this.capsule; if (!c) return;
     if (this._m) this._m.caps++;
-    this.power = { key: c.kind, until: this.now + CAPSULE_SECONDS };
+    this.charge = Math.min(this._chargeMax(), (this.charge || 0) + 1);
     this.capsule = null; this.capSpawnIn = 6 + rand() * 5;
-    this.flashUntil = this.now + 0.3; this._flashKey = c.kind;
+    this.flashUntil = this.now + 0.2; this._flashKey = c.kind;
     this._sound("milestone");
-    this._banner(this._powerName(c.kind) + "!", 900, "good");
+    this._banner((this.t.capsuleGot || "+1 charge") + " " + this.charge + "/" + this._chargeMax(), 800, "good");
     var p = this._project(c.x, c.y, 1);
-    if (this.fx) { this.fx.burst(p.x, p.y, ["rgb(" + POWER_RGB[c.kind] + ")", "#ffffff"], 18, { speed: 320, up: 80 }); this.fx.ring(p.x, p.y, "rgb(" + POWER_RGB[c.kind] + ")", 64); }
+    if (this.fx) { this.fx.burst(p.x, p.y, ["rgb(" + POWER_RGB[c.kind] + ")", "#ffffff"], 14, { speed: 280, up: 70 }); this.fx.ring(p.x, p.y, "rgb(" + POWER_RGB[c.kind] + ")", 56); }
   };
 
   function capIcon(g, kind, r) {
@@ -1482,6 +1492,6 @@
   window.KR_DUEL = {
     start: function (opts) { return new Duel(opts || {}); },
     ladder: LADDER,
-    _test: { seeded: seeded, dailyInfo: dailyInfo, aimToShot: aimToShot, POWERS: POWERS }
+    _test: { seeded: seeded, dailyInfo: dailyInfo, aimToShot: aimToShot, POWERS: POWERS, cast: PLAYERS }
   };
 })();

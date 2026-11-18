@@ -12,7 +12,7 @@ const KNOWN = {};
 
 const browser = await chromium.launch();
 const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
-await page.addInitScript(() => { try { localStorage.setItem("kr:duel", JSON.stringify({ coached: true, stage: 3, coins: 150, owned: { sasha: true }, beaten: { 0: true, 1: true, 2: true }, history: [{ you: 5, them: 2, stage: 0 }] })); } catch (e) { } });
+await page.addInitScript(() => { try { localStorage.setItem("kr:duel", JSON.stringify({ coached: true, stage: 3, coins: 150, owned: { sprint: true }, beaten: { 0: true, 1: true, 2: true }, history: [{ you: 5, them: 2, stage: 0 }] })); } catch (e) { } });
 let failed = 0;
 
 async function scan(name) {
