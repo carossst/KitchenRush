@@ -70,7 +70,11 @@
   window.KR_CONFIG = {
 
     // Product version (UI display, logs, SW cache key)
-    version: "16",
+    version: "17",
+    // Optional anonymous statistics (GoatCounter, no cookies). Empty = off. Read HANDOFF.md ("Analytics") before enabling.
+    analytics: { goatcounterUrl: "" },
+    // Duel character names: "neutral" (invented names, default) or "fun" (pun names). See HANDOFF.md before switching.
+    duelNames: "neutral",
 
     // Storage schema version (localStorage).
     // Change ONLY if you accept a migration/wipe.

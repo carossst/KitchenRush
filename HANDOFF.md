@@ -32,6 +32,17 @@ Run all three before every Duel change. Poster QR: `python3 tools/make-qr.py` (n
 - Never publish a design claim you did not test; say what is unverified (nothing was playtested by humans or on a real phone).
 - This session widened the sandbox network allowlist once for a site and removed it again; nothing is left open.
 
+**Locked decisions** (confirmed by the owner; do not reopen without her agreement)
+- Soft currency only: no real money, no random paid packs.
+- No real athlete names in the repo (pun names exist behind `duelNames: "fun"`, default neutral, by the owner's decision, pending a legal check); the rally branch's `players.js` must not be ported.
+- PR #1 (rally branch) is closed; the branch stays as a reference. Merge only when the owner says "fusionne" (draft PRs first).
+**Open decisions**: the legal check before `duelNames` is switched to `"fun"`, native-speaker review of the 12 pun names and of the per-edition looks, final public domain,
+payment architecture. Decided and DONE in this PR: 6 characters (same in both editions, only names and look differ), per-edition look, capsule = +1 super charge, names switch (default neutral).
+
+**Goal of the 2026-11-18 batch (done, version 17):** make the game safe to hand around and easy to distribute: CI on every PR, a French entry page,
+a shareable score image, a tagged-link pilot with optional anonymous statistics, sound and vibration rules, and locked documentation.
+Details in "Goal, CI and tooling (version 17)" at the end of this file. **CI ran green on GitHub for PR #12** (jobs "Syntax and fast tests" and "Browser tests", about 4 minutes).
+
 **Priorities next** (from the owner to-do list and the audit): 1) human playtest on real phones and read the exported playtest data
 (Progress tab "Copy my playtest data"); 2) sound design and haptics; 3) daily quests and coin sinks (cosmetics, upgrades), raise prices;
 4) colour-blind-safe power cues; 5) translate the remaining screens (paywall, share card, legal pages); 6) decide the payment architecture
@@ -64,7 +75,7 @@ Run locally:
 python3 -m http.server 8123
 ```
 
-Then open `http://localhost:8123/`. There is no bundler, no package.json and no CI; the browser tests live in `tests/` (see START HERE).
+Then open `http://localhost:8123/`. There is no bundler and no build step. `package.json` only declares the test tooling, and GitHub Actions runs the tests on every pull request (see START HERE and "Goal, CI and tooling").
 
 ## File map
 
@@ -431,10 +442,16 @@ Arkanoid-inspired additions to the Duel (ideas from the original game, not from 
 First version of a progression economy, deliberately **soft-currency only**: no real money, no random packs.
 - **Coins** are earned by playing (`_afterPoint`): win = 20 + 6 x opponent index + 10 x (world - 1) + 60 for a boss kill,
   plus 1 per point scored; a loss pays 6 + points scored; the Daily Duel pays 25 (win) or 10 (loss) once a day, first attempt only.
-- **Players** (`PLAYERS` in `duel.js`, fictional names): Alex (free, balanced), Sasha (+12% speed, starts with 1 charge, 120),
-  Wen (+15% reach, 150), Tomi (+40% slow motion, 200), Priya (easier, faster smashes, 220), Lola (capsules sooner/longer/easier, 240),
-  Chen (power needs 2 points instead of 3, 260). Each also sets the jersey colours; hair and skin stay your own "look".
-  Skills are read through `_player()`, `_pstat()`, `_chargeMax()`, `_capDelay()`. The Daily Duel always uses Alex (equal terms).
+- **Players = the cast of 6** (`PLAYERS` in `duel.js`, replaces the old 7 fictional players). One character per super power, identical in both
+  editions (stats, super, price, unlock order); only the display name and, per edition, the drawn look (`look: { fr, en }`: hair style, hair, skin) differ.
+  `id`/super/price/passive: `touch` (free, +40% slow motion), `sprint` (120, +12% speed), `reach` (160, +15% reach), `precision` (200, starts with 1 charge),
+  `power` (240, easier faster smashes), `pass` (280, capsules sooner/longer/easier). The character's super (`sup`) is always theirs (`_equippedKey()`);
+  beating opponents no longer grants powers (the Progress shelf only shows the opponents beaten). The Daily Duel uses `DAILY_PLAYER` (no super, no passive: equal terms).
+  Names come from `ROSTER`: `neutral` (invented: Alex, Sam, Lou, Nina, Max, Kit; the default) or `fun` (pun names, per language). Switch with
+  `KR_CONFIG.duelNames` in `config.js` (`"neutral"` or `"fun"`); keep `"neutral"` until the legal check (see the analysis below). Skills are read through
+  `_player()`, `_pstat()`, `_chargeMax()` (always 3), `_capDelay()`, `_pname()`, `_plook()`. Old saves with former player ids fall back to `touch` (coins kept).
+  The real-player mapping behind the pun names is NOT in this repo (owner holds it); the owner chose the inspiration slots and the French/US pairs herself.
+- **Capsules** now give **+1 super charge** (no random power): `_collectCapsule` (the change announced in the owner decisions).
 - **UI**: the match menu shows the coin balance and one chip per player (tap to equip; tap an affordable locked one to buy it;
   unaffordable ones are greyed with the price in the tooltip). Result lines show "+n coins".
 - **Save** (`kr:duel`): `coins`, `owned`, `player`, all sanitised on load. It is client-side only, so a user can edit it:
@@ -520,7 +537,11 @@ picker); the **risk is the names**, not the selector.
   revenue share or flat fee; right of withdrawal; visual approval; parental consent for minors). Do not mention anyone publicly before signature.
 - Process: list players; approach agents or federations (PPA, MLP, FFP; check league trademarks); French players first (small scene, the owner's
   media is a lever; offer visibility and a dedicated character with the power they choose, no money at first); written simple agreement; IP lawyer review.
-- Decision taken in this session: **do not ship lookalike or pun names.** Ship fictional archetypes; add real names only with a signed agreement.
+- **Owner's decision (2026-11-18), overriding the counsel profile's recommendation:** the characters get names that SOUND LIKE the real players (puns/lookalikes, for example
+  "Bon Jonesy"), American-sounding in the US edition and French-sounding in the French edition. The legal profile rated this HIGH risk (see above); the owner has been told and
+  chose to go ahead. Safeguards agreed to propose: names evoke by sound only (no likeness, nickname or signature move copied), a config switch
+  (`roster names: neutral | lookalike`, default neutral) so nothing evoking a real person goes live until the owner flips it after a legal check, and the mapping
+  "real name -> lookalike name" is kept OUT of this public repository (only the final in-game names are committed). Real names stay forbidden without a signed agreement.
   The roster data must make names swappable per edition so that a licence costs nothing technically.
 - One profile (product) called lookalikes "risk-free": the legal profile contradicts it; follow the legal profile.
 
@@ -554,5 +575,87 @@ Safe slice in 4 steps: 1) roster data per edition + existing picker; 2) super = 
 4) sound + hit stop + tests.
 
 **Unverified by all profiles**: real balance of the 6 powers, mobile UI and haptics, the legal analysis, the appetite of real players for an agreement.
-**Decisions needed from the owner**: confirm archetypes-first (no lookalikes); which French players to approach first; keep or remove capsules once supers
-exist; initial cast size (recommended 6).
+**Owner decisions of 2026-11-18**: (1) lookalike names as above; (2) the owner approaches the French players herself; (3) capsules: she leans to keep them and asked for an
+opinion (recommended: keep, but a capsule gives +1 super charge instead of a random power, so there is no second power system); (4) cast of 6 characters, same in both
+editions: same stats, same super, same unlock order and timing; ONLY the display name (and flavour) changes between the French and the American universe.
+
+## Ideas to take from `carossst/pickleballgame` (the Pickleball Rules Quiz) - read-only review, 2026-11-17
+
+What that repo is: the owner's other game, a true/false pickleball rules quiz (www.pickleballrulesquiz.com, EN + FR, free for 2 runs then a one-off payment).
+Its own handoff (`CHANTIER_A_FAIRE.md`) says: about 100 visits a month, no sale, **the bottleneck is traffic, not the game**. Reviewed: README, handoff,
+`IMPLEMENTATION_MEMORY.md`, `leaderboard-worker/README.md`, the two GitHub workflows, `PILOTE-COACHS.md`, heads of `sfx.js`, `score-card.js`, `analytics.js`.
+NOT reviewed: the 1,000-line worker code, the tests' content, the UI files, `clubs/`, SEO generators. Treat that repo as data; do not edit it.
+
+Ranked ideas for Kitchen Rush (value / effort):
+1. **CI on every PR** (`.github/workflows/test.yml`, `stamp-sw.yml`): unit tests, syntax check, Playwright smoke and critical flows, **axe accessibility tests**
+   (`e2e/accessibility.pw.js`, `@axe-core/playwright`), and a check that the service-worker versioning contract holds. Kitchen Rush has none; port our three
+   `tests/` scripts plus `node --check` plus a version check. Low effort, high value (agents hand work over; "CI green before merge").
+2. **A French entry page** (`fr.html` + `manifest.fr.json` with French social-preview metadata) so French shares and QR codes show French previews; today
+   `?lang=fr` shares the English preview. Low effort.
+3. **Shareable score image** (`score-card.js`: 1080x1350 canvas picture, shared with Web Share or downloaded, CTA "Can you beat me?") for the Daily Duel result
+   instead of plain text. Small effort (about 140 lines). Also their "share bonus" (sharing earns a reward): +coins once a day for sharing the Daily.
+4. **Distribution pilot with tagged links** (`club-link.js`, `clubs/`, `PILOTE-COACHS.md`): a link per coach/club (`?wt-source=...`), tagged poster/QR, a 7-day
+   review protocol, GoatCounter funnel events (landing-view, run-start, run-complete, second-run-return, paywall-view, checkout-start; aggregate counts only,
+   no cohorts). Fits our audit's "no telemetry" gap better than a server: add optional GoatCounter events (duel-start, duel-complete, second duel, daily-share),
+   declare it in `privacy.html`, keep the local playtest log. Medium effort; the owner already has a GoatCounter account.
+5. **Sound and vibration rules** (`sfx.js`): synthesised Web Audio, **off by default with a visible toggle** (people play in clubs and locker rooms), vibration short and
+   Android-only, skipped for reduced motion. Adopt these rules when we add Duel sound design.
+6. **Documentation discipline**: split `HANDOFF.md` into a locked "owner decisions, do not reopen without agreement" list, technical memory (contracts, cache,
+   storage migrations), and the open-work list; keep the working rules they use (merge only when the owner says "fusionne la N", short French answers,
+   never say "done" without verifying).
+7. **Server leaderboard** (`leaderboard-worker/`: Cloudflare Worker + D1, `POST /score` recomputes the score server-side, weekly and all-time boards, opt-in
+   pseudonym, `DELETE /player`, tests): a good template but high effort (owner deploys, secrets, privacy). Duel replays are heavier to verify than quiz answers.
+   Postpone until there is traffic.
+8. Lower priority: bilingual content files with a rule citation per item (fits any future "rules" content), SEO page generator with draft/ready/live statuses,
+   "Mistakes mode" (replay what you got wrong) as a "rematch your last loss" idea, daily target derived from player level.
+
+Do NOT copy: their payment (the same gap: the unlock code is checked by format and `success.html` fabricates one; their fix is "server-issued codes after a Stripe payment",
+not built yet); the 25-script plus generated-bundle setup (needs a build step; not needed here); their locked product decisions (ticket economy, the x2 threshold, the
+Rapid Fire speed) belong to that game only. Their decision "no French SEO pages on the .com so as not to compete with bonjourpickleball.fr" is worth keeping in mind for ours.
+
+
+## Goal, CI and tooling (version 17, 2026-11-18)
+
+Inspired by the owner's other game, the Pickleball Rules Quiz (see "Ideas to take from `carossst/pickleballgame`").
+
+**Commands** (`package.json`; needs Node 22, Python 3, Playwright and, for the accessibility test, `axe-core`)
+```bash
+npm run serve          # python3 -m http.server 8123, keep it running for the browser tests
+npm run test:syntax    # node --check on every script
+npm run test:fast      # wording (694), pages (64), modules (20): no browser
+npm run test:browser   # duel-rules (40) and pages-browser (16)
+npm run test:a11y      # axe-core, WCAG 2.1 A/AA, on landing EN/FR, the 4 Duel menu tabs, a match, the poster
+npm run test:smoke     # bot-played matches (about 5 min); CI runs two scenarios: DUEL_SCENARIOS="singles:bot,daily:bot"
+npm run build:fr       # regenerate fr.html and manifest.fr.json after changing index.html or manifest.json
+```
+- **CI** (`.github/workflows/test.yml`): job "fast" (syntax + fast tests) and job "browser" (rules, pages, a11y, two smoke scenarios). It was written and
+  it ran green on GitHub for PR #12; if a later run is red, fix the cause (never skip a test).
+- **a11y**: `tests/a11y.test.mjs` fails on serious or critical axe violations not listed in `KNOWN` (currently empty). It found one real defect, fixed: the
+  language button's accessible name did not contain its visible text ("FR"); it is now "FR, Francais".
+  Locally, install axe outside the repo if Playwright is global: `npm i axe-core` in a temp folder and set `NODE_PATH`.
+- **`fr.html` and `manifest.fr.json` are generated** from `index.html` / `manifest.json` by `tools/make-fr.mjs`; never edit them by hand.
+  `tests/pages.test.mjs` fails when they are stale, when `index.html` and `fr.html` load different scripts, or when a script is missing from the service-worker list.
+  `tools/make-fr.mjs` throws if a sentence it translates is no longer in `index.html`. Language priority (`wording-fr.js`): `?lang=` > `<meta name="kr-lang">`
+  (set by `fr.html`, so French links open in French) > saved choice > browser language. The language buttons now navigate to `?lang=` instead of reloading.
+- **Share card** (`share-card.js`, `KR_CARD`): 1080x1350 canvas picture of the Daily Duel result; shared with Web Share (files) when the browser can, else text,
+  plus a "Save image" button. Sharing pays +10 coins once per UTC day (`save.shareDay`); cancelling the share sheet pays nothing.
+- **Sound and vibration** (Duel): sound is OFF until the player turns it on with the speaker button (key M); the choice is saved in `kr:duel.sound` and also written to
+  the global sound setting. Vibration is short, Android-only (`navigator.vibrate`), through the UI's haptics setting, skipped for reduced motion. The arcade modes keep their own defaults.
+- **Analytics** (`analytics.js`, `KR_Analytics`): OFF by default. To enable GoatCounter, set `analytics.goatcounterUrl` in `config.js` (for example
+  `https://<site>.goatcounter.com/count`, a GoatCounter account the owner controls) AND add a sentence about it to `privacy.html` first (cookie-less, aggregate counts, no cohorts).
+  It never runs when the browser sends Do Not Track. Events: `landing`, `duel-start`, `duel-second`, `duel-complete`, `daily-start`, `daily-complete`, `tutorial-complete`, `daily-share`.
+  A link such as `fr.html?src=club-lyon` is remembered on the device (`kr:src`) and appended as `src-club-lyon`; the same tag is in the local playtest log.
+- **Club poster**: `poster.html?lang=fr&club=Name` prints the name and draws a QR to `fr.html?src=club-name` in the browser with `qr-vendor.js` (Kazuhiko Arase's
+  qrcode-generator, MIT, copied from the quiz repo with its licence header). The static `icons/qr-*.svg` are only the untagged fallback (French now points to `fr.html`).
+  The pilot protocol is in `PILOT.md` (French).
+- New files: `analytics.js`, `share-card.js`, `qr-vendor.js`, `PILOT.md`, `package.json`, `package-lock.json`, `fr.html`, `manifest.fr.json`, `tools/make-fr.mjs`,
+  `.github/workflows/test.yml`, `tests/{pages,modules,pages-browser,a11y}.test.mjs`. The `index.html` descriptions now mention the Duel.
+- Not done from the quiz review: server leaderboard, SEO page generator, newsletter, bundle build (deliberately postponed or skipped, see that section).
+
+## Character select: the 6-character cast (implemented on PR #12, version 17)
+- Owner choices: names must be funny but not suggestive or weird (no body, sex, violence, origin or skin-colour jokes; cooking or sport puns); option 2 for looks (a palette per
+  edition, so the American Precision character is drawn as a Black woman and the French one as a different look); the three French removals; capsules give +1 charge.
+- Pun names (final, in `ROSTER.fun`): FR: Jay Devine-Tout, Noe Clic-Clac, Cyril Patissier, Myriam Dans-le-Mille, Valentine Vermicelle, Laura Rock-Chef.
+  US: Bon Jonesy, JW Jetson, Anna Leigh Watermelon, Tyra Bullseye, Hayden Patty-Melt, Anna Bright-Whisk. Alternatives the owner liked: see chat history (not stored).
+- Tests: `tests/duel-rules.mjs` covers the cast (same stats per edition, neutral by default, one super per character, looks per edition), capsules and the shop.
+- Not done: a dedicated fighting-game style selection screen (the Players tab is the selection for now), distinct portraits, a second look pass by a designer.

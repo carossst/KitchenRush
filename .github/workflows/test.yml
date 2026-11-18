@@ -1,0 +1,44 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  fast:
+    name: Syntax and fast tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - name: JavaScript syntax
+        run: npm run test:syntax
+      - name: Texts, pages, service-worker contract, share card, analytics
+        run: npm run test:fast
+
+  browser:
+    name: Browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Start the static server
+        run: |
+          python3 -m http.server 8123 >/dev/null 2>&1 &
+          sleep 2
+          curl -fsS http://localhost:8123/index.html >/dev/null
+      - name: Rules, French page, poster, source tag
+        run: npm run test:browser
+      - name: Accessibility (axe, WCAG 2.1 AA)
+        run: npm run test:a11y
+      - name: Bot-played matches (stall detector)
+        run: DUEL_SCENARIOS="singles:bot,daily:bot" npm run test:smoke

@@ -11,6 +11,8 @@
     var q = "";
     try { q = String(new URLSearchParams(window.location.search).get("lang") || "").toLowerCase(); } catch (_) { }
     if (q === "fr" || q === "en") { try { window.localStorage.setItem("kr:lang", q); } catch (_) { } return q; }
+    // An entry page (fr.html) declares its language; it beats the saved choice so French links always open in French.
+    try { var meta = document.querySelector('meta[name="kr-lang"]'); var ml = meta && String(meta.getAttribute("content") || ""); if (ml === "fr" || ml === "en") return ml; } catch (_) { }
     var stored = "";
     try { stored = String(window.localStorage.getItem("kr:lang") || ""); } catch (_) { }
     if (stored === "fr" || stored === "en") return stored;

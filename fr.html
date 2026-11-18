@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="kr-lang" content="fr">
+    <title>Kitchen Rush - L'arcade du pickleball</title>
+
+  <!-- SEO -->
+  <meta name="description"
+    content="Une arcade de pickleball rapide. Visez chaque coup dans le Duel, battez le boss et battez votre record en Classique et dans le Défi du jour. Sans pub. Sans compte.">
+  <meta name="author" content="Kitchen Rush">
+
+  <!-- Canonical Link -->
+  <link rel="canonical" href="https://kitchenrush.app/fr.html">
+  <link rel="alternate" hreflang="en" href="https://kitchenrush.app/">
+  <link rel="alternate" hreflang="fr" href="https://kitchenrush.app/fr.html">
+  <link rel="alternate" hreflang="x-default" href="https://kitchenrush.app/">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://kitchenrush.app/icons/kr-icon-512x512.png">
+  <meta name="twitter:url" content="https://kitchenrush.app/fr.html">
+  <meta name="twitter:title" content="Kitchen Rush - L'arcade du pickleball">
+  <meta name="twitter:description"
+    content="Visez chaque coup, battez le boss et battez votre record dans le Duel, en Classique et dans le Défi du jour.">
+
+  <!-- PWA & UI -->
+  <meta name="theme-color" content="#070b1f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Kitchen Rush">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="fr_FR">
+  <meta property="og:image" content="https://kitchenrush.app/icons/kr-icon-512x512.png">
+  <meta property="og:url" content="https://kitchenrush.app/fr.html">
+  <meta property="og:title" content="Kitchen Rush - L'arcade du pickleball">
+  <meta property="og:description"
+    content="Une arcade de pickleball rapide. Visez chaque coup dans le Duel, battez le boss et battez votre record.">
+  <meta property="og:site_name" content="Kitchen Rush">
+
+  <!-- Icons & manifest -->
+  <link rel="manifest" href="./manifest.fr.json">
+  <link rel="icon" href="./icons/kr-favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="./icons/kr-favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/png" sizes="32x32" href="./icons/kr-icon-32x32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/kr-icon-192x192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/kr-icon-180x180.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="./icons/kr-icon-152x152.png">
+
+  <!-- Preconnect for Stripe (performance) -->
+  <link rel="preconnect" href="https://buy.stripe.com" crossorigin>
+  <link rel="preconnect" href="https://checkout.stripe.com" crossorigin>
+  <link rel="preconnect" href="https://js.stripe.com" crossorigin>
+
+  <!-- Styles -->
+  <link rel="preload" href="./style.css" as="style">
+  <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+  <!-- Fallback without JavaScript -->
+  <noscript>
+    <div class="kr-noscript">
+      <div class="kr-noscript-content">
+        <div class="kr-noscript-icon">&#x26A0;</div>
+        <h2>JavaScript requis</h2>
+        <p>Kitchen Rush a besoin de JavaScript pour fonctionner. Activez JavaScript dans les réglages de votre navigateur puis rechargez
+          la page.</p>
+      </div>
+    </div>
+  </noscript>
+
+  <!-- Skip link for accessibility -->
+  <a href="#app" class="kr-skip-link">Aller au contenu principal</a>
+
+  <!-- App shell -->
+  <div class="kr-app">
+    <main class="kr-main">
+      <div class="kr-container">
+        <div id="app" tabindex="-1" aria-live="off" aria-label="Contenu du jeu Kitchen Rush"></div>
+      </div>
+    </main>
+
+    <footer class="kr-footer" role="contentinfo">
+      <div class="kr-container">
+        <div class="kr-footer-inner">
+          <!-- Line 1: Branding -->
+          <div class="kr-footer-row kr-footer-row--brand">
+            <span class="kr-footer-creator" data-kr-brand="creatorLine"></span>
+          </div>
+
+          <!-- Line 2: Utility links -->
+          <div class="kr-footer-row kr-footer-row--links">
+            <a id="kr-contact-link" class="kr-footer-link" href="#" data-kr-wording="footer.contact"></a>
+            <span class="kr-footer-sep" aria-hidden="true">·</span>
+            <a id="kr-privacy-link" class="kr-footer-link" href="./privacy.html" target="_blank" rel="noopener"
+              data-kr-wording="footer.privacy"></a>
+            <span class="kr-footer-sep" aria-hidden="true">·</span>
+            <a id="kr-terms-link" class="kr-footer-link" href="./terms.html" target="_blank" rel="noopener"
+              data-kr-wording="footer.terms"></a>
+            <span class="kr-footer-sep" aria-hidden="true">·</span>
+            <span class="kr-footer-version" data-kr-version></span>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Modal shell -->
+    <div id="kr-modal-overlay" class="kr-backdrop kr-hidden" role="dialog" aria-modal="true" aria-hidden="true"
+      data-action="close-modal">
+      <div id="kr-modal-content" class="kr-modal kr-anim-in" role="document"></div>
+    </div>
+  </div>
+
+  <!-- Toast containers -->
+  <div id="kr-toast" class="kr-toast" role="status" aria-live="polite"></div>
+
+  <div id="update-toast" class="kr-toast" role="status" aria-live="polite">
+    <div class="kr-row kr-row--spaced kr-row--tight">
+      <span data-kr-update-text data-kr-wording="system.updateAvailable"></span>
+      <button class="kr-btn kr-btn--ghost" data-action="dismiss-update" data-kr-aria-label="system.dismiss"
+        data-kr-wording="system.closeIcon"></button>
+    </div>
+  </div>
+
+  <!-- Scripts (defer for performance) -->
+  <script defer src="./config.js"></script>
+  <script defer src="./wording.js"></script>
+  <script defer src="./wording-fr.js"></script>
+  <script defer src="./wording-dom.js"></script>
+  <script defer src="./config-boot.js"></script>
+  <script defer src="./analytics.js"></script>
+  <script defer src="./storage.js"></script>
+  <script defer src="./storage-ux.js"></script>
+  <script defer src="./storage-premium.js"></script>
+  <script defer src="./storage-runs.js"></script>
+  <script defer src="./game.js"></script>
+  <script defer src="./audio.js"></script>
+  <script defer src="./fx.js"></script>
+  <script defer src="./characters.js"></script>
+  <script defer src="./share-card.js"></script>
+  <script defer src="./duel.js"></script>
+  <script defer src="./ui-overlays.js"></script>
+  <script defer src="./ui-modals.js"></script>
+  <script defer src="./ui-sharing.js"></script>
+  <script defer src="./ui-screens.js"></script>
+  <script defer src="./ui.js"></script>
+  <script defer src="./pwa.js"></script>
+  <script defer src="./email.js"></script>
+  <script defer src="./main.js"></script>
+</body>
+
+</html>

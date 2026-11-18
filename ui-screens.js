@@ -394,7 +394,7 @@
         '<div class="kr-screen kr-screen--landing">' +
           '<div class="kr-landing-header"><div class="kr-landing-header-row">' +
             '<button class="kr-btn-icon" data-action="howto" aria-label="' + escapeHtml((w?.system || {}).more || "") + '">?</button>' +
-            '<button class="kr-btn-icon kr-lang-btn" data-action="lang" lang="' + (window.KR_LANG === "fr" ? "en" : "fr") + '" aria-label="' + (window.KR_LANG === "fr" ? "English" : "Fran\u00e7ais") + '">' + (window.KR_LANG === "fr" ? "EN" : "FR") + '</button>' +
+            '<button class="kr-btn-icon kr-lang-btn" data-action="lang" lang="' + (window.KR_LANG === "fr" ? "en" : "fr") + '" aria-label="' + (window.KR_LANG === "fr" ? "EN, English" : "FR, Fran\u00e7ais") + '">' + (window.KR_LANG === "fr" ? "EN" : "FR") + '</button>' +
             powerBallHtml +
           '</div></div>' +
           '<div class="kr-landing-body">' +
