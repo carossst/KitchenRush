@@ -229,7 +229,7 @@ const results = await page.evaluate(() => {
     d._panelAction("selok"); d._panelAction("court-park"); d._panelAction("court-ok");
     const vs = [!!d.panelEl.querySelector(".kr-duel-versus"), d.phase, d.panelEl.querySelectorAll("canvas").length];
     d._panelAction("versus-go"); d.paused = true;
-    return eq([players, courts, back, d.save.venue, vs, d.panelEl.classList.contains("kr-duel-panel--on"), d.phase === "serve" || d.phase === "rally"], [6, 7, true, "park", [true, "menu", 2], false, true]);
+    return eq([players, courts, back, d.save.venue, vs, d.panelEl.classList.contains("kr-duel-panel--on"), d.phase === "serve" || d.phase === "rally"], [6, 8, true, "park", [true, "menu", 2], false, true]);
   });
   t("victory splash shows the result and returns to the menu", () => {
     d._lastScore = [5, 2]; d._lastEarn = 25; d._lastBoss = false; d._lastResult = "win"; d._showSplash("win");

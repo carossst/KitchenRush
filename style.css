@@ -2272,3 +2272,68 @@ body:has(.kr-duel) #update-toast {
 .kr-duel-court-roster { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .kr-duel-court-roster canvas { width: 100%; height: auto; display: block; border-radius: var(--r-card); }
 .kr-duel-court-roster .kr-duel-tile:disabled { cursor: default; }
+
+.kr-duel-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.kr-duel-steps li {
+  padding-block: var(--space-2);
+  border-bottom: 2px solid rgb(var(--border));
+}
+
+.kr-duel-steps [aria-current="step"] {
+  border-color: rgb(var(--accent-warm));
+  color: rgb(var(--accent-warm));
+}
+
+.kr-duel-select .kr-duel-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  text-align: start;
+  background: radial-gradient(ellipse at 20% 60%, color-mix(in srgb, var(--duel-player-color) 65%, transparent), transparent 50%),
+    rgb(var(--bg));
+}
+
+.kr-duel-select .kr-duel-hero canvas {
+  display: block;
+  width: 100%;
+}
+
+.kr-duel-hero-info {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+.kr-duel-hero-info p { margin: 0; }
+.kr-duel-equipped { color: rgb(var(--accent-warm)); font-weight: 700; }
+
+.kr-duel-court-hero {
+  position: relative;
+  margin: 0;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  border: 1px solid rgb(var(--accent-warm));
+}
+
+.kr-duel-court-hero canvas { display: block; width: 100%; height: auto; }
+
+.kr-duel-court-hero figcaption {
+  position: absolute;
+  inset: auto 0 0;
+  padding: var(--space-2);
+  color: white;
+  background: #11172b;
+  font-weight: 800;
+}
+
+.kr-duel-vs-action { grid-column: 1 / -1; }
