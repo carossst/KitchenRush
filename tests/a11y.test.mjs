@@ -1,6 +1,7 @@
 // Accessibility test: runs axe-core (WCAG 2.0/2.1 A and AA rules) on the main screens and fails on serious or critical
 // violations that are not listed in KNOWN (each entry needs a reason and a follow-up). Needs a static server, playwright and
 // axe-core. Run: node tests/a11y.test.mjs
+import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -29,6 +30,23 @@ for (const [path, name] of [["/index.html?lang=en", "landing (English)"], ["/fr.
 }
 await page.goto(BASE + "/index.html?lang=en"); await page.waitForTimeout(500);
 await page.click('[data-action="play-duel"]'); await page.waitForTimeout(500);
+await page.locator('[data-duel="tab-play"]').focus();
+await page.keyboard.press("ArrowRight");
+assert.equal(await page.locator('[data-duel="tab-players"]:focus[aria-selected="true"]').count(), 1);
+assert.equal(await page.getByRole("tabpanel").getAttribute("aria-labelledby"), "kr-duel-tab-players");
+assert.equal(await page.locator('[data-duel="tab-play"]').getAttribute("tabindex"), "-1");
+await page.keyboard.press("End");
+assert.equal(await page.locator('[data-duel="tab-progress"]:focus[aria-selected="true"]').count(), 1);
+await page.keyboard.press("Home");
+await page.keyboard.press("ArrowRight");
+await page.locator('[data-duel="pl-sprint"]').focus();
+await page.keyboard.press("Enter");
+assert.equal(await page.locator('[data-duel="pl-sprint"]:focus[aria-pressed="true"]').count(), 1);
+assert.equal(await page.locator('canvas[data-portrait="sprint"]:visible').count(), 1);
+await page.keyboard.press("Tab");
+assert.equal(await page.locator('[data-duel="pl-reach"]:focus').count(), 1);
+console.log("ok   Duel menu keyboard navigation and player preview focus");
+
 for (const tab of ["play", "players", "courts", "progress"]) { await page.click('[data-duel="tab-' + tab + '"]'); await page.waitForTimeout(150); await scan("Duel menu, tab " + tab); }
 await page.click('[data-duel="tab-play"]'); await page.click('[data-duel="go"]'); await page.waitForTimeout(800); await scan("Duel in match");
 for (const [path, name] of [["/poster.html?lang=en&club=Test", "poster"]]) { await page.goto(BASE + path); await page.waitForTimeout(600); await scan(name); }

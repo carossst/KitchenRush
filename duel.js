@@ -228,6 +228,20 @@
       var b = e.target.closest("[data-duel]");
       if (b) self._panelAction(b.getAttribute("data-duel"));
     });
+    this.panelEl.addEventListener("keydown", function (e) {
+      var tab = e.target.closest(".kr-duel-tab");
+      if (!tab) return;
+      var tabs = Array.from(self.panelEl.querySelectorAll(".kr-duel-tab"));
+      var i = tabs.indexOf(tab);
+      if (e.key === "ArrowLeft") i = (i + tabs.length - 1) % tabs.length;
+      else if (e.key === "ArrowRight") i = (i + 1) % tabs.length;
+      else if (e.key === "Home") i = 0;
+      else if (e.key === "End") i = tabs.length - 1;
+      else return;
+      e.preventDefault();
+      self._panelAction(tabs[i].getAttribute("data-duel"));
+      tabs[i].focus();
+    });
     var c = this.canvas;
     c.addEventListener("pointerdown", function (e) { self._pDown(e); });
     c.addEventListener("pointermove", function (e) { self._pMove(e); });
@@ -297,7 +311,7 @@
     return AUTO[this.stage % AUTO.length];
   };
 
-  Duel.prototype._showMenu = function (result) {
+  Duel.prototype._showMenu = function (result, focusAction) {
     this.phase = "menu";
     var t = this.t, opp = this._opp();
     var head = "";
@@ -310,8 +324,16 @@
     function opt(id, label, on) { return '<button class="kr-duel-opt' + (on ? " kr-duel-opt--on" : "") + '" data-duel="' + id + '" aria-pressed="' + (on ? "true" : "false") + '">' + esc(label) + '</button>'; }
     var touch = this._isTouch;
     var tabs = ["play", "players", "courts", "progress"], tab = (this.tab && tabs.indexOf(this.tab) >= 0) ? this.tab : "play", tabNames = t.tabs || {};
-    function tabBtn(id) { return '<button role="tab" class="kr-duel-tab" data-duel="tab-' + id + '" aria-selected="' + (tab === id ? "true" : "false") + '">' + esc(tabNames[id] || id) + "</button>"; }
-    function panel(id, html) { return '<div class="kr-duel-tabpanel" role="tabpanel" data-tabpanel="' + id + '"' + (tab === id ? "" : " hidden") + ">" + html + "</div>"; }
+    function tabBtn(id) {
+      var selected = tab === id;
+      return '<button role="tab" class="kr-duel-tab" id="kr-duel-tab-' + id + '" data-duel="tab-' + id +
+        '" aria-controls="kr-duel-panel-' + id + '" aria-selected="' + selected + '" tabindex="' + (selected ? 0 : -1) +
+        '">' + esc(tabNames[id] || id) + "</button>";
+    }
+    function panel(id, html) {
+      return '<div class="kr-duel-tabpanel" role="tabpanel" id="kr-duel-panel-' + id + '" aria-labelledby="kr-duel-tab-' + id +
+        '" data-tabpanel="' + id + '"' + (tab === id ? "" : " hidden") + ">" + html + "</div>";
+    }
     this.panelEl.innerHTML =
       '<div class="kr-duel-card">' + head +
       '<p class="kr-duel-kicker">' + esc((this._world() > 1 && !this.daily ? (t.worldLabel || "World {w}").replace("{w}", this._world()) + " \u00b7 " : "") + (opp.boss ? (t.bossLabel || "FINAL BOSS") : (t.stageLabel || "Opponent {n}").replace("{n}", this._oppIdx() + 1))) + '</p>' +
@@ -342,7 +364,11 @@
     this._setupActors();
     this._drawPortrait();
     var go = this.panelEl.querySelector(".kr-duel-go");
-    if (go) try { go.focus({ preventScroll: true }); } catch (_) { }
+    var target = focusAction && Array.from(this.panelEl.querySelectorAll("[data-duel]:enabled")).find(function (b) {
+      return b.getAttribute("data-duel") === focusAction && !b.closest("[hidden]");
+    });
+    target = target || go;
+    if (target) try { target.focus({ preventScroll: true }); } catch (_) { }
   };
 
   // Progress block of the match menu: last results, record, goal for the next match, opponents beaten.
@@ -573,7 +599,7 @@
 
   Duel.prototype._panelAction = function (a) {
     if (a === "exit") { this.destroy(); return; }
-    if (a.indexOf("pl-") === 0) { this.previewPlayer = a.slice(3); this._showMenu(this._lastResult); return; }
+    if (a.indexOf("pl-") === 0) { this.previewPlayer = a.slice(3); this._showMenu(this._lastResult, a); return; }
     if (a.indexOf("act-") === 0) {
       var pid = a.slice(4), sv2 = this.save, P = null;
       for (var pi = 0; pi < PLAYERS.length; pi++) if (PLAYERS[pi].id === pid) P = PLAYERS[pi];
@@ -582,7 +608,7 @@
         else if ((sv2.coins || 0) >= P.cost) { sv2.coins -= P.cost; sv2.owned[pid] = true; sv2.player = pid; this._sound("milestone"); }
         this.previewPlayer = pid; writeSave(sv2);
       }
-      this._showMenu(this._lastResult); return;
+      this._showMenu(this._lastResult, "pl-" + pid); return;
     }
     if (a === "tutorial") { this.save.coached = false; writeSave(this.save); this.tab = "play"; this._showMenu(this._lastResult); return; }
     if (a === "export") { this._export(); return; }
@@ -591,14 +617,18 @@
       if (["play", "players", "courts", "progress"].indexOf(tb) < 0) return;
       this.tab = tb;
       this.panelEl.querySelectorAll("[data-tabpanel]").forEach(function (p) { p.hidden = p.getAttribute("data-tabpanel") !== tb; });
-      this.panelEl.querySelectorAll(".kr-duel-tab").forEach(function (b) { b.setAttribute("aria-selected", b.getAttribute("data-duel") === "tab-" + tb ? "true" : "false"); });
+      this.panelEl.querySelectorAll(".kr-duel-tab").forEach(function (b) {
+        var selected = b.getAttribute("data-duel") === "tab-" + tb;
+        b.setAttribute("aria-selected", selected ? "true" : "false");
+        b.tabIndex = selected ? 0 : -1;
+      });
       return;
     }
     if (a.indexOf("venue-") === 0) {
       var vid = a.slice(6);
       if (vid === "auto" || (hasVenue(vid) && this.stage >= VENUES[vid].unlock)) { this.save.venue = vid; writeSave(this.save); this._bg = null; this.venueMsg = ""; }
       else if (hasVenue(vid)) this.venueMsg = (this.t.venueLocked || "Reach opponent {n} to unlock").replace("{n}", VENUES[vid].unlock + 1);
-      this._showMenu(this._lastResult); return;
+      this._showMenu(this._lastResult, a); return;
     }
     if (a === "go") { this.daily = null; this._startMatch(); return; }
     if (a === "daily") { var di = dailyInfo(); this.daily = di; this.mode = "singles"; this._startMatch(); return; }
@@ -609,7 +639,7 @@
     else if (a === "singles") this.mode = "singles";
     else { this.mode = "doubles"; this.side = a; }
     this.save.mode = this.mode; this.save.side = this.side; this.save.look = this.look; writeSave(this.save);
-    this._showMenu(this._lastResult);
+    this._showMenu(this._lastResult, a);
   };
 
   // ───────────────────────── Match setup ─────────────────────────
