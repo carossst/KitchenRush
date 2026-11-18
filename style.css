@@ -2260,7 +2260,8 @@ body:has(.kr-duel) #update-toast {
 .kr-duel-vs-side--r { animation: kr-duel-in-r 0.45s ease-out both; }
 .kr-duel-vs-mid { font-size: 2.4rem; font-weight: 900; font-style: italic; color: rgb(var(--accent-warm)); animation: kr-duel-pop 0.5s 0.35s ease-out both; }
 .kr-duel-vs-foot { grid-column: 1 / -1; margin-top: var(--space-3); opacity: 0.85; text-align: center; }
-.kr-duel-splash { justify-items: center; gap: var(--space-3); }
+.kr-duel-splash { justify-items: center; gap: var(--space-3); cursor: default; }
+.kr-duel-result-note { margin: 0; text-align: center; }
 .kr-duel-splash-title { font-size: 2rem; font-weight: 900; font-style: italic; animation: kr-duel-pop 0.5s ease-out both; }
 .kr-duel-splash--win .kr-duel-splash-title { color: rgb(var(--accent-warm)); }
 .kr-duel-splash canvas { width: 130px; height: auto; }

@@ -118,11 +118,18 @@ const results = await page.evaluate(() => {
     const done = d.save.coached, back = d._opp().speed === base.speed; d.save.coached = true;
     return eq([a, done, back], [[true, true], true, true]);
   });
-  t("tutorial coach shows the right hint and is off once done", () => {
-    d.save.coached = false; d._startMatch(); d.paused = true;
-    d._coachKey = ""; d._coachTick(); const serve = d.coachEl.hidden === false && d.coachEl.textContent.length > 5;
-    d.save.coached = true; d._coachKey = "x"; d._coachTick(); const off = d.coachEl.hidden === true;
-    return eq([serve, off], [true, true]);
+  t("first Duel opens with a guided return and records the first legal hit", () => {
+    d.daily = null; d.save.coached = false; d._startMatch(); d.paused = true;
+    d._coachTick();
+    const guided = d.server.team === 1 && d._guidedReturn && !d.coachEl.hidden;
+    d.now += 1.2; d._update(0.016);
+    const feed = d.ball.live && d.ball.isServe && d.ball.lastHitTeam === 1;
+    d.ball = ball({ x: d.human.x, y: d.human.y, z: 2, lastHitTeam: 1, bounces: 1, hits: 1 });
+    const returned = d._tryHit(d.human, { tx: 0, ty: 13, speed: 30 }, 0);
+    d._coachTick();
+    const done = d.save.coached && !d._guidedReturn && d._coachKey === "coachFirstReturn";
+    d._startMatch(); d.paused = true;
+    return eq([guided, feed, returned, done, d.serverTeam], [true, true, true, true, 0]);
   });
   t("menu tabs switch panels without re-rendering", () => {
     d.tab = "play"; d._showMenu(); d._panelAction("tab-players");
@@ -230,6 +237,15 @@ const results = await page.evaluate(() => {
     const vs = [!!d.panelEl.querySelector(".kr-duel-versus"), d.phase, d.panelEl.querySelectorAll("canvas").length];
     d._panelAction("versus-go"); d.paused = true;
     return eq([players, courts, back, d.save.venue, vs, d.panelEl.classList.contains("kr-duel-panel--on"), d.phase === "serve" || d.phase === "rally"], [6, 8, true, "park", [true, "menu", 2], false, true]);
+  });
+  t("defeat offers immediate rematch and keeps the chosen player and court", () => {
+    fresh(); d.daily = null; d.save.venue = "park"; d._lastFault = "out";
+    d._lastScore = [2, 5]; d._lastEarn = 8; d._lastDailyIdx = null; d._lastResult = "lose"; d.phase = "menu";
+    const player = d._player().id, stage = d.stage;
+    d._showSplash("lose");
+    const note = !!d.panelEl.querySelector(".kr-duel-result-note") && !d._splashT;
+    d._panelAction("splash-next"); d.paused = true;
+    return eq([note, d.phase, d._player().id, d._venueId(), d.stage], [true, "serve", player, "park", stage]);
   });
   t("victory splash shows the result and returns to the menu", () => {
     d._lastScore = [5, 2]; d._lastEarn = 25; d._lastBoss = false; d._lastResult = "win"; d._showSplash("win");

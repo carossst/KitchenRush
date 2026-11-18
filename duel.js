@@ -435,11 +435,13 @@
     var el = this.coachEl; if (!el) return;
     var t = this.t, key = "", b = this.ball;
     if (this.phase !== "menu" && !this.daily && !this.save.coached) {
-      if (this.phase === "serve" && this.server === this.human) key = "coachServe";
+      if (this._guidedReturn && this.phase === "serve") key = "coachReturn";
+      else if (this.phase === "serve" && this.server === this.human) key = "coachServe";
       else if (this.phase === "rally" && this.timeScale < 0.7) key = "coachAim";
       else if (this.phase === "rally" && b && b.live && !b.dead && b.lastHitTeam === 1) key = "coachMove";
       else if (this.phase === "rally" && b && b.lastHitTeam === 0) key = "coachNice";
     }
+    if (this.phase === "rally" && this.now < (this._coachSuccessUntil || 0)) key = "coachFirstReturn";
     if (key === this._coachKey) return;
     this._coachKey = key;
     if (!key) { el.hidden = true; return; }
@@ -640,18 +642,24 @@
   // Short victory (or defeat) splash after a match, then the menu.
   Duel.prototype._showSplash = function (result) {
     this._clearScreenTimers();
-    var t = this.t, self = this, won = result === "win", sc = this._lastScore;
+    var t = this.t, won = result === "win", sc = this._lastScore, daily = this._lastDailyIdx != null;
     var title = won ? (this._lastBoss ? (t.splashBoss || "BOSS DEFEATED!") : (t.splashWin || "VICTORY!")) : (t.splashLose || "Not this time");
     var me = this._player();
+    var next = won ? (t.next || "Next opponent") : (t.retry || "Rematch");
+    var note = won ? (t.nextRival || "Next: {name}").replace("{name}", this._opp().name) : (t.retryTips || {})[this._lastFault] || "";
     this.panelEl.innerHTML =
-      '<div class="kr-duel-card kr-duel-splash-card"><button class="kr-duel-splash kr-duel-splash--' + (won ? "win" : "lose") + '" data-duel="splash-go">' +
+      '<div class="kr-duel-card kr-duel-splash-card"><div class="kr-duel-splash kr-duel-splash--' + (won ? "win" : "lose") + '">' +
       '<span class="kr-duel-splash-title">' + esc(title) + '</span>' +
       '<canvas width="150" height="168" aria-hidden="true" data-portrait="' + me.id + '"></canvas>' +
-      '<span class="kr-duel-splash-score">' + (sc ? sc[0] + '\u2013' + sc[1] : "") + (this._lastEarn ? " \u00b7 " + esc((t.earned || "+{n} coins").replace("{n}", this._lastEarn)) : "") + '</span></button></div>';
+      '<span class="kr-duel-splash-score">' + (sc ? sc[0] + '\u2013' + sc[1] : "") + (this._lastEarn ? " \u00b7 " + esc((t.earned || "+{n} coins").replace("{n}", this._lastEarn)) : "") + '</span></div>' +
+      (!daily && note ? '<p class="kr-duel-result-note">' + esc(note) + '</p>' : '') +
+      (!daily ? '<button class="kr-btn kr-btn--primary" data-duel="splash-next">' + esc(next) + '</button>' : '') +
+      '<button class="kr-btn ' + (daily ? 'kr-btn--primary' : 'kr-btn--ghost') + '" data-duel="splash-go">' +
+      esc(daily ? (t.selectOk || "Continue") : (t.resultMenu || "Duel menu")) + '</button></div>';
     this.panelEl.classList.add("kr-duel-panel--on");
     this._paintPortraits();
-    var b = this.panelEl.querySelector(".kr-duel-splash"); if (b) try { b.focus({ preventScroll: true }); } catch (_) { }
-    this._splashT = setTimeout(function () { self._splashT = 0; if (self.root) self._showMenu(self._lastResult); }, won ? 1700 : 900);
+    this.panelEl.scrollTop = 0;
+    this.panelEl.querySelector(".kr-btn--primary").focus({ preventScroll: true });
   };
 
   Duel.prototype._pw = function (key) {
@@ -795,6 +803,12 @@
     }
     if (a === "select") { this.previewPlayer = null; this._showSelect(); return; }
     if (a === "versus-go") { this._clearScreenTimers(); this._startMatch(); return; }
+    if (a === "splash-next") {
+      if (this._lastDailyIdx != null) return;
+      if (this._lastResult === "win") this._beginMatchSetup();
+      else if (this._lastResult === "lose") this._startMatch();
+      return;
+    }
     if (a === "splash-go") { this._clearScreenTimers(); this._showMenu(this._lastResult); return; }
     if (a === "tutorial") { this.save.coached = false; writeSave(this.save); this.tab = "play"; this._showMenu(this._lastResult); return; }
     if (a === "export") { this._export(); return; }
@@ -856,9 +870,13 @@
 
   Duel.prototype._startMatch = function () {
     this.panelEl.classList.remove("kr-duel-panel--on");
+    this._clearScreenTimers();
+    this.keys = {}; this.joy = null; this.swipe = null;
+    this._lastFault = "";
+    this._coachSuccessUntil = 0;
     this._lastResult = null;
     this._lastDailyIdx = null;
-    this.capsule = null; this.capSpawnIn = null; this._rage = false; this._lastBoss = false; this._lastEarn = 0; this._coachHits = 0; this._coachKey = "";
+    this.capsule = null; this.capSpawnIn = null; this._rage = false; this._lastBoss = false; this._lastEarn = 0; this._coachKey = "";
     this._m = { t0: Date.now(), maxRally: 0, caps: 0, powers: 0, pts: [] };
     this._visitMatches = (this._visitMatches || 0) + 1;
     this._track(this.daily ? "daily-start" : "duel-start");
@@ -867,7 +885,8 @@
     this.power = null;
     RNG = this.daily ? seeded(this.daily.seed) : Math.random;
     this._setupActors();
-    this.serverTeam = 0;
+    this._guidedReturn = !this.daily && !this.save.coached;
+    this.serverTeam = this._guidedReturn ? 1 : 0;
     this.serveTurn = [0, 0];
     this._updateScore();
     this._beginServe();
@@ -1000,7 +1019,13 @@
     b.live = true; b.held = false; b.lastHitTeam = a.team; b.bounces = 0; b.hits += 1; b.id = ++this.ballId;
     b.rate = 1 + clamp(Math.max(0, b.hits - 1) * 0.035, 0, 0.3);
     if (this._m) this._m.maxRally = Math.max(this._m.maxRally, b.hits);
-    if (a.human) { this._coachHits = (this._coachHits || 0) + 1; if (this._coachHits >= 4 && !this.daily && !this.save.coached) { this.save.coached = true; writeSave(this.save); this._track("tutorial-complete"); } }   // rally ramp: the ball runs up to 30% faster on the same arc
+    if (a.human && b.hits > 1 && !this.daily && !this.save.coached) {
+      this._guidedReturn = false;
+      this._coachSuccessUntil = this.now + 1.25;
+      this.save.coached = true;
+      writeSave(this.save);
+      this._track("tutorial-complete");
+    }
     b.isServe = b.hits === 1;
     a.swingAnim = this.now + 0.3; a.swung = true;
     a.side = b.x >= a.x ? 1 : -1;
@@ -1104,6 +1129,8 @@
     if (this.phase === "point" || this.phase === "menu") return;
     var b = this.ball; if (b) b.live = false;
     this.phase = "point";
+    this._guidedReturn = false;
+    this._coachSuccessUntil = 0;
     this.phaseAt = this.now;
     this.score[team] += 1;
     if (this._m && this._m.pts.length < 40) this._m.pts.push(team + ":" + reason);
@@ -1112,6 +1139,7 @@
     this.serverTeam = team;
     this._updateScore();
     var t = this.t, mine = team === 0;
+    if (!mine) this._lastFault = reason;
     var why = { out: t.out || "Out!", net: t.net || "Net!", twoBounce: t.twoBounce || "It had to bounce!", kitchen: t.kitchen || "Kitchen fault!", serveShort: t.serveShort || "Serve too short!", winner: "" }[reason] || "";
     this._banner((why ? why + " " : "") + (mine ? (t.yourPoint || "Your point") : (t.theirPoint || "Their point")), 1300, mine ? "good" : "bad");
     if (!mine && this._opp().boss && !this._rage && this.score[1] >= 3) { this._rage = true; this.shakeUntil = this.now + 0.4; this._banner(t.bossRage || "RAGE!", 1500, "bad"); }
@@ -1128,7 +1156,7 @@
       this._lastScore = [s[0], s[1]];
       this._logMatch(won, s, isDaily);
       this._track(isDaily ? "daily-complete" : "duel-complete");
-      if (!isDaily && !sv.coached) sv.coached = true;
+      if (!isDaily && won && !sv.coached) sv.coached = true;
       this._lastBoss = won && !isDaily && !!this._opp().boss;
       // Coins: soft currency earned by playing (the Daily pays once a day, on the first attempt).
       var firstDaily = isDaily && (!sv.daily || sv.daily.key !== this.daily.key);
@@ -1150,7 +1178,10 @@
       this._lastResult = won ? "win" : "lose";
       this._banner("", 0);
       var self = this;
-      setTimeout(function () { if (self.root && self.phase === "menu") self._showSplash(self._lastResult); }, won ? 600 : 250);
+      this._splashT = setTimeout(function () {
+        self._splashT = 0;
+        if (self.root && self.phase === "menu") self._showSplash(self._lastResult);
+      }, won ? 600 : 250);
       this.phase = "menu";
       return;
     }
@@ -1174,7 +1205,7 @@
       if (b.dead) { if (b.bounces > 3) b.live = false; return; }
       this._sound("bounce");
       var p = this._project(b.x, b.y, 0);
-      if (this.fx) this.fx.ring(p.x, p.y, "rgba(255,255,255,0.9)", 22 * p.s / 10, 260);
+      if (this.fx) this.fx.ring(p.x, p.y, "rgba(255,255,255,0.9)", (b.bounces === 1 ? 3.2 : 2.2) * p.s, 260);
       var side = b.y < 0 ? 0 : 1, inCourt = Math.abs(b.x) <= CW + 0.15 && Math.abs(b.y) <= CL + 0.15;
       if (b.bounces === 1) {
         if (side === b.lastHitTeam) this._point(1 - b.lastHitTeam, "net");
@@ -1207,7 +1238,8 @@
       if (srv.human) {
         if (this.now < h.swingUntil && !h.swung) { var sh = aimToShot(h.aimX, Math.max(-0.1, h.aimY), dir); sh.ty = dir * Math.max(10.5, Math.abs(sh.ty)); this._launch(h, sh, 0.7, 0.1); }
       } else if (this.now - this.phaseAt > 1.1) {
-        this._launch(srv, { tx: (rand() - 0.5) * 13, ty: dir * (12 + rand() * 6), speed: 34 * srv.skill.pace }, srv.skill.err * 0.6, 0.1);
+        if (this._guidedReturn) this._launch(srv, { tx: h.homeX, ty: -14, speed: 26, loft: true }, 0, 0);
+        else this._launch(srv, { tx: (rand() - 0.5) * 13, ty: dir * (12 + rand() * 6), speed: 34 * srv.skill.pace }, srv.skill.err * 0.6, 0.1);
       }
       this.actors.forEach(function (a) { if (!a.human && a !== srv) self._ai(a, dt); });
       return;
@@ -1460,6 +1492,18 @@
     var serving = this.phase === "serve" && this.server === h;
     var incoming = this.phase === "rally" && b.live && !b.dead && b.lastHitTeam === 1;
     if (!serving && !incoming) return;
+    if (this._guidedReturn && incoming && !b.bounces) {
+      var bounce = this._project(h.homeX, -14, 0);
+      g.save();
+      g.translate(bounce.x, bounce.y);
+      g.strokeStyle = "#ffffff";
+      g.fillStyle = "rgba(255,214,10,0.28)";
+      g.lineWidth = 2;
+      g.beginPath(); g.ellipse(0, 0, 2.1 * bounce.s, bounce.s, 0, 0, Math.PI * 2);
+      g.fill(); g.stroke();
+      g.restore();
+      return;
+    }
     var a = this._liveAim(), sh = aimToShot(a.x, serving ? Math.max(-0.1, a.y) : a.y, 1);
     if (serving) sh.ty = Math.max(10.5, sh.ty);
     var p = this._project(sh.tx, sh.ty, 0), r = 1.7 * p.s, pulse = 1 + Math.sin(this.now * 8) * 0.08;
