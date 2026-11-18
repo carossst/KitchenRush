@@ -21,7 +21,9 @@ const ASSET_GROUPS = {
     "./",
     "./index.html",
     "./style.css",
-    "./manifest.json"
+    "./manifest.json",
+    "./fr.html",
+    "./manifest.fr.json"
   ],
   appScripts: [
     "./config.js",
@@ -29,6 +31,7 @@ const ASSET_GROUPS = {
     "./wording-fr.js",
     "./wording-dom.js",
     "./config-boot.js",
+    "./analytics.js",
     "./storage.js",
     "./storage-ux.js",
     "./storage-premium.js",
@@ -37,6 +40,7 @@ const ASSET_GROUPS = {
     "./audio.js",
     "./fx.js",
     "./characters.js",
+    "./share-card.js",
     "./duel.js",
     "./ui-overlays.js",
     "./ui-modals.js",

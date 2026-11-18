@@ -149,6 +149,27 @@ const results = await page.evaluate(() => {
     const log = JSON.parse(localStorage.getItem("kr:duel-stats")), ex = JSON.parse(d._exportData());
     return eq([log.length, log[0].you, log[0].them, Array.isArray(log[0].pts), ex.matches.length, ex.app], [1, 5, 2, true, 1, "kitchen-rush-duel"]);
   });
+  t("sound is off by default, the visible button toggles it, vibration respects reduced motion", () => {
+    const calls = [], hap = [], old = [d.opts.sound, d.opts.haptic, d.opts.setSound];
+    d.opts.sound = (n) => calls.push(n); d.opts.haptic = (n) => hap.push(n); d.opts.setSound = () => {};
+    d.save.sound = false; d._updateSoundBtn(); d._sound("smash"); const muted = calls.length === 0, label0 = d.soundEl.getAttribute("aria-pressed");
+    d.soundEl.click(); const on = [d.save.sound, d.soundEl.getAttribute("aria-pressed"), calls.length > 0];
+    calls.length = 0; d._sound("smash"); const played = calls.length === 1;
+    d._buzz("smash"); const buzzed = hap.length === 1; d.fx.reduced = true; d._buzz("smash"); const calm = hap.length === 1; d.fx.reduced = false;
+    d.soundEl.click(); const off = [d.save.sound, d.soundEl.getAttribute("aria-pressed")];
+    [d.opts.sound, d.opts.haptic, d.opts.setSound] = old; d.save.sound = false; d._updateSoundBtn();
+    return eq([muted, label0, on, played, buzzed, calm, off], [true, "false", [true, "true", true], true, true, true, [false, "false"]]);
+  });
+  t("sharing the Daily pays a bonus once a day", () => {
+    d.save.shareDay = ""; d.save.coins = 0; d._shareReward(); const a = d.save.coins; d._shareReward(); const b = d.save.coins;
+    d.save.shareDay = "2000-01-01"; d._shareReward(); const c = d.save.coins; d.save.shareDay = ""; d.save.coins = 0;
+    return eq([a, b, c], [10, 10, 20]);
+  });
+  t("the playtest log keeps the campaign source tag", () => {
+    localStorage.removeItem("kr:duel-stats"); localStorage.setItem("kr:src", "club-test"); fresh(); d.score = [5, 2]; d._afterPoint(); d.stage = 0;
+    const log = JSON.parse(localStorage.getItem("kr:duel-stats")); localStorage.removeItem("kr:src");
+    return eq(typeof log[0].src, "string");
+  });
   t("worlds: stage 7 restarts the ladder, tougher", () => { d.stage = 7; const o = d._opp(), w = d._world(); d.stage = 0; return eq([w, o.name, o.speed > KR_DUEL.ladder[0].speed], [2, KR_DUEL.ladder[0].name, true]); });
   t("venues follow the stage; locked or invalid choices are ignored", () => {
     const at = (stage, sel) => { d.stage = stage; d.save.venue = sel; d.daily = null; return d._venueId(); };
@@ -166,9 +187,9 @@ const results = await page.evaluate(() => {
   });
   t("corrupted saved data is sanitised", () => {
     d.destroy();
-    localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999, venue: "../x", coached: "yes", coins: -5, owned: { chen: true, hacker: true }, player: "hacker" }));
+    localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999, venue: "../x", coached: "yes", sound: "yes", shareDay: "bad", coins: -5, owned: { chen: true, hacker: true }, player: "hacker" }));
     window.__ui._startDuel(); const s = window.__ui._duel.save;
-    return eq([Array.isArray(s.history), Object.keys(s.beaten), s.equipped, s.daily, s.lang, s.bestMargin, s.venue, s.coins, Object.keys(s.owned), s.player, s.coached], [true, ["2"], "", null, "", 99, "auto", 0, ["chen"], "alex", false]);
+    return eq([Array.isArray(s.history), Object.keys(s.beaten), s.equipped, s.daily, s.lang, s.bestMargin, s.venue, s.coins, Object.keys(s.owned), s.player, s.coached, s.sound, s.shareDay], [true, ["2"], "", null, "", 99, "auto", 0, ["chen"], "alex", false, false, ""]);
   });
   return out;
 });

@@ -365,6 +365,8 @@ void function () {
       wording: this.wording,
       appName: (this.config.identity && this.config.identity.appName) || "",
       sound: function (name) { self._playSound(name); },
+      setSound: function (on) { self._store("setSoundEnabled", on); },
+      haptic: function (type) { self._haptic(type); },
       onExit: function () { self._duel = null; }
     });
   };
@@ -386,7 +388,7 @@ void function () {
       case "checkout-standard": this.checkout("standard"); break;
       case "share":             this.copyShareText(); break;
       case "share-email":       this.sendShareViaEmail(); break;
-      case "lang":              try { window.localStorage.setItem("kr:lang", window.KR_LANG === "fr" ? "en" : "fr"); } catch (_) { } location.reload(); break;
+      case "lang":              location.href = location.pathname + "?lang=" + (window.KR_LANG === "fr" ? "en" : "fr"); break;
       case "howto":             this.openHowToModal(); break;
       case "redeem":            this.openRedeemModal(); break;
       case "support":           this.openSupportModal(); break;

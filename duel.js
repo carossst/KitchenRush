@@ -121,6 +121,8 @@
     d.bestMargin = clamp(Math.floor(Number(d.bestMargin) || 0), 0, 99);
     d.lang = (d.lang === "fr" || d.lang === "en") ? d.lang : "";
     d.coached = d.coached === true;
+    d.sound = d.sound === true;
+    d.shareDay = /^\d{4}-\d{2}-\d{2}$/.test(String(d.shareDay)) ? String(d.shareDay) : "";
     d.coins = clamp(Math.floor(Number(d.coins) || 0), 0, 999999);
     var ownedClean = {};
     PLAYERS.forEach(function (p) { if (p.cost > 0 && d.owned && d.owned[p.id] === true) ownedClean[p.id] = true; });
@@ -155,6 +157,7 @@
     this.phase = "menu";
     this.raf = 0;
     this._mount();
+    this._updateSoundBtn();
     this._showMenu();
   }
 
@@ -171,7 +174,7 @@
     root.innerHTML =
       '<canvas class="kr-duel-canvas" role="img" aria-label="' + esc(this.t.canvasAria || "Duel court") + '"></canvas>' +
       '<div class="kr-duel-hud"><button class="kr-btn-icon kr-duel-exit" aria-label="' + esc(this.t.exit || "Exit") + '">✕</button>' +
-      '<div class="kr-duel-score" aria-live="polite"></div><span class="kr-duel-spacer"></span></div>' +
+      '<div class="kr-duel-score" aria-live="polite"></div><button class="kr-btn-icon kr-duel-sound" aria-pressed="false"></button></div>' +
       '<div class="kr-duel-banner" aria-live="polite"></div>' +
       '<button class="kr-duel-power" hidden></button>' +
       '<div class="kr-duel-coach" role="status" aria-live="polite" hidden></div>' +
@@ -185,6 +188,7 @@
     this.panelEl = root.querySelector(".kr-duel-panel");
     this.powerEl = root.querySelector(".kr-duel-power");
     this.coachEl = root.querySelector(".kr-duel-coach");
+    this.soundEl = root.querySelector(".kr-duel-sound");
 
     var self = this;
     this._onResize = function () { self._resize(); };
@@ -196,6 +200,7 @@
     document.addEventListener("keyup", this._onKeyUp);
     document.addEventListener("visibilitychange", this._onVis);
     root.querySelector(".kr-duel-exit").addEventListener("click", function () { self.destroy(); });
+    this.soundEl.addEventListener("click", function () { self._toggleSound(); });
     this.powerEl.addEventListener("click", function () { self._activatePower(); });
     this.panelEl.addEventListener("click", function (e) {
       var b = e.target.closest("[data-duel]");
@@ -221,7 +226,30 @@
     if (typeof this.opts.onExit === "function") this.opts.onExit();
   };
 
-  Duel.prototype._sound = function (name) { try { if (this.opts.sound) this.opts.sound(name); } catch (_) { } };
+  // Sound is OFF until the player turns it on with the visible button (people play in clubs and locker rooms).
+  Duel.prototype._sound = function (name) { try { if (this.save.sound && this.opts.sound) this.opts.sound(name); } catch (_) { } };
+
+  Duel.prototype._toggleSound = function () {
+    this.save.sound = !this.save.sound; writeSave(this.save);
+    try { if (this.opts.setSound) this.opts.setSound(this.save.sound); } catch (_) { }
+    this._updateSoundBtn();
+    if (this.save.sound) this._sound("bounce");
+  };
+
+  Duel.prototype._updateSoundBtn = function () {
+    var el = this.soundEl; if (!el) return;
+    var on = !!this.save.sound;
+    el.setAttribute("aria-pressed", on ? "true" : "false");
+    el.setAttribute("aria-label", on ? (this.t.soundOn || "Sound on") : (this.t.soundOff || "Sound off"));
+    el.textContent = on ? "\uD83D\uDD0A" : "\uD83D\uDD07";
+  };
+
+  // Short vibration (Android only; skipped for reduced motion). The UI decides if haptics are enabled.
+  Duel.prototype._buzz = function (type) {
+    try { if (this.opts.haptic && !(this.fx && this.fx.reduced)) this.opts.haptic(type); } catch (_) { }
+  };
+
+  Duel.prototype._track = function (name) { try { if (window.KR_Analytics) window.KR_Analytics.track(name); } catch (_) { } };
 
   Duel.prototype._opp = function () {
     if (this.daily) return LADDER[this.daily.idx];
@@ -338,7 +366,7 @@
     var m = this._m || {}, all = readStats();
     all.push({ day: new Date().toISOString().slice(0, 10), v: String((window.KR_CONFIG && window.KR_CONFIG.version) || ""), stage: this.stage, world: this._world(), opp: this._opp().name,
       mode: isDaily ? "daily" : this.mode, you: s[0], them: s[1], sec: Math.round((Date.now() - (m.t0 || Date.now())) / 1000), maxRally: m.maxRally || 0, caps: m.caps || 0,
-      powers: m.powers || 0, player: this._player().id, court: this._venueId(), pts: (m.pts || []).slice(0, 40) });
+      powers: m.powers || 0, player: this._player().id, court: this._venueId(), src: (window.KR_Analytics && window.KR_Analytics.getSrc()) || "", pts: (m.pts || []).slice(0, 40) });
     writeStats(all.slice(-STATS_MAX));
   };
 
@@ -456,22 +484,51 @@
     if (d && d.key === di.key) {
       var line = (t.dailyDone || "Daily Duel today: {you}\u2013{them} vs {name}").replace("{you}", d.you).replace("{them}", d.them).replace("{name}", LADDER[d.idx % LADDER.length].name);
       return '<p class="kr-muted kr-duel-daily-line">' + esc(line) + '</p>' +
-        '<button class="kr-btn kr-btn--secondary kr-duel-share" data-duel="share">' + esc(t.share || "Share") + '</button>';
+        '<button class="kr-btn kr-btn--secondary kr-duel-share" data-duel="share">' + esc(t.share || "Share") + '</button>' +
+        '<button class="kr-btn kr-btn--ghost" data-duel="card">' + esc(t.saveImage || "Save image") + '</button>';
     }
     return '<button class="kr-btn kr-btn--secondary kr-duel-daily" data-duel="daily">' + esc((t.dailyBtn || "Daily Duel \u00b7 vs {name}").replace("{name}", LADDER[di.idx].name)) + '</button>';
   };
 
-  // Copy / share today's result (text only: score and opponent, no personal data).
-  Duel.prototype._share = function () {
-    var t = this.t, di = dailyInfo(), d = this.save.daily;
-    if (!d || d.key !== di.key) return;
-    var text = (t.shareText || "Kitchen Rush Daily Duel {date}: {you}\u2013{them} vs {name}").replace("{date}", d.key).replace("{you}", d.you).replace("{them}", d.them).replace("{name}", LADDER[d.idx % LADDER.length].name) + "\n" + location.origin + location.pathname + "?lang=" + this.lang;
+  // Today's result as an image (Web Share with files when available) with a text fallback; no personal data.
+  var SHARE_BONUS = 10;
+
+  Duel.prototype._cardOpts = function () {
+    var di = dailyInfo(), d = this.save.daily;
+    if (!d || d.key !== di.key) return null;
+    return { lang: this.lang, you: d.you, them: d.them, name: LADDER[d.idx % LADDER.length].name, date: d.key, urlText: location.host + location.pathname.replace(/index\.html$/, "") };
+  };
+
+  Duel.prototype._shareReward = function () {
+    var sv = this.save, day = dailyInfo().key, t = this.t;
+    this._track("daily-share");
+    if (sv.shareDay === day) return;
+    sv.shareDay = day; sv.coins = clamp((Number(sv.coins) || 0) + SHARE_BONUS, 0, 999999); writeSave(sv);
     var btn = this.panelEl.querySelector('[data-duel="share"]'), self = this;
+    if (btn) { btn.textContent = (t.shareBonus || "+{n} coins for sharing!").replace("{n}", SHARE_BONUS); setTimeout(function () { if (btn && self.root) btn.textContent = t.share || "Share"; }, 2200); }
+  };
+
+  Duel.prototype._share = function () {
+    var o = this._cardOpts(); if (!o) return;
+    var t = this.t, self = this;
+    var link = location.origin + location.pathname + "?lang=" + this.lang;
+    var text = (t.shareText || "Kitchen Rush Daily Duel {date}: {you}–{them} vs {name}").replace("{date}", o.date).replace("{you}", o.you).replace("{them}", o.them).replace("{name}", o.name) + "\n" + link;
+    var btn = this.panelEl.querySelector('[data-duel="share"]');
     function done(ok) { if (btn) { btn.textContent = ok ? (t.copied || "Copied!") : (t.copyFailed || "Copy failed"); setTimeout(function () { if (btn && self.root) btn.textContent = t.share || "Share"; }, 1600); } }
-    try {
-      if (navigator.share) { navigator.share({ text: text }).catch(function () { }); return; }
-      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
-    } catch (_) { done(false); }
+    function textFlow() {
+      try {
+        if (navigator.share) { navigator.share({ text: text }).then(function () { self._shareReward(); }, function () { }); return; }
+        navigator.clipboard.writeText(text).then(function () { done(true); self._shareReward(); }, function () { done(false); });
+      } catch (_) { done(false); }
+    }
+    if (window.KR_CARD && window.KR_CARD.share) {
+      window.KR_CARD.share(o, text).then(function (r) { if (r === "shared") self._shareReward(); else if (r !== "cancelled") textFlow(); }, textFlow);
+    } else textFlow();
+  };
+
+  Duel.prototype._saveCard = function () {
+    var o = this._cardOpts(); if (!o || !window.KR_CARD) return;
+    window.KR_CARD.download(o);
   };
 
   Duel.prototype._panelAction = function (a) {
@@ -511,6 +568,7 @@
     if (a === "go") { this.daily = null; this._startMatch(); return; }
     if (a === "daily") { var di = dailyInfo(); this.daily = di; this.mode = "singles"; this._startMatch(); return; }
     if (a === "share") { this._share(); return; }
+    if (a === "card") { this._saveCard(); return; }
     if (a === "lang") { this.lang = this.lang === "fr" ? "en" : "fr"; this.save.lang = this.lang; this.t = this._dict(); this._bg = null; }
     else if (a === "look") this.look = (this.look + 1) % LOOKS.length;
     else if (a === "singles") this.mode = "singles";
@@ -551,6 +609,9 @@
     this._lastDailyIdx = null;
     this.capsule = null; this.capSpawnIn = null; this._rage = false; this._lastBoss = false; this._lastEarn = 0; this._coachHits = 0; this._coachKey = "";
     this._m = { t0: Date.now(), maxRally: 0, caps: 0, powers: 0, pts: [] };
+    this._visitMatches = (this._visitMatches || 0) + 1;
+    this._track(this.daily ? "daily-start" : "duel-start");
+    if (this._visitMatches === 2) this._track("duel-second");
     this.charge = this._player().startCharge || 0;
     this.power = null;
     RNG = this.daily ? seeded(this.daily.seed) : Math.random;
@@ -595,6 +656,7 @@
     var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     var map = { ArrowLeft: "l", a: "l", ArrowRight: "r", d: "r", ArrowUp: "u", w: "u", ArrowDown: "d", s: "d" };
     if (k === "Escape" && down) { this.destroy(); return; }
+    if (k === "m" && down && !e.repeat) { this._toggleSound(); return; }
     if (this.phase === "menu") return;
     if (k === "e" && down && !e.repeat) { this._activatePower(); return; }
     if (map[k]) { this.keys[map[k]] = down; e.preventDefault(); }
@@ -687,13 +749,14 @@
     b.live = true; b.held = false; b.lastHitTeam = a.team; b.bounces = 0; b.hits += 1; b.id = ++this.ballId;
     b.rate = 1 + clamp(Math.max(0, b.hits - 1) * 0.035, 0, 0.3);
     if (this._m) this._m.maxRally = Math.max(this._m.maxRally, b.hits);
-    if (a.human) { this._coachHits = (this._coachHits || 0) + 1; if (this._coachHits >= 4 && !this.daily && !this.save.coached) { this.save.coached = true; writeSave(this.save); } }   // rally ramp: the ball runs up to 30% faster on the same arc
+    if (a.human) { this._coachHits = (this._coachHits || 0) + 1; if (this._coachHits >= 4 && !this.daily && !this.save.coached) { this.save.coached = true; writeSave(this.save); this._track("tutorial-complete"); } }   // rally ramp: the ball runs up to 30% faster on the same arc
     b.isServe = b.hits === 1;
     a.swingAnim = this.now + 0.3; a.swung = true;
     a.side = b.x >= a.x ? 1 : -1;
     this.phase = "rally";
     if (a.human && this.bannerEl.textContent) this._banner("", 0);
     this._sound("smash");
+    if (a.human && smash) this._buzz("smash");
     var p = this._project(b.x, b.y, b.z);
     if (this.fx) {
       this.fx.burst(p.x, p.y, smash ? ["#ffd60a", "#ffffff", "#ff8a3d"] : ["#ffffff", "#e8ff3a"], smash ? 20 : 8, { speed: smash ? 380 : 200, up: 40 });
@@ -802,6 +865,7 @@
     this._banner((why ? why + " " : "") + (mine ? (t.yourPoint || "Your point") : (t.theirPoint || "Their point")), 1300, mine ? "good" : "bad");
     if (!mine && this._opp().boss && !this._rage && this.score[1] >= 3) { this._rage = true; this.shakeUntil = this.now + 0.4; this._banner(t.bossRage || "RAGE!", 1500, "bad"); }
     this._sound(mine ? "milestone" : "fault");
+    if (!mine) this._buzz("fault");
     if (mine && this.fx && b) { var p = this._project(b.x, b.y, b.z); this.fx.burst(p.x, p.y, ["#ffd60a", "#ffffff", "#3fd0ff"], 16, { speed: 300, up: 120, rect: true }); }
     if (!mine) this.shakeUntil = this.now + 0.2;
   };
@@ -812,6 +876,7 @@
       var won = s[0] > s[1], sv = this.save, idx = this._oppIdx(), isDaily = !!this.daily;
       this._lastScore = [s[0], s[1]];
       this._logMatch(won, s, isDaily);
+      this._track(isDaily ? "daily-complete" : "duel-complete");
       if (!isDaily && !sv.coached) sv.coached = true;
       this._lastBoss = won && !isDaily && !!this._opp().boss;
       // Coins: soft currency earned by playing (the Daily pays once a day, on the first attempt).

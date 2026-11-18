@@ -32,6 +32,17 @@ Run all three before every Duel change. Poster QR: `python3 tools/make-qr.py` (n
 - Never publish a design claim you did not test; say what is unverified (nothing was playtested by humans or on a real phone).
 - This session widened the sandbox network allowlist once for a site and removed it again; nothing is left open.
 
+**Locked decisions** (confirmed by the owner; do not reopen without her agreement)
+- Soft currency only: no real money, no random paid packs.
+- No real athlete names (including pun or lookalike names) until there is permission; the rally branch's `players.js` must not be ported.
+- PR #1 (rally branch) is closed; the branch stays as a reference. Merge only when the owner says "fusionne" (draft PRs first).
+**Open decisions** (waiting for the owner; see the character-select analysis): fictional archetypes first, which French players to approach,
+keep or remove capsules once supers exist, cast size (6 recommended), final public domain, payment architecture.
+
+**Goal of the 2026-11-18 batch (done, version 17):** make the game safe to hand around and easy to distribute: CI on every PR, a French entry page,
+a shareable score image, a tagged-link pilot with optional anonymous statistics, sound and vibration rules, and locked documentation.
+Details in "Goal, CI and tooling (version 17)" at the end of this file. **The CI workflow has never run on GitHub yet**: check the first PR run.
+
 **Priorities next** (from the owner to-do list and the audit): 1) human playtest on real phones and read the exported playtest data
 (Progress tab "Copy my playtest data"); 2) sound design and haptics; 3) daily quests and coin sinks (cosmetics, upgrades), raise prices;
 4) colour-blind-safe power cues; 5) translate the remaining screens (paywall, share card, legal pages); 6) decide the payment architecture
@@ -64,7 +75,7 @@ Run locally:
 python3 -m http.server 8123
 ```
 
-Then open `http://localhost:8123/`. There is no bundler, no package.json and no CI; the browser tests live in `tests/` (see START HERE).
+Then open `http://localhost:8123/`. There is no bundler and no build step. `package.json` only declares the test tooling, and GitHub Actions runs the tests on every pull request (see START HERE and "Goal, CI and tooling").
 
 ## File map
 
@@ -590,3 +601,42 @@ Ranked ideas for Kitchen Rush (value / effort):
 Do NOT copy: their payment (the same gap: the unlock code is checked by format and `success.html` fabricates one; their fix is "server-issued codes after a Stripe payment",
 not built yet); the 25-script plus generated-bundle setup (needs a build step; not needed here); their locked product decisions (ticket economy, the x2 threshold, the
 Rapid Fire speed) belong to that game only. Their decision "no French SEO pages on the .com so as not to compete with bonjourpickleball.fr" is worth keeping in mind for ours.
+
+
+## Goal, CI and tooling (version 17, 2026-11-18)
+
+Inspired by the owner's other game, the Pickleball Rules Quiz (see "Ideas to take from `carossst/pickleballgame`").
+
+**Commands** (`package.json`; needs Node 22, Python 3, Playwright and, for the accessibility test, `axe-core`)
+```bash
+npm run serve          # python3 -m http.server 8123, keep it running for the browser tests
+npm run test:syntax    # node --check on every script
+npm run test:fast      # wording (694), pages (64), modules (20): no browser
+npm run test:browser   # duel-rules (40) and pages-browser (16)
+npm run test:a11y      # axe-core, WCAG 2.1 A/AA, on landing EN/FR, the 4 Duel menu tabs, a match, the poster
+npm run test:smoke     # bot-played matches (about 5 min); CI runs two scenarios: DUEL_SCENARIOS="singles:bot,daily:bot"
+npm run build:fr       # regenerate fr.html and manifest.fr.json after changing index.html or manifest.json
+```
+- **CI** (`.github/workflows/test.yml`): job "fast" (syntax + fast tests) and job "browser" (rules, pages, a11y, two smoke scenarios). It was written and
+  its steps were run locally, but the workflow itself has not run on GitHub: fix it on the first red run.
+- **a11y**: `tests/a11y.test.mjs` fails on serious or critical axe violations not listed in `KNOWN` (currently empty). It found one real defect, fixed: the
+  language button's accessible name did not contain its visible text ("FR"); it is now "FR, Francais".
+  Locally, install axe outside the repo if Playwright is global: `npm i axe-core` in a temp folder and set `NODE_PATH`.
+- **`fr.html` and `manifest.fr.json` are generated** from `index.html` / `manifest.json` by `tools/make-fr.mjs`; never edit them by hand.
+  `tests/pages.test.mjs` fails when they are stale, when `index.html` and `fr.html` load different scripts, or when a script is missing from the service-worker list.
+  `tools/make-fr.mjs` throws if a sentence it translates is no longer in `index.html`. Language priority (`wording-fr.js`): `?lang=` > `<meta name="kr-lang">`
+  (set by `fr.html`, so French links open in French) > saved choice > browser language. The language buttons now navigate to `?lang=` instead of reloading.
+- **Share card** (`share-card.js`, `KR_CARD`): 1080x1350 canvas picture of the Daily Duel result; shared with Web Share (files) when the browser can, else text,
+  plus a "Save image" button. Sharing pays +10 coins once per UTC day (`save.shareDay`); cancelling the share sheet pays nothing.
+- **Sound and vibration** (Duel): sound is OFF until the player turns it on with the speaker button (key M); the choice is saved in `kr:duel.sound` and also written to
+  the global sound setting. Vibration is short, Android-only (`navigator.vibrate`), through the UI's haptics setting, skipped for reduced motion. The arcade modes keep their own defaults.
+- **Analytics** (`analytics.js`, `KR_Analytics`): OFF by default. To enable GoatCounter, set `analytics.goatcounterUrl` in `config.js` (for example
+  `https://<site>.goatcounter.com/count`, a GoatCounter account the owner controls) AND add a sentence about it to `privacy.html` first (cookie-less, aggregate counts, no cohorts).
+  It never runs when the browser sends Do Not Track. Events: `landing`, `duel-start`, `duel-second`, `duel-complete`, `daily-start`, `daily-complete`, `tutorial-complete`, `daily-share`.
+  A link such as `fr.html?src=club-lyon` is remembered on the device (`kr:src`) and appended as `src-club-lyon`; the same tag is in the local playtest log.
+- **Club poster**: `poster.html?lang=fr&club=Name` prints the name and draws a QR to `fr.html?src=club-name` in the browser with `qr-vendor.js` (Kazuhiko Arase's
+  qrcode-generator, MIT, copied from the quiz repo with its licence header). The static `icons/qr-*.svg` are only the untagged fallback (French now points to `fr.html`).
+  The pilot protocol is in `PILOT.md` (French).
+- New files: `analytics.js`, `share-card.js`, `qr-vendor.js`, `PILOT.md`, `package.json`, `package-lock.json`, `fr.html`, `manifest.fr.json`, `tools/make-fr.mjs`,
+  `.github/workflows/test.yml`, `tests/{pages,modules,pages-browser,a11y}.test.mjs`. The `index.html` descriptions now mention the Duel.
+- Not done from the quiz review: server leaderboard, SEO page generator, newsletter, bundle build (deliberately postponed or skipped, see that section).

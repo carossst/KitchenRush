@@ -11,6 +11,6 @@ base = sys.argv[1] if len(sys.argv) > 1 else "https://carossst.github.io/Kitchen
 if not base.endswith("/"):
     base += "/"
 for lang in ("fr", "en"):
-    segno.make(base + "?lang=" + lang, error="m").save(
+    segno.make(base + ("fr.html" if lang == "fr" else "?lang=en"), error="m").save(
         "icons/qr-%s.svg" % lang, scale=10, border=2, dark="#0b1026", light="#ffffff")
-    print("icons/qr-%s.svg ->" % lang, base + "?lang=" + lang)
+    print("icons/qr-%s.svg ->" % lang)
