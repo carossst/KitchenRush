@@ -181,7 +181,7 @@
     this.raf = 0;
     this._mount();
     this._updateSoundBtn();
-    if (this.save.picked) this._showMenu(); else this._showSelect();
+    if (this.save.picked) this._showMenu(); else this._beginMatchSetup();
   }
 
   // English is the base dictionary; French overrides it key by key, so a missing key never shows blank.
@@ -521,6 +521,14 @@
     this.previewPlayer = pid; writeSave(sv);
   };
 
+  Duel.prototype._beginMatchSetup = function () {
+    this.daily = null;
+    this.matchSetup = true;
+    this.previewPlayer = null;
+    this.previewVenue = this.save.venue || "auto";
+    this._showSelect();
+  };
+
   // Character select: a roster of 6 tiles, a big preview with the super power, then Continue.
   Duel.prototype._showSelect = function (focusAction) {
     this._clearScreenTimers();
@@ -548,7 +556,8 @@
       '<p class="kr-muted">' + esc(sk[P.id] || "") + '</p>' +
       '<button class="kr-btn kr-btn--secondary" data-duel="selact-' + P.id + '"' + ((equipped || (!owned && !afford)) ? " disabled" : "") + '>' + esc(label) + '</button></div>' +
       '<div class="kr-duel-roster" role="group" aria-label="' + esc(t.playerLabel || "My player") + '">' + tiles + '</div>' +
-      '<button class="kr-btn kr-btn--primary kr-duel-go" data-duel="selok">' + esc(t.selectOk || "Continue") + '</button></div>';
+      '<button class="kr-btn kr-btn--primary kr-duel-go" data-duel="selok">' + esc(this.matchSetup ? (t.setupNextCourt || "Choose court") : (t.selectOk || "Continue")) + '</button>' +
+      (this.matchSetup ? '<button class="kr-btn kr-btn--ghost" data-duel="setup-cancel">' + esc(t.home || "Back to menu") + '</button>' : '') + '</div>';
     this.panelEl.classList.add("kr-duel-panel--on");
     this.scoreEl.textContent = "";
     this._setupActors();
@@ -556,6 +565,36 @@
     var target = focusAction && this.panelEl.querySelector('[data-duel="' + focusAction + '"]:enabled');
     target = target || this.panelEl.querySelector(".kr-duel-go");
     if (target) try { target.focus({ preventScroll: true }); } catch (_) { }
+  };
+
+  Duel.prototype._showCourtSelect = function (focusAction) {
+    var t = this.t, self = this, names = t.venues || {}, selected = this.previewVenue;
+    var cards = ["auto"].concat(VENUE_ORDER).map(function (id) {
+      var actual = id === "auto" ? AUTO[self.stage % AUTO.length] : id;
+      var locked = id !== "auto" && self.stage < VENUES[id].unlock;
+      var name = id === "auto" ? (t.venueAuto || "Auto") + " · " + (names[actual] || actual) : (names[id] || id);
+      var note = locked ? (t.venueLocked || "Reach opponent {n} to unlock").replace("{n}", VENUES[id].unlock + 1) : "";
+      return '<button class="kr-duel-tile' + (selected === id ? ' kr-duel-tile--on' : '') +
+        '" data-duel="court-' + id + '" aria-pressed="' + (selected === id) + '"' + (locked ? ' disabled' : '') + '>' +
+        '<canvas width="144" height="96" aria-hidden="true" data-court-preview="' + actual + '"></canvas>' +
+        '<span class="kr-duel-tile-name">' + esc(name) + '</span>' +
+        (note ? '<span class="kr-duel-tile-sub">' + esc(note) + '</span>' : '') + '</button>';
+    }).join("");
+    this.panelEl.innerHTML =
+      '<div class="kr-duel-card kr-duel-select"><h2 class="kr-duel-name" tabindex="-1">' + esc(t.setupCourtTitle || "Choose a court") + '</h2>' +
+      '<div class="kr-duel-roster kr-duel-court-roster" role="group" aria-label="' + esc(t.venueLabel || "Court") + '">' + cards + '</div>' +
+      '<button class="kr-btn kr-btn--primary" data-duel="court-ok">' + esc(t.start || "Start match") + '</button>' +
+      '<button class="kr-btn kr-btn--ghost" data-duel="setup-back">' + esc(t.setupBackPlayer || "Back to player selection") + '</button></div>';
+    this.panelEl.scrollTop = 0;
+    var previews = {};
+    this.panelEl.querySelectorAll("[data-court-preview]").forEach(function (canvas) {
+      var id = canvas.getAttribute("data-court-preview");
+      var preview = previews[id] || (previews[id] = self._drawBackground(id));
+      var g = canvas.getContext("2d");
+      if (g) g.drawImage(preview, 0, 0, canvas.width, canvas.height);
+    });
+    var target = focusAction && this.panelEl.querySelector('[data-duel="' + focusAction + '"]');
+    (target || this.panelEl.querySelector("h2")).focus();
   };
 
   // "VS" screen before every match; a tap, Enter or Space skips it, otherwise it moves on by itself.
@@ -704,7 +743,30 @@
     if (a.indexOf("act-") === 0) { var pid = a.slice(4); this._buyOrEquip(pid); this._showMenu(this._lastResult, "pl-" + pid); return; }
     if (a.indexOf("sel-") === 0) { this.previewPlayer = a.slice(4); this._showSelect(a); return; }
     if (a.indexOf("selact-") === 0) { var sid = a.slice(7); this._buyOrEquip(sid); this._showSelect("sel-" + sid); return; }
-    if (a === "selok") { this.save.picked = true; writeSave(this.save); this._showMenu(this._lastResult); return; }
+    if (a === "selok") {
+      this.save.picked = true;
+      writeSave(this.save);
+      if (this.matchSetup) this._showCourtSelect();
+      else this._showMenu(this._lastResult, "select");
+      return;
+    }
+    if (a === "setup-cancel") { this.matchSetup = false; this._showMenu(this._lastResult); return; }
+    if (a === "setup-back") { this._showSelect(); return; }
+    if (a === "court-ok") {
+      this.save.venue = this.previewVenue;
+      writeSave(this.save);
+      this.matchSetup = false;
+      this._showVersus();
+      return;
+    }
+    if (a.indexOf("court-") === 0) {
+      var courtId = a.slice(6);
+      if (courtId === "auto" || (hasVenue(courtId) && this.stage >= VENUES[courtId].unlock)) {
+        this.previewVenue = courtId;
+        this._showCourtSelect(a);
+      }
+      return;
+    }
     if (a === "select") { this.previewPlayer = null; this._showSelect(); return; }
     if (a === "versus-go") { this._clearScreenTimers(); this._startMatch(); return; }
     if (a === "splash-go") { this._clearScreenTimers(); this._showMenu(this._lastResult); return; }
@@ -728,7 +790,7 @@
       else if (hasVenue(vid)) this.venueMsg = (this.t.venueLocked || "Reach opponent {n} to unlock").replace("{n}", VENUES[vid].unlock + 1);
       this._showMenu(this._lastResult, a); return;
     }
-    if (a === "go") { this.daily = null; this._showVersus(); return; }
+    if (a === "go") { this._beginMatchSetup(); return; }
     if (a === "daily") { var di = dailyInfo(); this.daily = di; this.mode = "singles"; this._showVersus(); return; }
     if (a === "share") { this._share(); return; }
     if (a === "card") { this._saveCard(); return; }
@@ -1228,8 +1290,8 @@
     }
   };
 
-  Duel.prototype._drawBackground = function () {
-    var id = this._venueId(), V = VENUES[id] || VENUES.park, W = this.W, H = this.H, dpr = this.dpr;
+  Duel.prototype._drawBackground = function (previewId) {
+    var id = previewId || this._venueId(), V = VENUES[id] || VENUES.park, W = this.W, H = this.H, dpr = this.dpr;
     var c = document.createElement("canvas"); c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
     var g = c.getContext("2d"); g.scale(dpr, dpr);
     var horizon = this._project(0, CL + 16, 0).y, i;
@@ -1292,6 +1354,7 @@
     var kl = this._project(0, -KIT / 2, 0);
     g.font = "800 " + Math.round(2.1 * kl.s) + "px system-ui, sans-serif";
     g.fillText(String(this.t.kitchen2 || "KITCHEN"), kl.x, kl.y);
+    if (previewId) return c;
     this._bgVenue = id;
     this._bg = c;
   };

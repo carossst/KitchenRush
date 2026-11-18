@@ -211,7 +211,7 @@ const results = await page.evaluate(() => {
     return eq([n, keep, none, en], ["#f7d7bd", true, true, true]);
   });
   t("select screen: 6 tiles, preview, buy, continue goes to the menu", () => {
-    d.save.owned = {}; d.save.coins = 130; d.save.player = "touch"; d.save.picked = false; d.previewPlayer = null; d._showSelect();
+    d.save.owned = {}; d.save.coins = 130; d.save.player = "touch"; d.save.picked = false; d.matchSetup = false; d.previewPlayer = null; d._showSelect();
     const tiles = d.panelEl.querySelectorAll(".kr-duel-tile").length, hero = !!d.panelEl.querySelector(".kr-duel-super");
     d._panelAction("sel-sprint"); const prev = [d.previewPlayer, d.panelEl.querySelector(".kr-duel-hero-name").textContent.length > 0];
     d._panelAction("selact-sprint"); const bought = [d.save.coins, !!d.save.owned.sprint, d.save.player];
@@ -221,9 +221,15 @@ const results = await page.evaluate(() => {
   });
   t("versus screen shows before the match and starts it on tap", () => {
     d.save.coached = true; d._showMenu(); d._panelAction("go");
+    const players = d.panelEl.querySelectorAll(".kr-duel-tile").length;
+    d._panelAction("selok");
+    const courts = d.panelEl.querySelectorAll("[data-court-preview]").length;
+    d._panelAction("setup-back");
+    const back = !!d.panelEl.querySelector('[data-duel="selok"]');
+    d._panelAction("selok"); d._panelAction("court-park"); d._panelAction("court-ok");
     const vs = [!!d.panelEl.querySelector(".kr-duel-versus"), d.phase, d.panelEl.querySelectorAll("canvas").length];
     d._panelAction("versus-go"); d.paused = true;
-    return eq([vs, d.panelEl.classList.contains("kr-duel-panel--on"), d.phase === "serve" || d.phase === "rally"], [[true, "menu", 2], false, true]);
+    return eq([players, courts, back, d.save.venue, vs, d.panelEl.classList.contains("kr-duel-panel--on"), d.phase === "serve" || d.phase === "rally"], [6, 7, true, "park", [true, "menu", 2], false, true]);
   });
   t("victory splash shows the result and returns to the menu", () => {
     d._lastScore = [5, 2]; d._lastEarn = 25; d._lastBoss = false; d._lastResult = "win"; d._showSplash("win");
