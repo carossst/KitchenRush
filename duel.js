@@ -124,6 +124,13 @@
   var HISTORY_MAX = 20;
   // One signature power per opponent, earned by beating them (same index as LADDER). Charged by winning points.
   var POWERS = ["reach", "touch", "power", "precision", "sprint", "pass"];
+  var POWER_SHOP = { touch: 40, reach: 60, precision: 80, sprint: 90, power: 100 };
+  var DRILL_BALLS = 5;
+  var DRILLS = {
+    deep: { difficulty: "relaxed", goal: 3, reward: 30, y: [11, 21], halfWidth: 4.5, feed: -14 },
+    angle: { difficulty: "standard", goal: 3, reward: 45, y: [9, 21], halfWidth: 2.8, feed: -14 },
+    soft: { difficulty: "challenge", goal: 3, reward: 60, y: [1.5, 7], halfWidth: 6, feed: -10 }
+  };
   var POWER_SECONDS = 10, CHARGE_MAX = 3;
   var CAPSULE_SECONDS = 7, CAPSULE_LIFE = 8;   // a caught capsule gives a power for 7 s; it vanishes after 8 s
   var POWER_RGB = { reach: "63,208,255", touch: "180,140,255", power: "255,122,46", precision: "255,214,10", sprint: "60,230,140", pass: "255,93,162" };
@@ -159,6 +166,17 @@
     var dd = d.daily;
     d.daily = (dd && typeof dd === "object" && /^\d{4}-\d{2}-\d{2}$/.test(String(dd.key)))
       ? { key: String(dd.key), you: clamp(Math.floor(Number(dd.you) || 0), 0, 99), them: clamp(Math.floor(Number(dd.them) || 0), 0, 99), idx: clamp(Math.floor(Number(dd.idx) || 0), 0, 99) } : null;
+    var powerLicenses = {};
+    Object.keys(POWER_SHOP).forEach(function (id) {
+      if (d.powerLicenses && d.powerLicenses[id] === true) powerLicenses[id] = true;
+    });
+    d.powerLicenses = powerLicenses;
+    d.shopPower = Object.prototype.hasOwnProperty.call(powerLicenses, d.shopPower) ? d.shopPower : "";
+    var drillBests = {};
+    Object.keys(DRILLS).forEach(function (id) {
+      drillBests[id] = clamp(Math.floor(Number(d.drillBests && d.drillBests[id]) || 0), 0, DRILL_BALLS);
+    });
+    d.drillBests = drillBests;
     if (!Object.prototype.hasOwnProperty.call(DIFFICULTIES, d.difficulty)) d.difficulty = "standard";
     return d;
   }
@@ -370,6 +388,8 @@
           opt("left", t.doublesLeft || "Doubles · Left", m === "doubles" && s === "left") +
           opt("right", t.doublesRight || "Doubles · Right", m === "doubles" && s === "right") +
         '</div>' + this._difficultyHtml() + this._dailyHtml() +
+        '<button class="kr-btn kr-btn--secondary" data-duel="practice">' + esc(t.practiceTitle || "Drills") + '</button>' +
+        '<button class="kr-btn kr-btn--ghost" data-duel="shop">' + esc(t.shopTitle || "Power shop") + '</button>' +
         '<p class="kr-duel-how">' + esc(touch ? (t.howTouch || "Drag to move. When time slows, swipe toward where you want the ball.") : (t.howKeys || "Arrows / WASD: move. When time slows, hold a direction and press Space, or click where you want the ball.")) + '</p>' +
         '<p class="kr-duel-how">' + esc(t.capsuleHint || "Grab the falling capsules for a short power.") + '</p>' +
         '<p class="kr-duel-how">' + esc(t.rules || "First to 5. Serve and return must bounce. No volleys in the Kitchen.") + '</p>' +
@@ -432,6 +452,116 @@
     }).join("") + '</div>' + this._powerLine();
   };
 
+  Duel.prototype._openTrainingPanel = function (html, focusAction) {
+    this._clearScreenTimers();
+    this.phase = "menu";
+    this.panelEl.innerHTML = '<div class="kr-duel-card kr-duel-training">' + html + '</div>';
+    this.panelEl.classList.add("kr-duel-panel--on");
+    this.scoreEl.textContent = "";
+    var target = focusAction && this.panelEl.querySelector('[data-duel="' + focusAction + '"]:enabled');
+    (target || this.panelEl.querySelector("h2")).focus();
+    if (!focusAction) this.panelEl.scrollTop = 0;
+  };
+
+  Duel.prototype._showPractice = function () {
+    var t = this.t, sv = this.save;
+    var names = t.drillNames || {}, goals = t.drillGoals || {}, levels = t.difficultyLevels || {};
+    var html = '<h2 class="kr-duel-name" tabindex="-1">' + esc(t.practiceTitle || "Drills") + '</h2>';
+    html += Object.keys(DRILLS).map(function (id) {
+      var drill = DRILLS[id], best = sv.drillBests[id];
+      var progress = (t.drillBest || "Best: {n}/{total}").replace("{n}", best).replace("{total}", DRILL_BALLS);
+      var reward = best >= drill.goal ? (t.drillClaimed || "Reward earned") :
+        (t.drillReward || "{n} tokens at {goal}/{total}").replace("{n}", drill.reward).replace("{goal}", drill.goal).replace("{total}", DRILL_BALLS);
+      return '<article><strong>' + esc(names[id] || id) + '</strong><p>' + esc((levels[drill.difficulty] || drill.difficulty) + " · " + (goals[id] || "")) +
+        '</p><p>' + esc(progress + " · " + reward) + '</p><button class="kr-btn kr-btn--secondary" data-duel="drill-' + id + '">' +
+        esc(t.drillStart || "Practise") + '<span class="sr-only"> ' + esc(names[id] || id) + '</span></button></article>';
+    }).join("");
+    this._openTrainingPanel(html + '<button class="kr-btn kr-btn--ghost" data-duel="practice-back">' + esc(t.resultMenu || "Duel menu") + '</button>');
+  };
+
+  Duel.prototype._showShop = function (focusAction) {
+    var t = this.t, sv = this.save, self = this;
+    var html = '<h2 class="kr-duel-name" tabindex="-1">' + esc(t.shopTitle || "Power shop") + '</h2>' +
+      '<p class="kr-duel-coins">' + esc((t.coins || "Rush Tokens: {n}").replace("{n}", sv.coins)) + '</p>' +
+      '<p>' + esc(t.shopRule || "Equip one alternative super for classic Duel.") + '</p>' +
+      '<button class="kr-btn kr-btn--secondary" data-duel="shop-native" aria-pressed="' + (!sv.shopPower) + '">' + esc(t.shopNative || "Character super") + '</button>';
+    html += Object.keys(POWER_SHOP).map(function (id) {
+      var cost = POWER_SHOP[id], owned = sv.powerLicenses[id], active = id === sv.shopPower;
+      var afford = sv.coins >= cost;
+      var label = active ? (t.playerEquipped || "Equipped") : owned ? (t.playerEquip || "Equip") :
+        (afford ? (t.playerBuy || "Buy for {n} Rush Tokens") : (t.playerMissing || "Need {n} more Rush Tokens"))
+          .replace("{n}", afford ? cost : cost - sv.coins);
+      return '<article><strong>' + esc(self._powerName(id)) + '</strong><p>' + esc((t.powerDescs || [])[POWERS.indexOf(id)] || "") +
+        '</p><button class="kr-btn kr-btn--secondary" data-duel="shop-power-' + id + '" aria-pressed="' + active + '"' +
+        (!owned && sv.coins < cost ? ' disabled' : '') + '>' + esc(label) + '<span class="sr-only"> ' + esc(self._powerName(id)) + '</span></button></article>';
+    }).join("");
+    this._openTrainingPanel(html + '<button class="kr-btn kr-btn--ghost" data-duel="shop-back">' + esc(t.resultMenu || "Duel menu") + '</button>', focusAction);
+  };
+
+  Duel.prototype._chooseShopPower = function (id) {
+    if (!Object.prototype.hasOwnProperty.call(POWER_SHOP, id)) return;
+    var sv = this.save, cost = POWER_SHOP[id];
+    if (!sv.powerLicenses[id]) {
+      if (sv.coins < cost) return;
+      sv.coins -= cost;
+      sv.powerLicenses[id] = true;
+    }
+    sv.shopPower = id;
+    writeSave(sv);
+    this._showShop("shop-power-" + id);
+  };
+
+  Duel.prototype._drillTarget = function () {
+    var cfg = DRILLS[this.drill.id], center = this.drill.id === "angle" ? (this.drill.attempts % 2 ? 6 : -6) : 0;
+    return { left: center - cfg.halfWidth, right: center + cfg.halfWidth, near: cfg.y[0], far: cfg.y[1] };
+  };
+
+  Duel.prototype._drawDrillTarget = function (g) {
+    var target = this._drillTarget(), self = this;
+    var corners = [[target.left, target.near], [target.left, target.far], [target.right, target.far], [target.right, target.near]];
+    g.save();
+    g.beginPath();
+    corners.forEach(function (corner, i) {
+      var p = self._project(corner[0], corner[1], 0);
+      if (i) g.lineTo(p.x, p.y);
+      else g.moveTo(p.x, p.y);
+    });
+    g.closePath();
+    g.fillStyle = "rgba(255,214,10,0.34)"; g.fill();
+    g.strokeStyle = "#ffdf65"; g.lineWidth = 2.5; g.stroke();
+    g.restore();
+  };
+
+  Duel.prototype._drillAttempt = function (hit) {
+    if (this.phase !== "rally") return;
+    if (this.ball) this.ball.live = false;
+    this.phase = "point";
+    this.phaseAt = this.now;
+    this.drill.attempts += 1;
+    if (hit) this.drill.hits += 1;
+    this._updateScore();
+    this._banner(hit ? (this.t.drillHit || "Target hit!") : (this.t.drillMiss || "Target missed"), 1300, hit ? "good" : "bad");
+    this._sound(hit ? "milestone" : "fault");
+  };
+
+  Duel.prototype._finishDrill = function () {
+    var round = this.drill, cfg = DRILLS[round.id], sv = this.save, t = this.t;
+    var previous = sv.drillBests[round.id];
+    var earn = previous < cfg.goal && round.hits >= cfg.goal ? cfg.reward : 0;
+    sv.drillBests[round.id] = Math.max(previous, round.hits);
+    sv.coins = clamp(sv.coins + earn, 0, 999999);
+    writeSave(sv);
+    this.drill = null;
+    this._banner("", 0);
+    var result = (t.drillResult || "Targets hit: {n}/{total}").replace("{n}", round.hits).replace("{total}", DRILL_BALLS);
+    var title = (t.drillNames || {})[round.id] || (t.practiceTitle || "Drills");
+    this._openTrainingPanel('<h2 class="kr-duel-name" tabindex="-1">' + esc(title) + '</h2>' + '<p>' + esc(result) + '</p>' +
+      (earn ? '<p class="kr-duel-coins">' + esc((t.earned || "+{n} Rush Tokens").replace("{n}", earn)) + '</p>' : '') +
+      '<button class="kr-btn kr-btn--primary" data-duel="drill-' + round.id + '">' + esc(t.retry || "Retry") + '</button>' +
+      '<button class="kr-btn kr-btn--secondary" data-duel="practice">' + esc(t.practiceTitle || "Drills") + '</button>' +
+      '<button class="kr-btn kr-btn--ghost" data-duel="shop">' + esc(t.shopTitle || "Power shop") + '</button>');
+  };
+
   Duel.prototype._logMatch = function (won, s, isDaily) {
     var m = this._m || {}, all = readStats();
     all.push({ day: new Date().toISOString().slice(0, 10), v: String((window.KR_CONFIG && window.KR_CONFIG.version) || ""), stage: this.stage, world: this._world(), opp: this._opp().name,
@@ -454,7 +584,7 @@
   Duel.prototype._coachTick = function () {
     var el = this.coachEl; if (!el) return;
     var t = this.t, key = "", b = this.ball;
-    if (this.phase !== "menu" && !this.daily && !this.save.coached) {
+    if (this.phase !== "menu" && !this.daily && !this.drill && !this.save.coached) {
       if (this._guidedReturn && this.phase === "serve") key = "coachReturn";
       else if (this.phase === "serve" && this.server === this.human) key = "coachServe";
       else if (this.phase === "rally" && this.timeScale < 0.7) key = "coachAim";
@@ -473,7 +603,7 @@
   // ───────────────────────── Powers ─────────────────────────
   // The player you picked (Alex in the Daily Duel, so everyone plays on equal terms).
   Duel.prototype._player = function () {
-    if (this.daily) return DAILY_PLAYER;
+    if (this.daily || this.drill) return DAILY_PLAYER;
     var id = this.save.player, sv = this.save;
     for (var i = 0; i < PLAYERS.length; i++) if (PLAYERS[i].id === id && (PLAYERS[i].cost === 0 || (sv.owned && sv.owned[id]))) return PLAYERS[i];
     return PLAYERS[0];
@@ -589,6 +719,7 @@
       (this.matchSetup && equipped ? '<p class="kr-duel-equipped">' + esc(label) + '</p>' :
         '<button class="kr-btn kr-btn--secondary" data-duel="selact-' + P.id + '"' + ((equipped || (!owned && !afford)) ? " disabled" : "") + '>' + esc(label) + '</button>') + '</div></div>' +
       '<div class="kr-duel-roster" role="group" aria-label="' + esc(t.playerLabel || "My player") + '">' + tiles + '</div>' +
+      (this.matchSetup && sv.shopPower ? this._powerLine() : '') +
       (this.matchSetup ? this._difficultyHtml() : '') +
       '<button class="kr-btn kr-btn--primary kr-duel-go" data-duel="selok"' + (this.matchSetup && !equipped ? ' disabled' : '') + '>' + esc(this.matchSetup ? (t.setupNextCourt || "Choose court") : (t.selectOk || "Continue")) + '</button>' +
       (this.matchSetup ? '<button class="kr-btn kr-btn--ghost" data-duel="setup-cancel">' + esc(t.home || "Back to menu") + '</button>' : '') + '</div>';
@@ -691,7 +822,10 @@
   };
 
   // The super power is the character's own (none in the Daily Duel).
-  Duel.prototype._equippedKey = function () { return this._player().sup || ""; };
+  Duel.prototype._equippedKey = function () {
+    if (this.daily || this.drill) return "";
+    return this.save.shopPower || this._player().sup || "";
+  };
 
   Duel.prototype._powerName = function (key) { var i = POWERS.indexOf(key); return (this.t.powerNames || [])[i] || key; };
 
@@ -788,6 +922,21 @@
 
   Duel.prototype._panelAction = function (a) {
     if (a === "exit") { this.destroy(); return; }
+    if (a === "practice") { this._showPractice(); return; }
+    if (a === "shop") { this._showShop(); return; }
+    if (a === "practice-back") { this.tab = "play"; this._showMenu(this._lastResult, "practice"); return; }
+    if (a === "shop-back") { this.tab = "play"; this._showMenu(this._lastResult, "shop"); return; }
+    if (a === "shop-native") { this.save.shopPower = ""; writeSave(this.save); this._showShop(a); return; }
+    if (a.indexOf("shop-power-") === 0) { this._chooseShopPower(a.slice(11)); return; }
+    if (a.indexOf("drill-") === 0) {
+      var id = a.slice(6);
+      if (Object.prototype.hasOwnProperty.call(DRILLS, id)) {
+        this.daily = null;
+        this.drill = { id: id, attempts: 0, hits: 0 };
+        this._startMatch();
+      }
+      return;
+    }
     if (a.indexOf("pl-") === 0) { this.previewPlayer = a.slice(3); this._showMenu(this._lastResult, a); return; }
     if (a.indexOf("act-") === 0) { var pid = a.slice(4); this._buyOrEquip(pid); this._showMenu(this._lastResult, "pl-" + pid); return; }
     if (a.indexOf("sel-") === 0) {
@@ -874,7 +1023,7 @@
 
   // ───────────────────────── Match setup ─────────────────────────
   Duel.prototype._setupActors = function () {
-    var opp = this._opp(), dbl = this.mode === "doubles";
+    var opp = this._opp(), dbl = !this.drill && this.mode === "doubles";
     var hx = dbl ? (this.side === "left" ? -5 : 5) : 0;
     function actor(team, human, hx0, hy0, skill, pal, zone) {
       return { team: team, human: human, x: hx0, y: hy0, homeX: hx0, homeY: hy0, vx: 0, vy: 0, skill: skill, pal: pal, zone: zone,
@@ -908,20 +1057,23 @@
     this._lastResult = null;
     this._lastDailyIdx = null;
     this.capsule = null; this.capSpawnIn = null; this._rage = false; this._lastBoss = false; this._lastEarn = 0; this._coachKey = "";
-    this._m = { t0: Date.now(), maxRally: 0, caps: 0, powers: 0, pts: [] };
-    this._visitMatches = (this._visitMatches || 0) + 1;
-    this._track(this.daily ? "daily-start" : "duel-start");
-    if (this._visitMatches === 2) this._track("duel-second");
+    this._m = null;
+    if (!this.drill) {
+      this._m = { t0: Date.now(), maxRally: 0, caps: 0, powers: 0, pts: [] };
+      this._visitMatches = (this._visitMatches || 0) + 1;
+      this._track(this.daily ? "daily-start" : "duel-start");
+      if (this._visitMatches === 2) this._track("duel-second");
+    }
     this.charge = this._player().startCharge || 0;
     this.power = null;
     RNG = this.daily ? seeded(this.daily.seed) : Math.random;
     this._setupActors();
-    this._guidedReturn = !this.daily && !this.save.coached;
-    this.serverTeam = this._guidedReturn ? 1 : 0;
+    this._guidedReturn = !this.drill && !this.daily && !this.save.coached;
+    this.serverTeam = this.drill || this._guidedReturn ? 1 : 0;
     this.serveTurn = [0, 0];
     this._updateScore();
     this._beginServe();
-    if (this._opp().boss) { this._banner((this.t.bossIntro || "FINAL BOSS: {name}").replace("{name}", this._opp().name), 2200, "bad"); this.shakeUntil = this.now + 0.3; }
+    if (!this.drill && this._opp().boss) { this._banner((this.t.bossIntro || "FINAL BOSS: {name}").replace("{name}", this._opp().name), 2200, "bad"); this.shakeUntil = this.now + 0.3; }
   };
 
   Duel.prototype._teamActors = function (team) { return this.actors.filter(function (a) { return a.team === team; }); };
@@ -937,10 +1089,19 @@
     this.capsule = null;
     this.ball = { x: srv.x + 1.2, y: srv.y, z: 3.4, vx: 0, vy: 0, vz: 0, live: false, held: true, lastHitTeam: srv.team, bounces: 0, hits: 0, isServe: true, id: (this.ballId = (this.ballId || 0) + 1) };
     if (this.fx) this.fx.trailClear();
+    if (this.drill) {
+      this._banner((this.t.drillGoals || {})[this.drill.id] || "", 0);
+      return;
+    }
     this._banner(srv.human ? (this.t.yourServe || "Your serve — swing to serve") : "", 0);
   };
 
   Duel.prototype._updateScore = function () {
+    if (this.drill) {
+      this.scoreEl.textContent = (this.t.drillScore || "{hits} targets · {attempts}/{total} balls")
+        .replace("{hits}", this.drill.hits).replace("{attempts}", this.drill.attempts).replace("{total}", DRILL_BALLS);
+      return;
+    }
     var opp = this._opp();
     this.scoreEl.innerHTML = '<span class="kr-duel-you">' + esc(this.t.you || "YOU") + '</span><b>' + this.score[0] + '</b><i>–</i><b>' + this.score[1] + '</b><span class="kr-duel-them">' + esc(opp.name) + '</span>';
   };
@@ -1061,7 +1222,7 @@
     b.live = true; b.held = false; b.lastHitTeam = a.team; b.bounces = 0; b.hits += 1; b.id = ++this.ballId;
     b.rate = 1 + clamp(Math.max(0, b.hits - 1) * 0.035, 0, 0.3);
     if (this._m) this._m.maxRally = Math.max(this._m.maxRally, b.hits);
-    if (a.human && b.hits > 1 && !this.daily && !this.save.coached) {
+    if (a.human && b.hits > 1 && !this.drill && !this.daily && !this.save.coached) {
       this._guidedReturn = false;
       this._coachSuccessUntil = this.now + 1.25;
       this.save.coached = true;
@@ -1173,6 +1334,7 @@
   // ───────────────────────── Rules ─────────────────────────
   Duel.prototype._point = function (team, reason) {
     if (this.phase === "point" || this.phase === "menu") return;
+    if (this.drill) { this._drillAttempt(false); return; }
     var b = this.ball; if (b) b.live = false;
     this.phase = "point";
     this._guidedReturn = false;
@@ -1196,6 +1358,11 @@
   };
 
   Duel.prototype._afterPoint = function () {
+    if (this.drill) {
+      if (this.drill.attempts >= DRILL_BALLS) this._finishDrill();
+      else this._beginServe();
+      return;
+    }
     var s = this.score, lead = Math.abs(s[0] - s[1]);
     if ((s[0] >= WIN_SCORE || s[1] >= WIN_SCORE) && lead >= 1) {
       var won = s[0] > s[1], sv = this.save, idx = this._oppIdx(), isDaily = !!this.daily;
@@ -1254,6 +1421,12 @@
       if (this.fx) this.fx.ring(p.x, p.y, "rgba(255,255,255,0.9)", (b.bounces === 1 ? 3.2 : 2.2) * p.s, 260);
       var side = b.y < 0 ? 0 : 1, inCourt = Math.abs(b.x) <= CW + 0.15 && Math.abs(b.y) <= CL + 0.15;
       if (b.bounces === 1) {
+        if (this.drill && b.lastHitTeam === 0) {
+          var target = this._drillTarget();
+          this._drillAttempt(side === 1 && inCourt && b.x >= target.left && b.x <= target.right &&
+            b.y >= target.near && b.y <= target.far);
+          return;
+        }
         if (side === b.lastHitTeam) this._point(1 - b.lastHitTeam, "net");
         else if (!inCourt) this._point(1 - b.lastHitTeam, "out");
         else if (b.isServe && Math.abs(b.y) < KIT) this._point(1 - b.lastHitTeam, "serveShort");
@@ -1284,7 +1457,10 @@
       if (srv.human) {
         if (this.now < h.swingUntil && !h.swung) { var sh = aimToShot(h.aimX, Math.max(-0.1, h.aimY), dir); sh.ty = dir * Math.max(10.5, Math.abs(sh.ty)); this._launch(h, sh, 0.7, 0.1); }
       } else if (this.now - this.phaseAt > 1.1) {
-        if (this._guidedReturn) this._launch(srv, { tx: h.homeX, ty: -14, speed: 26, loft: true }, 0, 0);
+        if (this.drill) {
+          var cfg = DRILLS[this.drill.id];
+          this._launch(srv, { tx: h.homeX, ty: cfg.feed, speed: 26, loft: true }, 0, 0);
+        } else if (this._guidedReturn) this._launch(srv, { tx: h.homeX, ty: -14, speed: 26, loft: true }, 0, 0);
         else this._launch(srv, { tx: (rand() - 0.5) * 13, ty: dir * (12 + rand() * 6), speed: 34 * srv.skill.pace }, srv.skill.err * 0.6, 0.1);
       }
       this.actors.forEach(function (a) { if (!a.human && a !== srv) self._ai(a, dt); });
@@ -1301,7 +1477,7 @@
       }
       this._shotAttempt = null;
     }
-    if (this.phase === "rally" || this.phase === "point") this.actors.forEach(function (a) { if (!a.human) self._ai(a, dt); });
+    if (!this.drill && (this.phase === "rally" || this.phase === "point")) this.actors.forEach(function (a) { if (!a.human) self._ai(a, dt); });
     this._capsules(dt);
     var steps = 4; for (var i = 0; i < steps; i++) this._stepBall(dt / steps);
     // Watchdog: a rally whose ball is no longer live must end, otherwise the match would hang.
@@ -1581,7 +1757,7 @@
   };
 
   Duel.prototype._capsules = function (dt) {
-    if (this.daily || this.phase !== "rally") return;
+    if (this.drill || this.daily || this.phase !== "rally") return;
     var c = this.capsule, h = this.human, b = this.ball;
     if (!c) {
       if (this.capSpawnIn == null) this.capSpawnIn = this._capDelay(3 + rand() * 3);
@@ -1725,8 +1901,8 @@
   };
 
   // ───────────────────────── Focus time (slow motion at contact) ─────────────────────────
-  Duel.prototype._slowScale = function () { var v = clamp(0.16 + this.stage * 0.035, 0.16, 0.4); return this._pw("touch") ? v * 0.7 : v; };
-  Duel.prototype._slowBudget = function () { return clamp(1.1 - this.stage * 0.1, 0.5, 1.1) * (this._pw("touch") ? 1.8 : 1) * this._pstat("focus") * (this.daily ? 1 : DIFFICULTIES[this.save.difficulty].focus) * ((!this.daily && !this.save.coached && this.stage === 0) ? 1.6 : 1); };   // real seconds per ball
+  Duel.prototype._slowScale = function () { var v = clamp(0.16 + (this.drill ? 0 : this.stage) * 0.035, 0.16, 0.4); return this._pw("touch") ? v * 0.7 : v; };
+  Duel.prototype._slowBudget = function () { return clamp(1.1 - (this.drill ? 0 : this.stage) * 0.1, 0.5, 1.1) * (this._pw("touch") ? 1.8 : 1) * this._pstat("focus") * (this.daily ? 1 : DIFFICULTIES[this.drill ? DRILLS[this.drill.id].difficulty : this.save.difficulty].focus) * ((!this.daily && !this.drill && !this.save.coached && this.stage === 0) ? 1.6 : 1); };   // real seconds per ball
 
   Duel.prototype._wantSlow = function (realDt) {
     var b = this.ball, h = this.human;
@@ -1810,6 +1986,7 @@
     var z = this.fx ? this.fx.getZoom(this.now * 1000) : 1;
     if (z !== 1) { g.translate(W / 2, H * 0.55); g.scale(z, z); g.translate(-W / 2, -H * 0.55); }
 
+    if (this.drill && this.phase !== "point") this._drawDrillTarget(g);
     this._drawAim(g);
     this._drawPowerFx(g);
     this._drawCapsule(g);

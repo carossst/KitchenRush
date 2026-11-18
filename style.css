@@ -2341,3 +2341,12 @@ body:has(.kr-duel) #update-toast {
 
 .kr-duel-difficulty { display: grid; gap: var(--space-2); }
 .kr-duel-difficulty strong { font-size: var(--fs-sm); }
+
+.kr-duel-training article {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--gap-2);
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--r-md);
+}
+.kr-duel-training p { margin: 0; }

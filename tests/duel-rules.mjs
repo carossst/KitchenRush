@@ -284,6 +284,35 @@ const results = await page.evaluate(() => {
     d._pUp(touch(1, d.W * 0.25, 100));
     return eq([both, aim, cancelled, !d.joy], [true, true, true, true]);
   });
+  t("drill scores the actual bounce, pays only the first success, and preserves ladder progress", () => {
+    d.save.coins = 0; d.save.drillBests.deep = 0;
+    const stage = d.stage, history = d.save.history.length, mode = d.mode;
+    function run() {
+      d._panelAction("drill-deep"); d.paused = true;
+      const practice = d.server.team === 1 && d.actors.length === 2 && !d._equippedKey();
+      for (let i = 0; i < 5; i++) {
+        d.phase = "rally";
+        d.ball = ball({ x: i < 3 ? 0 : 8, y: 15, z: 0.01, vz: -2, lastHitTeam: 0, bounces: 0 });
+        d._stepBall(0.016);
+        d._afterPoint();
+      }
+      return practice;
+    }
+    const practice = run(), first = d.save.coins;
+    run();
+    return eq([practice, first, d.save.coins, d.save.drillBests.deep, d.stage, d.save.history.length, d.mode, d.drill],
+      [true, 30, 30, 3, stage, history, mode, null]);
+  });
+  t("power shop debits once, equips only a purchased alternative and leaves Daily neutral", () => {
+    d.save.coins = 39; d.save.powerLicenses = {}; d.save.shopPower = "";
+    d._panelAction("shop-power-touch"); const refused = d.save.coins;
+    d.save.coins = 100; d._panelAction("shop-power-reach");
+    const bought = [d.save.coins, d._equippedKey(), d.save.powerLicenses.reach];
+    d._panelAction("shop-native"); d._panelAction("shop-power-reach");
+    d.daily = { key: "2099-01-01", idx: 0, seed: 1 }; const daily = d._equippedKey(); d.daily = null;
+    const balance = d.save.coins; d._panelAction("shop-native");
+    return eq([refused, bought, balance, daily, d.save.shopPower], [39, [40, "reach", true], 40, "", ""]);
+  });
   t("corrupted saved data is sanitised", () => {
     d.destroy();
     localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999, venue: "../x", coached: "yes", sound: "yes", shareDay: "bad", coins: -5, owned: { sprint: true, hacker: true }, player: "hacker" }));
