@@ -45,7 +45,17 @@ assert.equal(await page.locator('[data-duel="pl-sprint"]:focus[aria-pressed="tru
 assert.equal(await page.locator('canvas[data-portrait="sprint"]:visible').count(), 1);
 await page.keyboard.press("Tab");
 assert.equal(await page.locator('[data-duel="pl-reach"]:focus').count(), 1);
-console.log("ok   Duel menu keyboard navigation and player preview focus");
+const menuFitsAtScrollStart = await page.locator(".kr-duel-panel").evaluate((panel) => {
+  panel.style.height = "240px";
+  panel.scrollTop = 0;
+  const card = panel.querySelector(".kr-duel-card");
+  const accessible = panel.scrollHeight > panel.clientHeight &&
+    card.getBoundingClientRect().top >= panel.getBoundingClientRect().top;
+  panel.style.removeProperty("height");
+  return accessible;
+});
+assert.equal(menuFitsAtScrollStart, true);
+console.log("ok   Duel menu keyboard navigation, player preview focus and short-screen scrolling");
 
 for (const tab of ["play", "players", "courts", "progress"]) { await page.click('[data-duel="tab-' + tab + '"]'); await page.waitForTimeout(150); await scan("Duel menu, tab " + tab); }
 await page.click('[data-duel="tab-play"]'); await page.click('[data-duel="go"]'); await page.waitForTimeout(800); await scan("Duel in match");
