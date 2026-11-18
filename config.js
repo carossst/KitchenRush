@@ -70,7 +70,7 @@
   window.KR_CONFIG = {
 
     // Product version (UI display, logs, SW cache key)
-    version: "17",
+    version: "18",
     // Optional anonymous statistics (GoatCounter, no cookies). Empty = off. Read HANDOFF.md ("Analytics") before enabling.
     analytics: { goatcounterUrl: "" },
     // Duel character names: "neutral" (invented names, default) or "fun" (pun names). See HANDOFF.md before switching.

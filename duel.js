@@ -422,7 +422,14 @@
     var cfg = window.KR_CONFIG, fun = !!(cfg && cfg.duelNames === "fun");
     return (fun && ROSTER.fun[this.lang === "fr" ? "fr" : "en"][p.id]) || ROSTER.neutral[p.id] || p.id;
   };
-  Duel.prototype._plook = function (p) { return (p && p.look && p.look[this.lang === "fr" ? "fr" : "en"]) || null; };
+  // Look per edition. With duelNames "fun" a character may carry an "inspired" look (`lookFun`, same shape as `look`: hair style, hair colour,
+  // skin; generic cartoon traits only, never a portrait). Until the owner supplies those traits, `lookFun` is absent and `look` is used.
+  Duel.prototype._plook = function (p) {
+    if (!p) return null;
+    var l = this.lang === "fr" ? "fr" : "en", cfg = window.KR_CONFIG;
+    var fun = !!(cfg && cfg.duelNames === "fun") && p.lookFun && p.lookFun[l];
+    return fun || (p.look && p.look[l]) || null;
+  };
   Duel.prototype._pstat = function (k) { return (this._player().stats && this._player().stats[k]) || 1; };
   Duel.prototype._chargeMax = function () { return this._player().chargeNeed || CHARGE_MAX; };
   Duel.prototype._capDelay = function (s) { return s * (this._player().lucky ? 0.6 : 1); };

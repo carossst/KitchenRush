@@ -659,3 +659,6 @@ npm run build:fr       # regenerate fr.html and manifest.fr.json after changing 
   US: Bon Jonesy, JW Jetson, Anna Leigh Watermelon, Tyra Bullseye, Hayden Patty-Melt, Anna Bright-Whisk. Alternatives the owner liked: see chat history (not stored).
 - Tests: `tests/duel-rules.mjs` covers the cast (same stats per edition, neutral by default, one super per character, looks per edition), capsules and the shop.
 - Not done: a dedicated fighting-game style selection screen (the Players tab is the selection for now), distinct portraits, a second look pass by a designer.
+- **Inspired looks (prepared, empty):** a character may carry `lookFun: { fr, en }` (hair style, hair colour, skin), used only when `duelNames` is `"fun"`; otherwise (and while a
+  `lookFun` is missing) `look` is used (`_plook`). Generic cartoon traits only, no portraits, no accessories yet (the renderer has none). The owner must supply the traits per
+  character and edition (hair, skin tone, distinguishing sign); do not guess a real person's appearance. Preferably each player validates their own drawing once approached.
