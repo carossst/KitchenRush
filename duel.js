@@ -78,7 +78,7 @@
       lookFun: { fr: { hairStyle: "bun", hair: "#c6ae83", skin: "#f4c7a1" }, en: { hairStyle: "short", hair: "#896647", skin: "#f4c7a1" } } },
     { id: "pass",      sup: "pass",      cost: 280, pal: { jerseyA: "#ffb3c7", jerseyB: "#ff5d8f", shorts: "#ffffff" }, stats: {}, lucky: true,
       look: { fr: { hairStyle: "bun", hair: "#101018", skin: "#e2ab82" }, en: { hairStyle: "ponytail", hair: "#6b3a1e", skin: "#f4c7a1" } },
-      lookFun: { en: { hairStyle: "ponytail", hair: "#604537", skin: "#f4c7a1" } } }
+      lookFun: { fr: { hairStyle: "ponytail", hair: "#a07c52", skin: "#f4c7a1" }, en: { hairStyle: "ponytail", hair: "#604537", skin: "#f4c7a1" } } }
   ];
   // The Daily Duel is played on equal terms: a plain character with no super power and no passive.
   var DAILY_PLAYER = { id: "base", sup: "", cost: 0, pal: {}, stats: {}, look: null };

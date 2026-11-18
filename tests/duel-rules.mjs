@@ -205,7 +205,7 @@ const results = await page.evaluate(() => {
     const re = T.cast.find((p) => p.id === "reach"), pa = T.cast.find((p) => p.id === "pass");
     window.KR_CONFIG.duelNames = "neutral"; d.lang = "fr"; const n = d._plook(re).skin;
     window.KR_CONFIG.duelNames = "fun"; const f = d._plook(re), keep = f.hairStyle === re.look.fr.hairStyle && f.skin === "#f4c7a1";
-    const none = d._plook(pa) && d._plook(pa).hairStyle === pa.look.fr.hairStyle;
+    const none = d._plook(pa).hair === "#a07c52";
     d.lang = "en"; const en = d._plook(pa).hair === "#604537";
     window.KR_CONFIG.duelNames = "neutral"; d.lang = window.KR_LANG || "en";
     return eq([n, keep, none, en], ["#f7d7bd", true, true, true]);
