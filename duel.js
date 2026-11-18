@@ -11,6 +11,11 @@
 
   var CW = 10, CL = 22, KIT = 7, NET_H = 3, G = 30, BALL_R = 0.24;
   var WIN_SCORE = 5;
+  var DIFFICULTIES = {
+    relaxed: { speed: 0.88, reaction: 1.25, error: 1.2, focus: 1.35 },
+    standard: { speed: 1, reaction: 1, error: 1, focus: 1 },
+    challenge: { speed: 1.12, reaction: 0.82, error: 0.8, focus: 0.8 }
+  };
   var STORE_KEY = "kr:duel";
   // Local-only playtest log (never sent anywhere): used for balancing, exported by the player on request.
   var STATS_KEY = "kr:duel-stats", STATS_MAX = 60;
@@ -154,6 +159,7 @@
     var dd = d.daily;
     d.daily = (dd && typeof dd === "object" && /^\d{4}-\d{2}-\d{2}$/.test(String(dd.key)))
       ? { key: String(dd.key), you: clamp(Math.floor(Number(dd.you) || 0), 0, 99), them: clamp(Math.floor(Number(dd.them) || 0), 0, 99), idx: clamp(Math.floor(Number(dd.idx) || 0), 0, 99) } : null;
+    if (!Object.prototype.hasOwnProperty.call(DIFFICULTIES, d.difficulty)) d.difficulty = "standard";
     return d;
   }
   function writeSave(d) { try { localStorage.setItem(STORE_KEY, JSON.stringify(d)); } catch (_) { } }
@@ -292,12 +298,14 @@
   Duel.prototype._opp = function () {
     if (this.daily) return LADDER[this.daily.idx];
     var base = LADDER[this._oppIdx()], extra = this._world() - 1;   // each new world: the same six + boss, tougher
-    if (!extra && !this.save.coached && this.stage === 0) {   // tutorial match: a gentler first opponent
-      var e = Object.assign({}, base); e.speed *= 0.8; e.err *= 1.4; e.react *= 1.4; e.aggr *= 0.6; return e;
+    var level = DIFFICULTIES[this.save.difficulty], o = Object.assign({}, base);
+    if (!extra && !this.save.coached && this.stage === 0) {
+      o.speed *= 0.8; o.err *= 1.4; o.react *= 1.4; o.aggr *= 0.6;
+    } else if (extra) {
+      o.speed += extra * 1.2; o.err = Math.max(0.4, o.err - extra * 0.15);
+      o.react = Math.max(0.07, o.react - extra * 0.02); o.pace *= 1 + extra * 0.05;
     }
-    if (!extra) return base;
-    var o = Object.assign({}, base);
-    o.speed += extra * 1.2; o.err = Math.max(0.4, o.err - extra * 0.15); o.react = Math.max(0.07, o.react - extra * 0.02); o.pace *= 1 + extra * 0.05;
+    o.speed *= level.speed; o.react *= level.reaction; o.err *= level.error;
     return o;
   };
 
@@ -311,6 +319,18 @@
     var sel = this.save.venue;
     if (sel && sel !== "auto" && hasVenue(sel) && this.stage >= VENUES[sel].unlock) return sel;
     return AUTO[this.stage % AUTO.length];
+  };
+
+  Duel.prototype._difficultyHtml = function () {
+    var t = this.t, current = this.save.difficulty;
+    var labels = t.difficultyLevels || { relaxed: "Relaxed", standard: "Standard", challenge: "Challenge" };
+    return '<div class="kr-duel-difficulty"><strong>' + esc(t.difficultyLabel || "Duel difficulty") + '</strong>' +
+      '<div class="kr-duel-opts" role="group" aria-label="' + esc(t.difficultyLabel || "Duel difficulty") + '">' +
+      Object.keys(DIFFICULTIES).map(function (id) {
+        var selected = current === id;
+        return '<button class="kr-duel-opt' + (selected ? ' kr-duel-opt--on' : '') + '" data-duel="difficulty-' + id +
+          '" aria-pressed="' + selected + '">' + esc(labels[id]) + '</button>';
+      }).join("") + '</div></div>';
   };
 
   Duel.prototype._showMenu = function (result, focusAction) {
@@ -349,7 +369,7 @@
           opt("singles", t.singles || "Singles", m === "singles") +
           opt("left", t.doublesLeft || "Doubles · Left", m === "doubles" && s === "left") +
           opt("right", t.doublesRight || "Doubles · Right", m === "doubles" && s === "right") +
-        '</div>' + this._dailyHtml() +
+        '</div>' + this._difficultyHtml() + this._dailyHtml() +
         '<p class="kr-duel-how">' + esc(touch ? (t.howTouch || "Drag to move. When time slows, swipe toward where you want the ball.") : (t.howKeys || "Arrows / WASD: move. When time slows, hold a direction and press Space, or click where you want the ball.")) + '</p>' +
         '<p class="kr-duel-how">' + esc(t.capsuleHint || "Grab the falling capsules for a short power.") + '</p>' +
         '<p class="kr-duel-how">' + esc(t.rules || "First to 5. Serve and return must bounce. No volleys in the Kitchen.") + '</p>' +
@@ -441,6 +461,7 @@
       else if (this.phase === "rally" && b && b.live && !b.dead && b.lastHitTeam === 1) key = "coachMove";
       else if (this.phase === "rally" && b && b.lastHitTeam === 0) key = "coachNice";
     }
+    if (this.phase === "rally" && this.now < this._shotFeedbackUntil && this._shotFeedback) key = this._shotFeedback;
     if (this.phase === "rally" && this.now < (this._coachSuccessUntil || 0)) key = "coachFirstReturn";
     if (key === this._coachKey) return;
     this._coachKey = key;
@@ -568,6 +589,7 @@
       (this.matchSetup && equipped ? '<p class="kr-duel-equipped">' + esc(label) + '</p>' :
         '<button class="kr-btn kr-btn--secondary" data-duel="selact-' + P.id + '"' + ((equipped || (!owned && !afford)) ? " disabled" : "") + '>' + esc(label) + '</button>') + '</div></div>' +
       '<div class="kr-duel-roster" role="group" aria-label="' + esc(t.playerLabel || "My player") + '">' + tiles + '</div>' +
+      (this.matchSetup ? this._difficultyHtml() : '') +
       '<button class="kr-btn kr-btn--primary kr-duel-go" data-duel="selok"' + (this.matchSetup && !equipped ? ' disabled' : '') + '>' + esc(this.matchSetup ? (t.setupNextCourt || "Choose court") : (t.selectOk || "Continue")) + '</button>' +
       (this.matchSetup ? '<button class="kr-btn kr-btn--ghost" data-duel="setup-cancel">' + esc(t.home || "Back to menu") + '</button>' : '') + '</div>';
     this.panelEl.classList.add("kr-duel-panel--on");
@@ -784,6 +806,14 @@
       else this._showMenu(this._lastResult, "select");
       return;
     }
+    if (a.indexOf("difficulty-") === 0) {
+      var difficulty = a.slice(11);
+      if (!Object.prototype.hasOwnProperty.call(DIFFICULTIES, difficulty)) return;
+      this.save.difficulty = difficulty; writeSave(this.save);
+      if (this.matchSetup) this._showSelect(a);
+      else this._showMenu(this._lastResult, a);
+      return;
+    }
     if (a === "setup-cancel") { this.matchSetup = false; this._showMenu(this._lastResult); return; }
     if (a === "setup-back") { this._showSelect(); return; }
     if (a === "court-ok") {
@@ -873,6 +903,7 @@
     this._clearScreenTimers();
     this.keys = {}; this.joy = null; this.swipe = null;
     this._lastFault = "";
+    this._shotAttempt = null; this._shotFeedback = "";
     this._coachSuccessUntil = 0;
     this._lastResult = null;
     this._lastDailyIdx = null;
@@ -946,9 +977,11 @@
       return;
     }
     try { this.canvas.setPointerCapture(e.pointerId); } catch (_) { }
-    if (this.timeScale < 0.7 && !this.swipe) this.swipe = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
-    else if (p.x < this.W / 2 && !this.joy) this.joy = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
-    else if (!this.swipe) this.swipe = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
+    if (p.x < this.W / 2) {
+      if (!this.joy) this.joy = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
+    } else if (!this.swipe) {
+      this.swipe = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
+    }
   };
   Duel.prototype._pMove = function (e) {
     var p = this._pos(e);
@@ -958,14 +991,21 @@
   Duel.prototype._pUp = function (e, cancelled) {
     if (this.joy && this.joy.id === e.pointerId) this.joy = null;
     if (this.swipe && this.swipe.id === e.pointerId) {
-      var a = this._swipeAim();
+      if (!cancelled) {
+        var p = this._pos(e);
+        this.swipe.x = p.x; this.swipe.y = p.y;
+        var a = this._swipeAim();
+        this._swing(a.x, a.y);
+      }
       this.swipe = null;
-      if (!cancelled) this._swing(a.x, a.y);
     }
   };
   Duel.prototype._swipeAim = function () {
     var s = this.swipe; if (!s) return { x: 0, y: 0 };
-    return { x: clamp((s.x - s.ox) / 56, -1, 1), y: clamp((s.oy - s.y) / 56, -1, 1) };
+    var distance = clamp(this.W * 0.14, 42, 70);
+    var dx = s.x - s.ox, dy = s.oy - s.y;
+    if (Math.hypot(dx, dy) < 6) return { x: 0, y: 0 };
+    return { x: clamp(dx / distance, -1, 1), y: clamp(dy / distance, -1, 1) };
   };
   Duel.prototype._liveAim = function () {
     if (this.swipe) return this._swipeAim();
@@ -979,6 +1019,8 @@
     h.swingUntil = this.now + 0.26;
     h.swingAnim = this.now + 0.3;
     h.swung = false;
+    this._shotFeedback = "";
+    this._shotAttempt = this.phase === "rally" && this.ball && this.ball.live && !this.ball.dead ? this.ball.id : null;
   };
 
   // ───────────────────────── Shots ─────────────────────────
@@ -1043,12 +1085,16 @@
     void dir;
   };
 
+  Duel.prototype._hitReach = function (a) {
+    return a.human ? 4.7 * this._pstat("reach") * (this._pw("reach") ? 1.35 : 1) : 3.4;
+  };
+
   Duel.prototype._tryHit = function (a, shot, sigma) {
     var b = this.ball;
     // A dead ball (point already awarded, e.g. into the net) must never be hit: that restarted the rally phase and froze the match.
     if (!b || !b.live || b.dead || b.lastHitTeam === a.team) return false;
     if (a.team === 0 ? b.y > 0.6 : b.y < -0.6) return false;
-    var reach = a.human ? 4.7 * this._pstat("reach") * (this._pw("reach") ? 1.35 : 1) : 3.4;   // generous for the human: balls bouncing wide were hard to catch
+    var reach = this._hitReach(a);
     var d = Math.hypot(b.x - a.x, b.y - a.y);
     if (d > reach || b.z > 8.6) return false;
     var volley = b.bounces === 0;
@@ -1247,6 +1293,13 @@
 
     if (this.phase === "rally" && this.now < h.swingUntil && !h.swung) {
       if (this._tryHit(h, aimToShot(h.aimX, h.aimY, 1), 0.55)) h.swung = true;
+    }
+    if (this._shotAttempt != null && (h.swung || this.now >= h.swingUntil)) {
+      if (this.phase === "rally" && b.id === this._shotAttempt && !h.swung) {
+        this._shotFeedback = b.lastHitTeam !== 1 || b.y > 0.6 ? "shotEarly" : "shotReach";
+        this._shotFeedbackUntil = this.now + 1;
+      }
+      this._shotAttempt = null;
     }
     if (this.phase === "rally" || this.phase === "point") this.actors.forEach(function (a) { if (!a.human) self._ai(a, dt); });
     this._capsules(dt);
@@ -1506,7 +1559,8 @@
     }
     var a = this._liveAim(), sh = aimToShot(a.x, serving ? Math.max(-0.1, a.y) : a.y, 1);
     if (serving) sh.ty = Math.max(10.5, sh.ty);
-    var p = this._project(sh.tx, sh.ty, 0), r = 1.7 * p.s, pulse = 1 + Math.sin(this.now * 8) * 0.08;
+    var extension = incoming ? clamp((Math.hypot(b.x - h.x, b.y - h.y) - 1.4) / (this._hitReach(h) - 1.4), 0, 1) : 0;
+    var p = this._project(sh.tx, sh.ty, 0), r = (1.7 + 1.8 * extension) * p.s, pulse = 1 + Math.sin(this.now * 8) * 0.08;
     g.save(); g.translate(p.x, p.y); g.scale(1, 0.55);
     g.strokeStyle = "rgba(255,255,255,0.95)"; g.lineWidth = 2.5; g.setLineDash([6, 5]);
     g.beginPath(); g.arc(0, 0, r * pulse, 0, 7); g.stroke(); g.setLineDash([]);
@@ -1672,7 +1726,7 @@
 
   // ───────────────────────── Focus time (slow motion at contact) ─────────────────────────
   Duel.prototype._slowScale = function () { var v = clamp(0.16 + this.stage * 0.035, 0.16, 0.4); return this._pw("touch") ? v * 0.7 : v; };
-  Duel.prototype._slowBudget = function () { return clamp(1.1 - this.stage * 0.1, 0.5, 1.1) * (this._pw("touch") ? 1.8 : 1) * this._pstat("focus") * ((!this.daily && !this.save.coached && this.stage === 0) ? 1.6 : 1); };   // real seconds per ball
+  Duel.prototype._slowBudget = function () { return clamp(1.1 - this.stage * 0.1, 0.5, 1.1) * (this._pw("touch") ? 1.8 : 1) * this._pstat("focus") * (this.daily ? 1 : DIFFICULTIES[this.save.difficulty].focus) * ((!this.daily && !this.save.coached && this.stage === 0) ? 1.6 : 1); };   // real seconds per ball
 
   Duel.prototype._wantSlow = function (realDt) {
     var b = this.ball, h = this.human;
@@ -1723,7 +1777,7 @@
       g.strokeStyle = "rgba(255,214,10,0.9)"; g.lineWidth = 5; g.lineCap = "round";
       g.beginPath(); g.moveTo(this.swipe.ox, this.swipe.oy); g.lineTo(this.swipe.x, this.swipe.y); g.stroke();
     }
-    if (!this.joy && !this.swipe && this.phase === "serve") {
+    if (!this.joy && !this.swipe && (this.phase === "serve" || (this.phase === "rally" && this.timeScale < 0.7))) {
       g.font = "700 13px system-ui, sans-serif"; g.textAlign = "center"; g.fillStyle = "rgba(255,255,255,0.85)";
       g.fillText(String(t.hintMove || "MOVE"), W * 0.25, H - 34);
       g.fillText(String(t.hintHit || "SWIPE TO HIT"), W * 0.75, H - 34);

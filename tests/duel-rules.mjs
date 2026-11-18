@@ -253,6 +253,37 @@ const results = await page.evaluate(() => {
     d._panelAction("splash-go");
     return eq([sp, d.phase, !!d.panelEl.querySelector(".kr-duel-tab")], [[true, true], "menu", true]);
   });
+  t("Duel difficulty changes the opponent and aim window but leaves Daily fixed", () => {
+    fresh(); d.daily = null; d._showMenu();
+    d._panelAction("difficulty-relaxed");
+    const relaxed = [d._opp().speed, d._opp().react, d._slowBudget()];
+    const persisted = JSON.parse(localStorage.getItem("kr:duel")).difficulty;
+    d._panelAction("difficulty-challenge");
+    const challenge = [d._opp().speed, d._opp().react, d._slowBudget()];
+    d.daily = { idx: 0, key: "2099-01-01", seed: 1 };
+    const daily = [d._opp().speed, d._slowBudget()];
+    d.save.difficulty = "relaxed";
+    const sameDaily = JSON.stringify(daily) === JSON.stringify([d._opp().speed, d._slowBudget()]);
+    d.daily = null; d.save.difficulty = "standard";
+    return eq([relaxed[0] < challenge[0], relaxed[1] > challenge[1], relaxed[2] > challenge[2], persisted, sameDaily],
+      [true, true, true, "relaxed", true]);
+  });
+  t("touch zones stay stable in slow motion and use the final release coordinates", () => {
+    fresh(); d.timeScale = 0.2;
+    const rect = d.canvas.getBoundingClientRect();
+    const touch = (id, x, y) => ({ pointerType: "touch", pointerId: id, clientX: rect.left + x, clientY: rect.top + y, preventDefault() {} });
+    d._pDown(touch(1, d.W * 0.25, 100));
+    d._pDown(touch(2, d.W * 0.75, 100));
+    const both = !!d.joy && !!d.swipe;
+    d._pUp(touch(2, d.W * 0.75 - 45, 62));
+    const aim = d.human.aimX < 0 && d.human.aimY > 0 && !!d.joy;
+    const swing = d.human.swingUntil;
+    d._pDown(touch(3, d.W * 0.75, 100));
+    d._pUp(touch(3, d.W * 0.75, 100), true);
+    const cancelled = !d.swipe && d.human.swingUntil === swing;
+    d._pUp(touch(1, d.W * 0.25, 100));
+    return eq([both, aim, cancelled, !d.joy], [true, true, true, true]);
+  });
   t("corrupted saved data is sanitised", () => {
     d.destroy();
     localStorage.setItem("kr:duel", JSON.stringify({ history: "x", beaten: { 99999: true, a: true, 2: true }, equipped: "hack", daily: { key: "bad" }, lang: "zz", bestMargin: 9999, venue: "../x", coached: "yes", sound: "yes", shareDay: "bad", coins: -5, owned: { sprint: true, hacker: true }, player: "hacker" }));

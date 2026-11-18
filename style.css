@@ -2338,3 +2338,6 @@ body:has(.kr-duel) #update-toast {
 }
 
 .kr-duel-vs-action { grid-column: 1 / -1; }
+
+.kr-duel-difficulty { display: grid; gap: var(--space-2); }
+.kr-duel-difficulty strong { font-size: var(--fs-sm); }
