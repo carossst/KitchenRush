@@ -1619,6 +1619,9 @@ a:focus-visible {
   gap: var(--space-6);
 }
 
+.kr-footer a { color: rgb(var(--text-muted)); }
+.kr-footer a:hover { color: rgb(var(--primary)); }
+
 .kr-footer-link {
   display: inline-flex;
   align-items: center;
