@@ -11,6 +11,11 @@
 
   var CW = 10, CL = 22, KIT = 7, NET_H = 3, G = 30, BALL_R = 0.24;
   var WIN_SCORE = 5;
+  var DIFFICULTIES = {
+    relaxed: { speed: 0.88, reaction: 1.25, error: 1.2, focus: 1.35 },
+    standard: { speed: 1, reaction: 1, error: 1, focus: 1 },
+    challenge: { speed: 1.12, reaction: 0.82, error: 0.8, focus: 0.8 }
+  };
   var STORE_KEY = "kr:duel";
   // Local-only playtest log (never sent anywhere): used for balancing, exported by the player on request.
   var STATS_KEY = "kr:duel-stats", STATS_MAX = 60;
@@ -38,16 +43,14 @@
       pal: { jerseyA: "#ffd66e", jerseyB: "#b8860b", shorts: "#1a1a1a", hair: "#101018", band: "#ff3b3b", paddle: "#ff3b3b", trim: "#ff3b3b" } }
   ];
   // Courts ("levels" you can also pick from the menu). `unlock` = opponent index you must have reached.
-  var VENUE_ORDER = ["park", "beach", "night", "gym", "rooftop", "stadium"];
-  var AUTO = ["park", "park", "beach", "night", "gym", "rooftop", "stadium"];   // venue per ladder step (same length as LADDER)
+  var VENUE_ORDER = ["park", "beach", "rooftop"];
+  var AUTO = ["park", "park", "beach", "rooftop", "park", "rooftop", "rooftop"];   // venue per ladder step (same length as LADDER)
   var VENUES = {
-    park:    { unlock: 0, sky: ["#2f8cff", "#aee4ff"], glow: [0.82, 0.25, "255,240,170", 0.5], clouds: true, stand: ["#24407a", "#16264f"], crowd: ["#ff5d8f", "#ffd60a", "#3fd0ff", "#ffffff", "#9bffb0", "#ff8a3d", "#c9a6ff"], ground: ["#2fa862", "#37b36b"], board: ["#0e1b3d", "#ffd60a"], apron: "#1f7fd1", court: "#2f6fed", kitN: "#ff7a45", kitF: "#ff8d5c", line: "#ffffff" },
-    beach:   { unlock: 2, sky: ["#ff8a5c", "#ffe0a8"], glow: [0.5, 0.62, "255,214,140", 0.7], scene: "sea", stand: ["#7a4b2a", "#5a361d"], crowd: ["#ffffff", "#ffcf6b", "#ff6b6b", "#2ec4b6", "#ffe8b0"], ground: ["#dcbc78", "#e6c98a"], board: ["#2a1a10", "#ffcf6b"], apron: "#0c8f91", court: "#14b8b2", kitN: "#ff6b4a", kitF: "#ff8466", line: "#ffffff" },
-    night:   { unlock: 3, sky: ["#050818", "#1b1f55"], glow: [0.2, 0.3, "200,220,255", 0.35], stars: true, scene: "lights", stand: ["#1a1440", "#0d0a26"], crowd: ["#ff2fa0", "#3fd0ff", "#9bffb0", "#ffffff", "#c9a6ff"], ground: ["#0f2a3a", "#12313f"], board: ["#05060f", "#3fd0ff"], apron: "#1a2f7a", court: "#2b3fd9", kitN: "#ff2fa0", kitF: "#ff4db3", line: "#9ff0ff" },
-    gym:     { unlock: 4, sky: ["#4a4f63", "#2d3142"], scene: "gym", stand: ["#3a2f2a", "#241c18"], crowd: ["#e9c46a", "#ffffff", "#e76f51", "#2a9d8f"], ground: ["#bd8745", "#c8924f"], board: ["#1b1f2e", "#ff9d3c"], apron: "#1f5a3d", court: "#2e8b57", kitN: "#e9c46a", kitF: "#f0d27f", line: "#ffffff" },
-    rooftop: { unlock: 5, sky: ["#3a1c71", "#ff9f68"], glow: [0.7, 0.8, "255,180,120", 0.6], scene: "skyline", stand: ["#1e1b3a", "#14122b"], crowd: ["#ffffff", "#ff9f68", "#c9a6ff", "#ff7a9c"], ground: ["#6b6f80", "#737788"], board: ["#14122b", "#ff7a9c"], apron: "#2f2e63", court: "#3d6fb5", kitN: "#ff9f43", kitF: "#ffb26b", line: "#ffffff" },
-    stadium: { unlock: 6, sky: ["#0a0a14", "#2a1a05"], stars: true, scene: "beams", stand: ["#2b2108", "#14100a"], crowd: ["#ffd23f", "#ffffff", "#ff9f1c", "#f4f1de"], ground: ["#1b1b24", "#20202b"], board: ["#14100a", "#ffd23f"], apron: "#7a5c12", court: "#1d3a8a", kitN: "#c0392b", kitF: "#d9503f", line: "#ffd23f" }
+    park:    { unlock: 0, sky: ["#2f8cff", "#aee4ff"], glow: [0.82, 0.25, "255,240,170", 0.5], clouds: true, scene: "park", stand: ["#24407a", "#16264f"], crowd: ["#ff5d8f", "#ffd60a", "#3fd0ff", "#ffffff", "#9bffb0", "#ff8a3d", "#c9a6ff"], ground: ["#2fa862", "#37b36b"], board: ["#0e1b3d", "#ffd60a"] },
+    beach:   { unlock: 0, sky: ["#ff8a5c", "#ffe0a8"], glow: [0.5, 0.62, "255,214,140", 0.7], scene: "sea", stand: ["#7a4b2a", "#5a361d"], crowd: ["#ffffff", "#ffcf6b", "#ff6b6b", "#2ec4b6", "#ffe8b0"], ground: ["#dcbc78", "#e6c98a"], board: ["#2a1a10", "#ffcf6b"] },
+    rooftop: { unlock: 3, sky: ["#3a1c71", "#ff9f68"], glow: [0.7, 0.8, "255,180,120", 0.6], scene: "skyline", stand: ["#1e1b3a", "#14122b"], crowd: ["#ffffff", "#ff9f68", "#c9a6ff", "#ff7a9c"], ground: ["#6b6f80", "#737788"], board: ["#14122b", "#ff7a9c"] },
   };
+  var COURT_COLORS = { apron: "#1f7fd1", court: "#2f6fed", kitN: "#ff7a45", kitF: "#ff8d5c", line: "#ffffff" };
   function hasVenue(id) { return Object.prototype.hasOwnProperty.call(VENUES, id); }
   // The cast: 6 characters, identical in both editions (same stats, same super power, same unlock order and price).
   // Only the display name (and, where it matters, the drawn look) depends on the language. Soft currency only.
@@ -111,7 +114,19 @@
     var d = new Date(), p2 = function (n) { return n < 10 ? "0" + n : "" + n; };
     var key = d.getUTCFullYear() + "-" + p2(d.getUTCMonth() + 1) + "-" + p2(d.getUTCDate());
     var h = hash32("kr-duel-" + key);
-    return { key: key, seed: h, idx: h % LADDER.length };
+    return { key: key, seed: h, idx: h % LADDER.length, resetAt: Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1) };
+  }
+  function dayKey(off) {
+    var d = new Date(Date.now() + (off || 0) * 864e5), p2 = function (n) { return n < 10 ? "0" + n : "" + n; };
+    return d.getUTCFullYear() + "-" + p2(d.getUTCMonth() + 1) + "-" + p2(d.getUTCDate());
+  }
+  // Daily missions: 3 drawn from this pool for the day (same for everyone), each pays MISSION_REWARD tokens once.
+  var MISSIONS = [{ id: "win", n: 1 }, { id: "points", n: 10 }, { id: "caps", n: 3 }, { id: "rally", n: 6 }, { id: "super", n: 2 }];
+  var MISSION_REWARD = 15;
+  function missionsFor(key) {
+    var r = seeded(hash32("kr-missions-" + key)), pool = MISSIONS.slice(), out = [];
+    while (out.length < 3) out.push(pool.splice(Math.floor(r() * pool.length), 1)[0]);
+    return out;
   }
   function gauss() { return (rand() + rand() + rand() - 1.5) / 0.75; }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
@@ -119,6 +134,13 @@
   var HISTORY_MAX = 20;
   // One signature power per opponent, earned by beating them (same index as LADDER). Charged by winning points.
   var POWERS = ["reach", "touch", "power", "precision", "sprint", "pass"];
+  var POWER_SHOP = { touch: 40, reach: 60, precision: 80, sprint: 90, power: 100 };
+  var DRILL_BALLS = 5;
+  var DRILLS = {
+    deep: { difficulty: "relaxed", goal: 3, reward: 30, y: [11, 21], halfWidth: 4.5, feed: -14 },
+    angle: { difficulty: "standard", goal: 3, reward: 45, y: [9, 21], halfWidth: 2.8, feed: -14 },
+    soft: { difficulty: "challenge", goal: 3, reward: 60, y: [1.5, 7], halfWidth: 6, feed: -10 }
+  };
   var POWER_SECONDS = 10, CHARGE_MAX = 3;
   var CAPSULE_SECONDS = 7, CAPSULE_LIFE = 8;   // a caught capsule gives a power for 7 s; it vanishes after 8 s
   var POWER_RGB = { reach: "63,208,255", touch: "180,140,255", power: "255,122,46", precision: "255,214,10", sprint: "60,230,140", pass: "255,93,162" };
@@ -139,12 +161,33 @@
     if (d.beaten && typeof d.beaten === "object") Object.keys(d.beaten).forEach(function (k) { var i = Number(k); if (i >= 0 && i < 999 && d.beaten[k] === true) beaten[Math.floor(i)] = true; });
     d.beaten = beaten;
     d.equipped = POWERS.indexOf(d.equipped) >= 0 ? d.equipped : "";
+    if (d.venue === "night") d.venue = "beach";
+    else if (d.venue === "gym") d.venue = "park";
+    else if (d.venue === "stadium") d.venue = "rooftop";
     d.venue = (d.venue === "auto" || (typeof d.venue === "string" && hasVenue(d.venue))) ? d.venue : "auto";
     d.bestMargin = clamp(Math.floor(Number(d.bestMargin) || 0), 0, 99);
     d.lang = (d.lang === "fr" || d.lang === "en") ? d.lang : "";
     d.coached = d.coached === true;
     d.sound = d.sound === true;
     d.picked = d.picked === true;
+    d.official = d.official === true;
+    var en = {}, ma = {};
+    PLAYERS.forEach(function (p) {
+      if (d.endings && d.endings[p.id] === true) en[p.id] = true;
+      var w = Math.floor(Number(d.mastery && d.mastery[p.id]) || 0); if (w > 0) ma[p.id] = clamp(w, 0, 9999);
+    });
+    d.endings = en; d.mastery = ma;
+    var st = d.streak;
+    d.streak = (st && typeof st === "object" && /^\d{4}-\d{2}-\d{2}$/.test(String(st.last))) ? { last: String(st.last), n: clamp(Math.floor(Number(st.n) || 1), 1, 9999) } : null;
+    var ms = d.missions;
+    if (ms && typeof ms === "object" && /^\d{4}-\d{2}-\d{2}$/.test(String(ms.key))) {
+      var pr = {}, dn = {};
+      MISSIONS.forEach(function (m) {
+        var v = Math.floor(Number(ms.prog && ms.prog[m.id]) || 0); if (v > 0) pr[m.id] = clamp(v, 0, 9999);
+        if (ms.done && ms.done[m.id] === true) dn[m.id] = true;
+      });
+      d.missions = { key: String(ms.key), prog: pr, done: dn };
+    } else d.missions = null;
     d.shareDay = /^\d{4}-\d{2}-\d{2}$/.test(String(d.shareDay)) ? String(d.shareDay) : "";
     d.coins = clamp(Math.floor(Number(d.coins) || 0), 0, 999999);
     var ownedClean = {};
@@ -154,6 +197,18 @@
     var dd = d.daily;
     d.daily = (dd && typeof dd === "object" && /^\d{4}-\d{2}-\d{2}$/.test(String(dd.key)))
       ? { key: String(dd.key), you: clamp(Math.floor(Number(dd.you) || 0), 0, 99), them: clamp(Math.floor(Number(dd.them) || 0), 0, 99), idx: clamp(Math.floor(Number(dd.idx) || 0), 0, 99) } : null;
+    var powerLicenses = {};
+    Object.keys(POWER_SHOP).forEach(function (id) {
+      if (d.powerLicenses && d.powerLicenses[id] === true) powerLicenses[id] = true;
+    });
+    d.powerLicenses = powerLicenses;
+    d.shopPower = Object.prototype.hasOwnProperty.call(powerLicenses, d.shopPower) ? d.shopPower : "";
+    var drillBests = {};
+    Object.keys(DRILLS).forEach(function (id) {
+      drillBests[id] = clamp(Math.floor(Number(d.drillBests && d.drillBests[id]) || 0), 0, DRILL_BALLS);
+    });
+    d.drillBests = drillBests;
+    if (!Object.prototype.hasOwnProperty.call(DIFFICULTIES, d.difficulty)) d.difficulty = "standard";
     return d;
   }
   function writeSave(d) { try { localStorage.setItem(STORE_KEY, JSON.stringify(d)); } catch (_) { } }
@@ -181,7 +236,10 @@
     this.raf = 0;
     this._mount();
     this._updateSoundBtn();
-    if (this.save.picked) this._showMenu(); else this._beginMatchSetup();
+    this._checkStreak();
+    if (this.opts.entry === "daily") this._panelAction("daily");
+    else if (this.opts.entry === "deep") this._startDrill("deep");
+    else this._beginMatchSetup();
   }
 
   // English is the base dictionary; French overrides it key by key, so a missing key never shows blank.
@@ -199,8 +257,10 @@
       '<div class="kr-duel-hud"><button class="kr-btn-icon kr-duel-exit" aria-label="' + esc(this.t.exit || "Exit") + '">✕</button>' +
       '<div class="kr-duel-score" aria-live="polite"></div><button class="kr-btn-icon kr-duel-sound" aria-pressed="false"></button></div>' +
       '<div class="kr-duel-banner" aria-live="polite"></div>' +
-      '<button class="kr-duel-power" hidden></button>' +
+      '<div class="kr-duel-controls">' +
       '<div class="kr-duel-coach" role="status" aria-live="polite" hidden></div>' +
+      '<button class="kr-duel-power" hidden></button>' +
+      '<button class="kr-duel-shot-style kr-btn kr-btn--secondary" hidden></button></div>' +
       '<div class="kr-duel-panel"></div>';
     document.body.appendChild(root);
     this.root = root;
@@ -210,6 +270,7 @@
     this.bannerEl = root.querySelector(".kr-duel-banner");
     this.panelEl = root.querySelector(".kr-duel-panel");
     this.powerEl = root.querySelector(".kr-duel-power");
+    this.shotStyleEl = root.querySelector(".kr-duel-shot-style");
     this.coachEl = root.querySelector(".kr-duel-coach");
     this.soundEl = root.querySelector(".kr-duel-sound");
 
@@ -225,6 +286,11 @@
     root.querySelector(".kr-duel-exit").addEventListener("click", function () { self.destroy(); });
     this.soundEl.addEventListener("click", function () { self._toggleSound(); });
     this.powerEl.addEventListener("click", function () { self._activatePower(); });
+    this.shotStyleEl.addEventListener("click", function () {
+      if (!self.drill || !self.drill.style) return;
+      self.drill.style = self.drill.style === "touch" ? "drive" : "touch";
+      self._syncShotStyle();
+    });
     this.panelEl.addEventListener("click", function (e) {
       var b = e.target.closest("[data-duel]");
       if (b) self._panelAction(b.getAttribute("data-duel"));
@@ -255,6 +321,7 @@
   Duel.prototype.destroy = function () {
     RNG = Math.random;
     this._clearScreenTimers();
+    try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (_) { }
     cancelAnimationFrame(this.raf);
     window.removeEventListener("resize", this._onResize);
     document.removeEventListener("keydown", this._onKey);
@@ -292,12 +359,14 @@
   Duel.prototype._opp = function () {
     if (this.daily) return LADDER[this.daily.idx];
     var base = LADDER[this._oppIdx()], extra = this._world() - 1;   // each new world: the same six + boss, tougher
-    if (!extra && !this.save.coached && this.stage === 0) {   // tutorial match: a gentler first opponent
-      var e = Object.assign({}, base); e.speed *= 0.8; e.err *= 1.4; e.react *= 1.4; e.aggr *= 0.6; return e;
+    var level = DIFFICULTIES[this.save.difficulty], o = Object.assign({}, base);
+    if (!extra && !this.save.coached && this.stage === 0) {
+      o.speed *= 0.8; o.err *= 1.4; o.react *= 1.4; o.aggr *= 0.6;
+    } else if (extra) {
+      o.speed += extra * 1.2; o.err = Math.max(0.4, o.err - extra * 0.15);
+      o.react = Math.max(0.07, o.react - extra * 0.02); o.pace *= 1 + extra * 0.05;
     }
-    if (!extra) return base;
-    var o = Object.assign({}, base);
-    o.speed += extra * 1.2; o.err = Math.max(0.4, o.err - extra * 0.15); o.react = Math.max(0.07, o.react - extra * 0.02); o.pace *= 1 + extra * 0.05;
+    o.speed *= level.speed; o.react *= level.reaction; o.err *= level.error;
     return o;
   };
 
@@ -313,6 +382,28 @@
     return AUTO[this.stage % AUTO.length];
   };
 
+  Duel.prototype._modeHtml = function () {
+    var t = this.t;
+    var m = this.mode, s = this.side;
+    function opt(id, label, on) { return '<button class="kr-duel-opt' + (on ? " kr-duel-opt--on" : "") + '" data-duel="' + id + '" aria-pressed="' + (on ? "true" : "false") + '">' + esc(label) + '</button>'; }
+    return '<div class="kr-duel-opts" role="group" aria-label="' + esc(t.modeAria || "Match type") + '">' +
+      opt("singles", t.singles || "Singles", m === "singles") +
+      opt("left", t.doublesLeft || "Doubles · Left", m === "doubles" && s === "left") +
+      opt("right", t.doublesRight || "Doubles · Right", m === "doubles" && s === "right") + '</div>';
+  };
+
+  Duel.prototype._difficultyHtml = function () {
+    var t = this.t, current = this.save.difficulty;
+    var labels = t.difficultyLevels || { relaxed: "Relaxed", standard: "Standard", challenge: "Challenge" };
+    return '<div class="kr-duel-difficulty"><strong>' + esc(t.difficultyLabel || "Duel difficulty") + '</strong>' +
+      '<div class="kr-duel-opts" role="group" aria-label="' + esc(t.difficultyLabel || "Duel difficulty") + '">' +
+      Object.keys(DIFFICULTIES).map(function (id) {
+        var selected = current === id;
+        return '<button class="kr-duel-opt' + (selected ? ' kr-duel-opt--on' : '') + '" data-duel="difficulty-' + id +
+          '" aria-pressed="' + selected + '">' + esc(labels[id]) + '</button>';
+      }).join("") + '</div></div>';
+  };
+
   Duel.prototype._showMenu = function (result, focusAction) {
     this._clearScreenTimers();
     this.phase = "menu";
@@ -323,8 +414,6 @@
     if (result === "lose") head = '<p class="kr-duel-result kr-duel-result--lose">' + esc(t.lose || "So close. Run it back.") + fin + '</p>';
     if (result === "win" && this._lastBoss) head += '<p class="kr-muted">' + esc((t.worldUp || "World {w} unlocked: tougher opponents").replace("{w}", this._world())) + '</p>';
     if (result && this._lastEarn) head += '<p class="kr-duel-earn">' + esc((t.earned || "+{n} coins").replace("{n}", this._lastEarn)) + '</p>';
-    var m = this.mode, s = this.side;
-    function opt(id, label, on) { return '<button class="kr-duel-opt' + (on ? " kr-duel-opt--on" : "") + '" data-duel="' + id + '" aria-pressed="' + (on ? "true" : "false") + '">' + esc(label) + '</button>'; }
     var touch = this._isTouch;
     var tabs = ["play", "players", "courts", "progress"], tab = (this.tab && tabs.indexOf(this.tab) >= 0) ? this.tab : "play", tabNames = t.tabs || {};
     function tabBtn(id) {
@@ -344,15 +433,16 @@
       '<p class="kr-muted">' + esc((t.tags && t.tags[this._oppIdx()]) || opp.tag || "") + '</p>' +
       (opp.trait && t.traits ? '<p class="kr-muted kr-duel-trait">' + esc((t.traitLabel || "Style: {x}").replace("{x}", t.traits[opp.trait] || "")) + '</p>' : "") +
       '<div class="kr-duel-tabs" role="tablist">' + tabs.map(tabBtn).join("") + '</div>' +
-      panel("play", this._goalHtml(result) +
-        '<div class="kr-duel-opts" role="group" aria-label="' + esc(t.modeAria || "Match type") + '">' +
-          opt("singles", t.singles || "Singles", m === "singles") +
-          opt("left", t.doublesLeft || "Doubles · Left", m === "doubles" && s === "left") +
-          opt("right", t.doublesRight || "Doubles · Right", m === "doubles" && s === "right") +
-        '</div>' + this._dailyHtml() +
+      panel("play", this._goalHtml(result) + this._streakHtml() +
+        this._modeHtml() + this._officialHtml() + this._difficultyHtml() + this._dailyHtml() + this._missionsHtml() + this._nextUnlockHtml() +
+        (this.save.picked ? '<button class="kr-btn kr-btn--secondary" data-duel="resume">' +
+          esc((t.resumeMatch || "Resume: {player} · {court}").replace("{player}", this._pname(this._player()))
+            .replace("{court}", (t.venues || {})[this._venueId()] || this._venueId())) + '</button>' : '') +
+        '<button class="kr-btn kr-btn--secondary" data-duel="practice">' + esc(t.practiceTitle || "Drills") + '</button>' +
+        '<button class="kr-btn kr-btn--ghost" data-duel="shop">' + esc(t.shopTitle || "Power shop") + '</button>' +
         '<p class="kr-duel-how">' + esc(touch ? (t.howTouch || "Drag to move. When time slows, swipe toward where you want the ball.") : (t.howKeys || "Arrows / WASD: move. When time slows, hold a direction and press Space, or click where you want the ball.")) + '</p>' +
         '<p class="kr-duel-how">' + esc(t.capsuleHint || "Grab the falling capsules for a short power.") + '</p>' +
-        '<p class="kr-duel-how">' + esc(t.rules || "First to 5. Serve and return must bounce. No volleys in the Kitchen.") + '</p>' +
+        '<p class="kr-duel-how">' + esc(this._fmtText()) + '</p>' +
         '<button class="kr-btn kr-btn--ghost" data-duel="tutorial">' + esc(t.tutorialBtn || "Replay the tutorial") + '</button>') +
       panel("players", this._playerHtml() +
         '<button class="kr-btn kr-btn--ghost" data-duel="select">' + esc(t.selectOpen || "Open the select screen") + '</button>' +
@@ -387,7 +477,12 @@
 
   // Progress tab: recent results, record, win rate from the local playtest log, and the export button.
   Duel.prototype._progressHtml = function () {
-    var t = this.t, sv = this.save, h = sv.history || [], wl = String(t.winLetter || "W"), ll = String(t.loseLetter || "L"), out = "";
+    var t = this.t, sv = this.save, h = sv.history || [], wl = String(t.winLetter || "W"), ll = String(t.loseLetter || "L"), out = "", self = this;
+    out += '<p class="kr-muted">' + esc((t.endingsLine || "Endings unlocked: {n}/{m}").replace("{n}", Object.keys(sv.endings || {}).length).replace("{m}", PLAYERS.length)) + '</p>';
+    var mastered = PLAYERS.filter(function (p) { return (sv.mastery || {})[p.id]; });
+    if (mastered.length) out += '<p class="kr-muted">' + mastered.map(function (p) {
+      return esc((t.masteryLine || "{name}: {n} wins").replace("{name}", self._pname(p)).replace("{n}", sv.mastery[p.id])) + (self._mastery(p) ? " " + "\u2605".repeat(self._mastery(p)) : "");
+    }).join(" \u00b7 ") + '</p>';
     if (h.length) {
       out += '<div class="kr-duel-recent" role="list" aria-label="' + esc(t.recent || "Last matches") + '">' + h.slice(-5).map(function (e) {
         var w = e.you > e.them;
@@ -412,6 +507,172 @@
     }).join("") + '</div>' + this._powerLine();
   };
 
+  Duel.prototype._openTrainingPanel = function (html, focusAction) {
+    this._clearScreenTimers();
+    this.phase = "menu";
+    this.panelEl.innerHTML = '<div class="kr-duel-card kr-duel-training">' + html + '</div>';
+    this.panelEl.classList.add("kr-duel-panel--on");
+    this.scoreEl.textContent = "";
+    var target = focusAction && this.panelEl.querySelector('[data-duel="' + focusAction + '"]:enabled');
+    (target || this.panelEl.querySelector("h2")).focus();
+    if (!focusAction) this.panelEl.scrollTop = 0;
+  };
+
+  Duel.prototype._showPractice = function () {
+    var t = this.t, sv = this.save;
+    var names = t.drillNames || {}, goals = t.drillGoals || {}, levels = t.difficultyLevels || {};
+    var html = '<h2 class="kr-duel-name" tabindex="-1">' + esc(t.practiceTitle || "Drills") + '</h2>';
+    html += Object.keys(DRILLS).map(function (id) {
+      var drill = DRILLS[id], best = sv.drillBests[id];
+      var progress = (t.drillBest || "Best: {n}/{total}").replace("{n}", best).replace("{total}", DRILL_BALLS);
+      var reward = best >= drill.goal ? (t.drillClaimed || "Reward earned") :
+        (t.drillReward || "{n} tokens at {goal}/{total}").replace("{n}", drill.reward).replace("{goal}", drill.goal).replace("{total}", DRILL_BALLS);
+      return '<article><strong>' + esc(names[id] || id) + '</strong><p>' + esc((levels[drill.difficulty] || drill.difficulty) + " · " + (goals[id] || "")) +
+        '</p><p>' + esc(progress + " · " + reward) + '</p><button class="kr-btn kr-btn--secondary" data-duel="drill-' + id + '">' +
+        esc(t.drillStart || "Practise") + '<span class="sr-only"> ' + esc(names[id] || id) + '</span></button></article>';
+    }).join("");
+    this._openTrainingPanel(html + '<button class="kr-btn kr-btn--ghost" data-duel="practice-back">' + esc(t.resultMenu || "Duel menu") + '</button>');
+  };
+
+  Duel.prototype._showShop = function (focusAction) {
+    var t = this.t, sv = this.save, self = this;
+    var html = '<h2 class="kr-duel-name" tabindex="-1">' + esc(t.shopTitle || "Power shop") + '</h2>' +
+      '<p class="kr-duel-coins">' + esc((t.coins || "Rush Tokens: {n}").replace("{n}", sv.coins)) + '</p>' +
+      '<p>' + esc(t.shopRule || "Equip one alternative super for classic Duel.") + '</p>' +
+      '<button class="kr-btn kr-btn--secondary" data-duel="shop-native" aria-pressed="' + (!sv.shopPower) + '">' + esc(t.shopNative || "Character super") + '</button>';
+    html += Object.keys(POWER_SHOP).map(function (id) {
+      var cost = POWER_SHOP[id], owned = sv.powerLicenses[id], active = id === sv.shopPower;
+      var afford = sv.coins >= cost;
+      var label = active ? (t.playerEquipped || "Equipped") : owned ? (t.playerEquip || "Equip") :
+        (afford ? (t.playerBuy || "Buy for {n} Rush Tokens") : (t.playerMissing || "Need {n} more Rush Tokens"))
+          .replace("{n}", afford ? cost : cost - sv.coins);
+      return '<article><strong>' + esc(self._powerName(id)) + '</strong><p>' + esc((t.powerDescs || [])[POWERS.indexOf(id)] || "") +
+        '</p><button class="kr-btn kr-btn--secondary" data-duel="shop-power-' + id + '" aria-pressed="' + active + '"' +
+        (!owned && sv.coins < cost ? ' disabled' : '') + '>' + esc(label) + '<span class="sr-only"> ' + esc(self._powerName(id)) + '</span></button>' +
+        '<button class="kr-btn kr-btn--ghost" data-duel="trial-' + id + '">' + esc(t.shopTry || "Try") +
+        '<span class="sr-only"> ' + esc(self._powerName(id)) + '</span></button></article>';
+    }).join("");
+    this._openTrainingPanel(html + '<button class="kr-btn kr-btn--ghost" data-duel="shop-back">' + esc(t.resultMenu || "Duel menu") + '</button>', focusAction);
+  };
+
+  Duel.prototype._chooseShopPower = function (id) {
+    if (!Object.prototype.hasOwnProperty.call(POWER_SHOP, id)) return;
+    var sv = this.save, cost = POWER_SHOP[id];
+    if (!sv.powerLicenses[id]) {
+      if (sv.coins < cost) return;
+      sv.coins -= cost;
+      sv.powerLicenses[id] = true;
+    }
+    sv.shopPower = id;
+    writeSave(sv);
+    this._showShop("shop-power-" + id);
+  };
+
+  Duel.prototype._matchAdvice = function () {
+    var map = { net: "deep", out: "angle", twoBounce: "deep", kitchen: "soft", serveShort: "deep", winner: "deep" };
+    var counts = {}, best = 0, reason = this._lastFault;
+    ((this._m && this._m.pts) || []).forEach(function (point) {
+      var code = point.slice(2);
+      if (point.slice(0, 2) !== "1:" || !map[code]) return;
+      counts[code] = (counts[code] || 0) + 1;
+      if (counts[code] > best) { best = counts[code]; reason = code; }
+    });
+    return { reason: reason, drill: map[reason] || "deep" };
+  };
+
+  Duel.prototype._startDrill = function (id, trialPower) {
+    this.daily = null;
+    this.drill = { id: id, attempts: 0, hits: 0, trialPower: trialPower || "", style: id === "soft" ? "touch" : "" };
+    if (!trialPower) this._track("drill-start");
+    this._startMatch();
+  };
+
+  Duel.prototype._syncShotStyle = function () {
+    var el = this.shotStyleEl;
+    el.hidden = !this.drill || !this.drill.style;
+    if (!el.hidden) {
+      var styles = this.t.drillShotStyles || { touch: "Touch", drive: "Drive" };
+      el.textContent = (this.t.drillShotStyle || "Shot: {name}").replace("{name}", styles[this.drill.style]);
+      el.setAttribute("aria-label", (this.t.drillShotSwitch || "{name}. Switch shot type.").replace("{name}", styles[this.drill.style]));
+    }
+  };
+
+  Duel.prototype._drillTarget = function () {
+    var cfg = DRILLS[this.drill.id];
+    var attempt = this.phase === "point" ? this.drill.attempts - 1 : this.drill.attempts;
+    var center = this.drill.id === "angle" ? (attempt % 2 ? 6 : -6) : 0;
+    return { left: center - cfg.halfWidth, right: center + cfg.halfWidth, near: cfg.y[0], far: cfg.y[1] };
+  };
+
+  Duel.prototype._drawDrillTarget = function (g) {
+    var target = this._drillTarget(), self = this;
+    var corners = [[target.left, target.near], [target.left, target.far], [target.right, target.far], [target.right, target.near]];
+    g.save();
+    g.beginPath();
+    corners.forEach(function (corner, i) {
+      var p = self._project(corner[0], corner[1], 0);
+      if (i) g.lineTo(p.x, p.y);
+      else g.moveTo(p.x, p.y);
+    });
+    g.closePath();
+    g.fillStyle = "rgba(255,214,10,0.34)"; g.fill();
+    g.strokeStyle = "#ffdf65"; g.lineWidth = 2.5; g.stroke();
+    g.restore();
+  };
+
+  Duel.prototype._drawDrillBounce = function (g) {
+    var mark = this.drill.mark;
+    if (!mark) return;
+    var p = this._project(mark.x, mark.y, 0);
+    g.save();
+    g.fillStyle = mark.hit ? "#d9ff78" : "#ff9d79";
+    g.strokeStyle = "#121b2a"; g.lineWidth = 2;
+    g.beginPath(); g.ellipse(p.x, p.y, 8, 5, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.restore();
+  };
+
+  Duel.prototype._drillAttempt = function (hit, reason) {
+    if (this.phase !== "rally") return;
+    if (this.ball) this.ball.live = false;
+    this.phase = "point";
+    this.phaseAt = this.now;
+    this.drill.attempts += 1;
+    if (hit) this.drill.hits += 1;
+    this._updateScore();
+    var miss = (this.t.drillMissReasons || {})[reason] || (this.t.drillMiss || "Target missed");
+    this._banner(hit ? (this.t.drillHit || "Target hit!") : miss, 1300, hit ? "good" : "bad");
+    this._sound(hit ? "milestone" : "fault");
+  };
+
+  Duel.prototype._finishDrill = function () {
+    var round = this.drill, cfg = DRILLS[round.id], sv = this.save, t = this.t;
+    var previous = sv.drillBests[round.id];
+    var earn = 0;
+    if (!round.trialPower) {
+      this._track("drill-complete");
+      if (previous < cfg.goal && round.hits >= cfg.goal) earn = cfg.reward;
+      sv.drillBests[round.id] = Math.max(previous, round.hits);
+      sv.coins = clamp(sv.coins + earn, 0, 999999);
+      writeSave(sv);
+    }
+    this.drill = null;
+    this.power = null;
+    this._syncShotStyle();
+    this._banner("", 0);
+    var result = (t.drillResult || "Targets hit: {n}/{total}").replace("{n}", round.hits).replace("{total}", DRILL_BALLS);
+    var best = (t.drillPrevious || "Previous best: {n}/{total}").replace("{n}", previous).replace("{total}", DRILL_BALLS);
+    var title = round.trialPower ? this._powerName(round.trialPower) : (t.drillNames || {})[round.id] || (t.practiceTitle || "Drills");
+    var retry = round.trialPower ? "trial-" + round.trialPower : "drill-" + round.id;
+    this._openTrainingPanel('<h2 class="kr-duel-name" tabindex="-1">' + esc(title) + '</h2>' + '<p>' + esc(result) + '</p>' +
+      (!round.trialPower && previous ? '<p class="kr-muted">' + esc(best) + '</p>' : '') +
+      (earn ? '<p class="kr-duel-coins">' + esc((t.earned || "+{n} Rush Tokens").replace("{n}", earn)) + '</p>' : '') +
+      (this.drillReturn ? '<button class="kr-btn kr-btn--primary" data-duel="drill-rematch">' + esc(t.retry || "Rematch") + '</button>' : '') +
+      '<button class="kr-btn ' + (this.drillReturn ? 'kr-btn--secondary' : 'kr-btn--primary') + '" data-duel="' + retry + '">' + esc(t.drillAgain || "Try again") + '</button>' +
+      '<button class="kr-btn kr-btn--secondary" data-duel="practice">' + esc(t.practiceTitle || "Drills") + '</button>' +
+      '<button class="kr-btn kr-btn--ghost" data-duel="' + (round.trialPower ? 'review-power-' + round.trialPower : 'shop') + '">' +
+        esc(round.trialPower ? (t.shopBack || "Back to this power") : (t.shopTitle || "Power shop")) + '</button>');
+  };
+
   Duel.prototype._logMatch = function (won, s, isDaily) {
     var m = this._m || {}, all = readStats();
     all.push({ day: new Date().toISOString().slice(0, 10), v: String((window.KR_CONFIG && window.KR_CONFIG.version) || ""), stage: this.stage, world: this._world(), opp: this._opp().name,
@@ -434,12 +695,15 @@
   Duel.prototype._coachTick = function () {
     var el = this.coachEl; if (!el) return;
     var t = this.t, key = "", b = this.ball;
-    if (this.phase !== "menu" && !this.daily && !this.save.coached) {
-      if (this.phase === "serve" && this.server === this.human) key = "coachServe";
+    if (this.phase !== "menu" && !this.daily && !this.drill && !this.save.coached) {
+      if (this._guidedReturn && this.phase === "serve") key = "coachReturn";
+      else if (this.phase === "serve" && this.server === this.human) key = "coachServe";
       else if (this.phase === "rally" && this.timeScale < 0.7) key = "coachAim";
       else if (this.phase === "rally" && b && b.live && !b.dead && b.lastHitTeam === 1) key = "coachMove";
       else if (this.phase === "rally" && b && b.lastHitTeam === 0) key = "coachNice";
     }
+    if (this.phase === "rally" && this.now < this._shotFeedbackUntil && this._shotFeedback) key = this._shotFeedback;
+    if (this.phase === "rally" && this.now < (this._coachSuccessUntil || 0)) key = "coachFirstReturn";
     if (key === this._coachKey) return;
     this._coachKey = key;
     if (!key) { el.hidden = true; return; }
@@ -450,23 +714,25 @@
   // ───────────────────────── Powers ─────────────────────────
   // The player you picked (Alex in the Daily Duel, so everyone plays on equal terms).
   Duel.prototype._player = function () {
-    if (this.daily) return DAILY_PLAYER;
+    if (this.daily || this.drill) return DAILY_PLAYER;
     var id = this.save.player, sv = this.save;
     for (var i = 0; i < PLAYERS.length; i++) if (PLAYERS[i].id === id && (PLAYERS[i].cost === 0 || (sv.owned && sv.owned[id]))) return PLAYERS[i];
     return PLAYERS[0];
   };
-  Duel.prototype._pname = function (p) {
+  function playerName(p, lang) {
     var cfg = window.KR_CONFIG, fun = !!(cfg && cfg.duelNames === "fun");
-    return (fun && ROSTER.fun[this.lang === "fr" ? "fr" : "en"][p.id]) || ROSTER.neutral[p.id] || p.id;
-  };
+    return (fun && ROSTER.fun[lang === "fr" ? "fr" : "en"][p.id]) || ROSTER.neutral[p.id] || p.id;
+  }
+  Duel.prototype._pname = function (p) { return playerName(p, this.lang); };
   // Look per edition. With duelNames "fun" a character may carry an "inspired" look (`lookFun`, same shape as `look`: hair style, hair colour,
   // skin; generic cartoon traits only, never a portrait). Until the owner supplies those traits, `lookFun` is absent and `look` is used.
-  Duel.prototype._plook = function (p) {
+  function playerLook(p, lang) {
     if (!p) return null;
-    var l = this.lang === "fr" ? "fr" : "en", cfg = window.KR_CONFIG;
+    var l = lang === "fr" ? "fr" : "en", cfg = window.KR_CONFIG;
     var base = (p.look && p.look[l]) || null, fun = !!(cfg && cfg.duelNames === "fun") && p.lookFun && p.lookFun[l];
     return fun ? Object.assign({}, base || {}, fun) : base;   // missing traits (unverified) keep the generic value
-  };
+  }
+  Duel.prototype._plook = function (p) { return playerLook(p, this.lang); };
   Duel.prototype._pstat = function (k) { return (this._player().stats && this._player().stats[k]) || 1; };
   Duel.prototype._chargeMax = function () { return this._player().chargeNeed || CHARGE_MAX; };
   Duel.prototype._capDelay = function (s) { return s * (this._player().lucky ? 0.6 : 1); };
@@ -488,22 +754,59 @@
   };
 
   // Front-view portraits: canvases with data-portrait="<player id>" (a character) or data-opp="1" (the current opponent).
+  function paintPortrait(cv, pal, role) {
+    if (!window.KR_CHARACTERS) return;
+    var g = cv.getContext("2d"); if (!g) return;
+    g.clearRect(0, 0, cv.width, cv.height);
+    window.KR_CHARACTERS.draw(g, { x: cv.width * 0.45, y: cv.height * 0.75, scale: cv.width / 62, now: 0, state: "idle", side: 1, facing: "front", role: role, palette: pal, lookX: 0 });
+  }
+
   Duel.prototype._paintPortraits = function () {
-    if (!this.panelEl || !window.KR_CHARACTERS) return;
+    if (!this.panelEl) return;
     var self = this;
     this.panelEl.querySelectorAll("canvas[data-portrait], canvas[data-opp]").forEach(function (cv) {
-      var g = cv.getContext("2d"); if (!g) return;
-      g.clearRect(0, 0, cv.width, cv.height);
-      var pal, role = "player";
-      if (cv.hasAttribute("data-opp")) { var o = self._opp(); pal = Object.assign({}, o.pal, LOOKS[o.look % LOOKS.length]); role = "opponent"; }
-      else {
-        var id = cv.getAttribute("data-portrait"), P = PLAYERS[0];
-        PLAYERS.forEach(function (p) { if (p.id === id) P = p; });
-        pal = Object.assign({}, HUMAN_PAL, LOOKS[self.look], P.pal, self._plook(P) || {});
+      if (cv.hasAttribute("data-opp")) {
+        var o = self._opp();
+        paintPortrait(cv, Object.assign({}, o.pal, LOOKS[o.look % LOOKS.length]), "opponent");
+      } else {
+        var id = cv.getAttribute("data-portrait");
+        var player = PLAYERS.find(function (p) { return p.id === id; }) || (id === DAILY_PLAYER.id ? DAILY_PLAYER : PLAYERS[0]);
+        paintPortrait(cv, Object.assign({}, HUMAN_PAL, LOOKS[self.look], player.pal, self._plook(player) || {}, self._masteryPal(player)), "player");
       }
-      window.KR_CHARACTERS.draw(g, { x: cv.width * 0.45, y: cv.height * 0.75, scale: cv.width / 62, now: 0, state: "idle", side: 1, facing: "front", role: role, palette: pal, lookX: 0 });
     });
   };
+
+  var castAnimated = false;
+  function renderLandingCast(host, wording, lang) {
+    if (!host) return;
+    var locale = lang === "fr" ? Object.assign({}, wording.duel, wording.duelFr) : wording.duel || {};
+    var skills = locale.castSkills || {};
+    host.setAttribute("aria-label", locale.castLabel || "Duel players");
+    host.innerHTML = PLAYERS.map(function (p) {
+      return '<li class="kr-landing-player" style="--player-color:' + esc(p.pal.jerseyB) + '">' +
+        '<canvas width="128" height="132" aria-hidden="true"></canvas><strong>' + esc(playerName(p, lang)) + '</strong>' +
+        '<span>' + esc(skills[p.id] || "") + '</span></li>';
+    }).join("");
+    var canvases = host.querySelectorAll("canvas");
+    PLAYERS.forEach(function (p, index) {
+      paintPortrait(canvases[index], Object.assign({}, HUMAN_PAL, LOOKS[0], p.pal, playerLook(p, lang) || {}), "player");
+    });
+    if (castAnimated || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    castAnimated = true;
+    var step = 0;
+    var timer = setInterval(function () {
+      if (!host.isConnected || step >= 4 || host.scrollLeft + host.clientWidth >= host.scrollWidth - 2) {
+        clearInterval(timer);
+        return;
+      }
+      step += 1;
+      var card = host.children[step];
+      host.scrollTo({ left: card.offsetLeft - host.children[0].offsetLeft, behavior: "smooth" });
+    }, 850);
+    ["pointerdown", "wheel", "focusin"].forEach(function (event) {
+      host.addEventListener(event, function () { clearInterval(timer); }, { once: true });
+    });
+  }
   Duel.prototype._drawPortrait = Duel.prototype._paintPortraits;
 
   // ───────────────────────── Fighting-game screens: select, versus, victory ─────────────────────────
@@ -521,11 +824,95 @@
     this.previewPlayer = pid; writeSave(sv);
   };
 
+  // ───────────────────────── Match format (the owner's "mixed" formula) ─────────────────────────
+  // First guided match: first to 5. Daily and ladder steps 1-4: rally scoring to 7, win by 2. Steps 5-6: rally scoring to 11, win by 2.
+  // Final boss, or every match when "Official match" is on: real side-out scoring to 11, win by 2 (only the serving side scores; doubles calls "0-0-2").
+  Duel.prototype._fmt = function () {
+    if (this.daily) return { id: "short", to: 7, by: 2, sideout: false };
+    if (!this.save.coached && this.stage === 0) return { id: "first", to: 5, by: 1, sideout: false };
+    var opp = LADDER[this._oppIdx()];
+    if (this.save.official || opp.boss) return { id: "official", to: 11, by: 2, sideout: true };
+    return this._oppIdx() >= 4 ? { id: "long", to: 11, by: 2, sideout: false } : { id: "short", to: 7, by: 2, sideout: false };
+  };
+  Duel.prototype._fmtText = function () {
+    var f = this._fmt(), t = this.t;
+    if (f.sideout) return t.fmtOfficial || "Official: to 11, win by 2, only the serving side scores.";
+    return (f.by > 1 ? (t.fmtRally || "First to {n}, win by 2. Every rally scores.") : (t.fmtFirst || "First to {n}.")).replace("{n}", f.to);
+  };
+  // Score call of official play: server's score, receiver's score, and the server number in doubles ("4-2-1").
+  Duel.prototype._scoreCall = function () {
+    if (this.drill || !this.score || this.phase === "menu" || !this._fmt().sideout) return "";
+    var a = this.serverTeam || 0, s = this.score;
+    return s[a] + "-" + s[1 - a] + (this.mode === "doubles" ? "-" + (this.serverNum || 1) : "");
+  };
+  Duel.prototype._officialHtml = function () {
+    var t = this.t, on = !!this.save.official;
+    return '<button class="kr-duel-opt kr-duel-official' + (on ? " kr-duel-opt--on" : "") + '" data-duel="official" aria-pressed="' + on + '">' + esc(t.officialToggle || "Official match: to 11, real scoring") + '</button>';
+  };
+
+  // ───────────────────────── Missions, streak, mastery, next unlock ─────────────────────────
+  Duel.prototype._missions = function () {
+    var key = dayKey(0), sv = this.save;
+    if (!sv.missions || sv.missions.key !== key) sv.missions = { key: key, prog: {}, done: {} };
+    return { state: sv.missions, list: missionsFor(key) };
+  };
+  Duel.prototype._mission = function (id, v, isMax) {
+    if (this.drill) return;
+    var m = this._missions(), def = null;
+    m.list.forEach(function (x) { if (x.id === id) def = x; });
+    if (!def || m.state.done[id]) return;
+    m.state.prog[id] = isMax ? Math.max(m.state.prog[id] || 0, v) : (m.state.prog[id] || 0) + v;
+    if (m.state.prog[id] >= def.n) {
+      m.state.done[id] = true;
+      this.save.coins = clamp((Number(this.save.coins) || 0) + MISSION_REWARD, 0, 999999);
+      writeSave(this.save);
+      if (this.phase !== "menu") this._banner((this.t.missionDone || "Mission complete! +{n} Rush Tokens").replace("{n}", MISSION_REWARD), 1400, "good");
+    }
+  };
+  Duel.prototype._missionsHtml = function () {
+    var t = this.t, m = this._missions(), names = t.missionNames || {};
+    return '<div class="kr-duel-missions"><p class="kr-duel-kicker">' + esc(t.missionsTitle || "Today's missions") + '</p><ul>' + m.list.map(function (x) {
+      var done = !!m.state.done[x.id], p = Math.min(x.n, m.state.prog[x.id] || 0);
+      return '<li class="' + (done ? "kr-duel-mission--done" : "") + '"><span>' + esc((names[x.id] || x.id).replace("{n}", x.n)) + '</span><b>' + (done ? "\u2713" : p + "/" + x.n) + '</b></li>';
+    }).join("") + '</ul></div>';
+  };
+  // Coming back on consecutive days: +5 tokens per day of the streak (up to +35). Missing a day only restarts the count.
+  Duel.prototype._checkStreak = function () {
+    var sv = this.save, today = dayKey(0), st = sv.streak;
+    if (st && st.last === today) return;
+    var n = (st && st.last === dayKey(-1)) ? st.n + 1 : 1;
+    sv.streak = { last: today, n: n };
+    this._streakBonus = n > 1 ? 5 * Math.min(n, 7) : 0;
+    if (this._streakBonus) sv.coins = clamp((Number(sv.coins) || 0) + this._streakBonus, 0, 999999);
+    writeSave(sv);
+  };
+  Duel.prototype._streakHtml = function () {
+    var t = this.t, st = this.save.streak, out = "";
+    if (this._streakBonus && st) out = '<p class="kr-duel-earn">' + esc((t.streakBonus || "Day {n} in a row! +{c} Rush Tokens").replace("{n}", st.n).replace("{c}", this._streakBonus)) + '</p>';
+    else if (st && st.n > 1) out = '<p class="kr-muted">' + esc((t.streakLine || "Streak: {n} days").replace("{n}", st.n)) + '</p>';
+    this._streakBonus = 0;
+    return out;
+  };
+  Duel.prototype._mastery = function (p) { var w = (this.save.mastery || {})[p.id] || 0; return w >= 10 ? 2 : w >= 3 ? 1 : 0; };
+  Duel.prototype._masteryPal = function (p) {
+    if (!p || !p.look) return {};
+    var lv = this._mastery(p);
+    return lv >= 2 ? { band: "#ffd60a", trim: "#ffd60a" } : lv >= 1 ? { band: "#ffd60a" } : {};
+  };
+  Duel.prototype._nextUnlockHtml = function () {
+    var t = this.t, sv = this.save, coins = sv.coins || 0, next = null;
+    PLAYERS.forEach(function (p) { if (p.cost > 0 && !(sv.owned && sv.owned[p.id]) && (!next || p.cost < next.cost)) next = p; });
+    if (!next) return "";
+    var txt = coins >= next.cost ? (t.nextUnlockReady || "You can unlock {name}!") : (t.nextUnlock || "{n} more Rush Tokens for {name}").replace("{n}", next.cost - coins);
+    return '<p class="kr-duel-unlock">' + esc(txt.replace("{name}", this._pname(next))) + '</p>';
+  };
+
   Duel.prototype._beginMatchSetup = function () {
     this.daily = null;
+    this.drillReturn = false;
     this.matchSetup = true;
     this.previewPlayer = null;
-    this.previewVenue = this.save.venue || "auto";
+    this.previewVenue = this._venueId();
     this._showSelect();
   };
 
@@ -566,6 +953,8 @@
       (this.matchSetup && equipped ? '<p class="kr-duel-equipped">' + esc(label) + '</p>' :
         '<button class="kr-btn kr-btn--secondary" data-duel="selact-' + P.id + '"' + ((equipped || (!owned && !afford)) ? " disabled" : "") + '>' + esc(label) + '</button>') + '</div></div>' +
       '<div class="kr-duel-roster" role="group" aria-label="' + esc(t.playerLabel || "My player") + '">' + tiles + '</div>' +
+      (this.matchSetup && sv.shopPower ? this._powerLine() : '') +
+      (this.matchSetup ? this._modeHtml() + this._difficultyHtml() : '') +
       '<button class="kr-btn kr-btn--primary kr-duel-go" data-duel="selok"' + (this.matchSetup && !equipped ? ' disabled' : '') + '>' + esc(this.matchSetup ? (t.setupNextCourt || "Choose court") : (t.selectOk || "Continue")) + '</button>' +
       (this.matchSetup ? '<button class="kr-btn kr-btn--ghost" data-duel="setup-cancel">' + esc(t.home || "Back to menu") + '</button>' : '') + '</div>';
     this.panelEl.classList.add("kr-duel-panel--on");
@@ -580,23 +969,21 @@
 
   Duel.prototype._showCourtSelect = function (focusAction) {
     var t = this.t, self = this, names = t.venues || {}, selected = this.previewVenue;
-    var current = selected === "auto" ? AUTO[this.stage % AUTO.length] : selected;
-    var cards = ["auto"].concat(VENUE_ORDER).map(function (id) {
-      var actual = id === "auto" ? AUTO[self.stage % AUTO.length] : id;
-      var locked = id !== "auto" && self.stage < VENUES[id].unlock;
-      var name = id === "auto" ? (t.venueAuto || "Auto") + " · " + (names[actual] || actual) : (names[id] || id);
+    var cards = VENUE_ORDER.map(function (id) {
+      var locked = self.stage < VENUES[id].unlock;
+      var name = names[id] || id;
       var note = locked ? (t.venueLocked || "Reach opponent {n} to unlock").replace("{n}", VENUES[id].unlock + 1) : "";
       return '<button class="kr-duel-tile' + (selected === id ? ' kr-duel-tile--on' : '') +
         '" data-duel="court-' + id + '" aria-pressed="' + (selected === id) + '"' + (locked ? ' disabled' : '') + '>' +
-        '<canvas width="144" height="96" aria-hidden="true" data-court-preview="' + actual + '"></canvas>' +
+        '<canvas width="144" height="96" aria-hidden="true" data-court-preview="' + id + '"></canvas>' +
         '<span class="kr-duel-tile-name">' + esc(name) + '</span>' +
         (note ? '<span class="kr-duel-tile-sub">' + esc(note) + '</span>' : '') + '</button>';
     }).join("");
     this.panelEl.innerHTML =
       '<div class="kr-duel-card kr-duel-select">' + this._setupSteps(1) +
       '<h2 class="kr-duel-name" tabindex="-1">' + esc(t.setupCourtTitle || "Choose a court") + '</h2>' +
-      '<figure class="kr-duel-court-hero"><canvas width="480" height="240" aria-hidden="true" data-court-preview="' + current + '"></canvas>' +
-      '<figcaption>' + esc(names[current] || current) + '</figcaption></figure>' +
+      '<figure class="kr-duel-court-hero"><canvas width="480" height="240" aria-hidden="true" data-court-preview="' + selected + '"></canvas>' +
+      '<figcaption>' + esc(names[selected] || selected) + '</figcaption></figure>' +
       '<div class="kr-duel-roster kr-duel-court-roster" role="group" aria-label="' + esc(t.venueLabel || "Court") + '">' + cards + '</div>' +
       '<button class="kr-btn kr-btn--primary" data-duel="court-ok">' + esc(t.setupNextMatch || "See the matchup") + '</button>' +
       '<button class="kr-btn kr-btn--ghost" data-duel="setup-back">' + esc(t.setupBackPlayer || "Back to player selection") + '</button></div>';
@@ -609,7 +996,9 @@
       if (!g) return;
       var ratio = Math.max(canvas.width / preview.width, canvas.height / preview.height);
       var width = preview.width * ratio, height = preview.height * ratio;
-      g.drawImage(preview, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+      var backdrop = self._project(0, CL + 16, 0).y / self.H;
+      var offset = clamp(canvas.height * 0.53 - backdrop * height, canvas.height - height, 0);
+      g.drawImage(preview, (canvas.width - width) / 2, offset, width, height);
     });
     var target = focusAction && this.panelEl.querySelector('[data-duel="' + focusAction + '"]');
     (target || this.panelEl.querySelector("h2")).focus();
@@ -619,12 +1008,12 @@
   Duel.prototype._showVersus = function () {
     this._clearScreenTimers();
     this.phase = "menu";
-    var t = this.t, opp = this._opp(), self = this, me = this._player(), mine = this.daily ? PLAYERS[0] : me;
+    var t = this.t, opp = this._opp(), self = this, mine = this._player();
     var court = (t.venues || {})[this._venueId()] || "";
     var reduced = false; try { reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch (_) { }
     this.panelEl.innerHTML =
       '<div class="kr-duel-card kr-duel-versus-card">' + (this.daily ? '' : this._setupSteps(2)) + '<button class="kr-duel-versus" data-duel="versus-go">' +
-      '<span class="kr-duel-vs-side kr-duel-vs-side--l"><canvas width="150" height="168" aria-hidden="true" data-portrait="' + mine.id + '"></canvas><strong>' + esc(this._pname(mine)) + '</strong></span>' +
+      '<span class="kr-duel-vs-side kr-duel-vs-side--l"><canvas width="150" height="168" aria-hidden="true" data-portrait="' + mine.id + '"></canvas><strong>' + esc(this.daily ? (t.you || "YOU") : this._pname(mine)) + '</strong></span>' +
       '<span class="kr-duel-vs-mid" aria-hidden="true">' + esc(t.versusVs || "VS") + '</span>' +
       '<span class="kr-duel-vs-side kr-duel-vs-side--r"><canvas width="150" height="168" aria-hidden="true" data-opp="1"></canvas><strong>' + esc(opp.name) + '</strong></span>' +
       '<span class="kr-duel-vs-foot">' + esc(court) + '</span>' +
@@ -640,18 +1029,70 @@
   // Short victory (or defeat) splash after a match, then the menu.
   Duel.prototype._showSplash = function (result) {
     this._clearScreenTimers();
-    var t = this.t, self = this, won = result === "win", sc = this._lastScore;
+    var t = this.t, won = result === "win", sc = this._lastScore, daily = this._lastDailyIdx != null;
     var title = won ? (this._lastBoss ? (t.splashBoss || "BOSS DEFEATED!") : (t.splashWin || "VICTORY!")) : (t.splashLose || "Not this time");
-    var me = this._player();
+    var me = daily ? DAILY_PLAYER : this._player();
+    var advice = !won && !daily ? this._matchAdvice() : null;
+    var drill = advice ? advice.drill : "";
+    var next = won ? (t.next || "Next opponent") : (t.retry || "Rematch");
+    var note = won ? (t.nextRival || "Next: {name}").replace("{name}", this._opp().name) : (t.retryTips || {})[advice && advice.reason] || "";
+    var unlocked = won && !daily && VENUE_ORDER.find(function (id) { return VENUES[id].unlock === this.stage; }, this);
+    var canShare = daily && (this._lastDailyResult || this.save.daily || {}).key === dailyInfo().key;
     this.panelEl.innerHTML =
-      '<div class="kr-duel-card kr-duel-splash-card"><button class="kr-duel-splash kr-duel-splash--' + (won ? "win" : "lose") + '" data-duel="splash-go">' +
+      '<div class="kr-duel-card kr-duel-splash-card"><div class="kr-duel-splash kr-duel-splash--' + (won ? "win" : "lose") + '">' +
       '<span class="kr-duel-splash-title">' + esc(title) + '</span>' +
-      '<canvas width="150" height="168" aria-hidden="true" data-portrait="' + me.id + '"></canvas>' +
-      '<span class="kr-duel-splash-score">' + (sc ? sc[0] + '\u2013' + sc[1] : "") + (this._lastEarn ? " \u00b7 " + esc((t.earned || "+{n} coins").replace("{n}", this._lastEarn)) : "") + '</span></button></div>';
+      '<span class="kr-duel-splash-score">' + (sc ? sc[0] + '\u2013' + sc[1] : "") + (this._lastEarn ? " \u00b7 " + esc((t.earned || "+{n} coins").replace("{n}", this._lastEarn)) : "") + '</span></div>' +
+      (!daily && note ? '<p class="kr-duel-result-note">' + esc(note) + '</p>' : '') +
+      (this._endingHtml()) +
+      (unlocked ? '<p class="kr-duel-result-note">' + esc((t.courtUnlocked || "Court unlocked: {name}").replace("{name}", (t.venues || {})[unlocked] || unlocked)) + '</p>' : '') +
+      (daily ? '<p class="kr-duel-result-note">' + esc(this._dailyResetLabel()) + '</p>' : '') +
+      (canShare ? '<button class="kr-btn kr-btn--primary" data-duel="share">' + esc(t.shareDaily || "Share the challenge") + '</button>' +
+        '<button class="kr-btn kr-btn--secondary" data-duel="card">' + esc(t.saveImage || "Save image") + '</button>' : '') +
+      (!daily ? '<button class="kr-btn kr-btn--primary" data-duel="splash-next">' + esc(next) + '</button>' : '') +
+      (drill ? '<button class="kr-btn kr-btn--secondary" data-duel="splash-drill">' +
+        esc((t.drillRecommended || "Practise: {name}").replace("{name}", (t.drillNames || {})[drill] || drill)) + '</button>' : '') +
+      '<button class="kr-btn ' + (daily && !canShare ? 'kr-btn--primary' : 'kr-btn--ghost') + '" data-duel="splash-go">' +
+      esc(t.resultMenu || "Duel menu") + '</button>' +
+      '<canvas class="kr-duel-result-portrait" width="120" height="132" aria-hidden="true" data-portrait="' + me.id + '"></canvas></div>';
     this.panelEl.classList.add("kr-duel-panel--on");
     this._paintPortraits();
-    var b = this.panelEl.querySelector(".kr-duel-splash"); if (b) try { b.focus({ preventScroll: true }); } catch (_) { }
-    this._splashT = setTimeout(function () { self._splashT = 0; if (self.root) self._showMenu(self._lastResult); }, won ? 1700 : 900);
+    if (won) this._animatePose(this.panelEl.querySelector(".kr-duel-result-portrait"), me);
+    this._announce(title);
+    this.panelEl.scrollTop = 0;
+    this.panelEl.querySelector(".kr-btn--primary").focus({ preventScroll: true });
+  };
+
+  // Character ending, shown once on the result screen after the boss is beaten with that character.
+  Duel.prototype._endingHtml = function () {
+    var pid = this._pendingEnding; if (!pid) return "";
+    this._pendingEnding = null;
+    var t = this.t, P = PLAYERS.find(function (p) { return p.id === pid; }) || PLAYERS[0], name = this._pname(P);
+    return '<div class="kr-duel-ending"><p class="kr-duel-kicker">' + esc((t.endingTitle || "{name}: the ending").replace("{name}", name)) + '</p>' +
+      '<p class="kr-duel-ending-text">' + esc(((t.endings || {})[P.id] || "").replace(/\{name\}/g, name)) + '</p>' +
+      '<p class="kr-muted">' + esc((t.endingsLine || "Endings unlocked: {n}/{m}").replace("{n}", Object.keys(this.save.endings || {}).length).replace("{m}", PLAYERS.length)) + '</p></div>';
+  };
+
+  // Victory pose: the character swings in a loop for a moment (skipped with reduced motion).
+  Duel.prototype._animatePose = function (cv, P) {
+    if (!cv || !P || !P.look || !window.KR_CHARACTERS || (this.fx && this.fx.reduced)) return;
+    var g = cv.getContext("2d"); if (!g) return;
+    var pal = Object.assign({}, HUMAN_PAL, LOOKS[this.look], P.pal, this._plook(P) || {}, this._masteryPal(P)), t0 = performance.now(), self = this;
+    (function frame(now) {
+      if (!cv.isConnected || !self.root || now - t0 > 2000) return;
+      var k = ((now - t0) % 650) / 650;
+      g.clearRect(0, 0, cv.width, cv.height);
+      window.KR_CHARACTERS.draw(g, { x: cv.width * 0.45, y: cv.height * 0.75 - Math.abs(Math.sin(k * Math.PI)) * 6, scale: cv.width / 62, now: now, state: "swing", swingT: k, side: 1, facing: "front", role: "player", palette: pal, lookX: 0 });
+      requestAnimationFrame(frame);
+    })(t0);
+  };
+
+  // Announcer: the browser's own voice, only when the player turned the sound on.
+  Duel.prototype._announce = function (text) {
+    try {
+      if (!this.save.sound || !text || !window.speechSynthesis || typeof SpeechSynthesisUtterance !== "function") return;
+      var u = new SpeechSynthesisUtterance(String(text)); u.lang = this.lang === "fr" ? "fr-FR" : "en-US"; u.rate = 1.05; u.pitch = 0.9;
+      window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+    } catch (_) { }
   };
 
   Duel.prototype._pw = function (key) {
@@ -661,7 +1102,11 @@
   };
 
   // The super power is the character's own (none in the Daily Duel).
-  Duel.prototype._equippedKey = function () { return this._player().sup || ""; };
+  Duel.prototype._equippedKey = function () {
+    if (this.daily) return "";
+    if (this.drill) return this.drill.trialPower || "";
+    return this.save.shopPower || this._player().sup || "";
+  };
 
   Duel.prototype._powerName = function (key) { var i = POWERS.indexOf(key); return (this.t.powerNames || [])[i] || key; };
 
@@ -676,6 +1121,7 @@
     var key = this._equippedKey();
     if (!key || this.daily || this.phase === "menu" || (this.charge || 0) < this._chargeMax() || this._pw("any")) return;
     if (this._m) this._m.powers++;
+    this._mission("super", 1);
     this.power = { key: key, until: this.now + POWER_SECONDS };
     this.charge = 0;
     this.flashUntil = this.now + 0.3; this._flashKey = key;
@@ -704,6 +1150,11 @@
     el.className = "kr-duel-power kr-duel-power--" + state;
   };
 
+  Duel.prototype._dailyResetLabel = function () {
+    var time = new Intl.DateTimeFormat(this.lang, { hour: "numeric", minute: "2-digit" }).format(dailyInfo().resetAt);
+    return (this.t.dailyReset || "Next challenge at {time} (local time)").replace("{time}", time);
+  };
+
   Duel.prototype._dailyHtml = function () {
     var t = this.t, di = dailyInfo(), d = this.save.daily;
     if (d && d.key === di.key) {
@@ -720,6 +1171,7 @@
 
   Duel.prototype._cardOpts = function () {
     var di = dailyInfo(), d = this.save.daily;
+    if (this._lastDailyResult && this.panelEl.querySelector(".kr-duel-splash-card")) d = this._lastDailyResult;
     if (!d || d.key !== di.key) return null;
     return { lang: this.lang, you: d.you, them: d.them, name: LADDER[d.idx % LADDER.length].name, date: d.key, urlText: location.host + location.pathname.replace(/index\.html$/, "") };
   };
@@ -730,13 +1182,13 @@
     if (sv.shareDay === day) return;
     sv.shareDay = day; sv.coins = clamp((Number(sv.coins) || 0) + SHARE_BONUS, 0, 999999); writeSave(sv);
     var btn = this.panelEl.querySelector('[data-duel="share"]'), self = this;
-    if (btn) { btn.textContent = (t.shareBonus || "+{n} coins for sharing!").replace("{n}", SHARE_BONUS); setTimeout(function () { if (btn && self.root) btn.textContent = t.share || "Share"; }, 2200); }
+    if (btn) { btn.textContent = (t.shareBonus || "+{n} coins for sharing!").replace("{n}", SHARE_BONUS); setTimeout(function () { if (btn && self.root) btn.textContent = btn.closest(".kr-duel-splash-card") ? (t.shareDaily || "Share the challenge") : (t.share || "Share"); }, 2200); }
   };
 
   Duel.prototype._share = function () {
     var o = this._cardOpts(); if (!o) return;
     var t = this.t, self = this;
-    var link = location.origin + location.pathname + "?lang=" + this.lang;
+    var link = location.origin + location.pathname + "?lang=" + this.lang + "&duel=daily&src=daily-share";
     var text = (t.shareText || "Kitchen Rush Daily Duel {date}: {you}–{them} vs {name}").replace("{date}", o.date).replace("{you}", o.you).replace("{them}", o.them).replace("{name}", o.name) + "\n" + link;
     var btn = this.panelEl.querySelector('[data-duel="share"]');
     function done(ok) { if (btn) { btn.textContent = ok ? (t.copied || "Copied!") : (t.copyFailed || "Copy failed"); setTimeout(function () { if (btn && self.root) btn.textContent = t.share || "Share"; }, 1600); } }
@@ -758,6 +1210,38 @@
 
   Duel.prototype._panelAction = function (a) {
     if (a === "exit") { this.destroy(); return; }
+    if (a === "practice") { this._showPractice(); return; }
+    if (a === "shop") { this._showShop(); return; }
+    if (a.indexOf("review-power-") === 0) {
+      var power = a.slice(13);
+      if (Object.prototype.hasOwnProperty.call(POWER_SHOP, power)) this._showShop("trial-" + power);
+      return;
+    }
+    if (a === "resume") { this.daily = null; this.drillReturn = false; this._showVersus(); return; }
+    if (a === "practice-back") { this.drillReturn = false; this.tab = "play"; this._showMenu(this._lastResult, "practice"); return; }
+    if (a === "shop-back") { this.drillReturn = false; this.tab = "play"; this._showMenu(this._lastResult, "shop"); return; }
+    if (a === "shop-native") { this.save.shopPower = ""; writeSave(this.save); this._showShop(a); return; }
+    if (a.indexOf("shop-power-") === 0) { this._chooseShopPower(a.slice(11)); return; }
+    if (a === "splash-drill" && this._lastResult === "lose" && this._lastDailyIdx == null) {
+      this.drillReturn = true;
+      this._startDrill(this._matchAdvice().drill);
+      return;
+    }
+    if (a === "drill-rematch" && this.drillReturn) {
+      this.drillReturn = false;
+      this._startMatch();
+      return;
+    }
+    if (a.indexOf("trial-") === 0) {
+      var trialId = a.slice(6);
+      if (Object.prototype.hasOwnProperty.call(POWER_SHOP, trialId)) this._startDrill("deep", trialId);
+      return;
+    }
+    if (a.indexOf("drill-") === 0) {
+      var id = a.slice(6);
+      if (Object.prototype.hasOwnProperty.call(DRILLS, id)) this._startDrill(id);
+      return;
+    }
     if (a.indexOf("pl-") === 0) { this.previewPlayer = a.slice(3); this._showMenu(this._lastResult, a); return; }
     if (a.indexOf("act-") === 0) { var pid = a.slice(4); this._buyOrEquip(pid); this._showMenu(this._lastResult, "pl-" + pid); return; }
     if (a.indexOf("sel-") === 0) {
@@ -774,6 +1258,14 @@
       writeSave(this.save);
       if (this.matchSetup) this._showCourtSelect();
       else this._showMenu(this._lastResult, "select");
+      return;
+    }
+    if (a.indexOf("difficulty-") === 0) {
+      var difficulty = a.slice(11);
+      if (!Object.prototype.hasOwnProperty.call(DIFFICULTIES, difficulty)) return;
+      this.save.difficulty = difficulty; writeSave(this.save);
+      if (this.matchSetup) this._showSelect(a);
+      else this._showMenu(this._lastResult, a);
       return;
     }
     if (a === "setup-cancel") { this.matchSetup = false; this._showMenu(this._lastResult); return; }
@@ -795,6 +1287,13 @@
     }
     if (a === "select") { this.previewPlayer = null; this._showSelect(); return; }
     if (a === "versus-go") { this._clearScreenTimers(); this._startMatch(); return; }
+    if (a === "splash-next") {
+      if (this._lastDailyIdx != null) return;
+      if (this._lastResult === "win") this._beginMatchSetup();
+      else if (this._lastResult === "lose") this._startMatch();
+      return;
+    }
+    if (a === "official") { this.save.official = !this.save.official; writeSave(this.save); this._showMenu(this._lastResult, a); return; }
     if (a === "splash-go") { this._clearScreenTimers(); this._showMenu(this._lastResult); return; }
     if (a === "tutorial") { this.save.coached = false; writeSave(this.save); this.tab = "play"; this._showMenu(this._lastResult); return; }
     if (a === "export") { this._export(); return; }
@@ -817,7 +1316,7 @@
       this._showMenu(this._lastResult, a); return;
     }
     if (a === "go") { this._beginMatchSetup(); return; }
-    if (a === "daily") { var di = dailyInfo(); this.daily = di; this.mode = "singles"; this._showVersus(); return; }
+    if (a === "daily") { var di = dailyInfo(); this.drillReturn = false; this.daily = di; this._showVersus(); return; }
     if (a === "share") { this._share(); return; }
     if (a === "card") { this._saveCard(); return; }
     if (a === "lang") { this.lang = this.lang === "fr" ? "en" : "fr"; this.save.lang = this.lang; this.t = this._dict(); this._bg = null; }
@@ -825,12 +1324,13 @@
     else if (a === "singles") this.mode = "singles";
     else { this.mode = "doubles"; this.side = a; }
     this.save.mode = this.mode; this.save.side = this.side; this.save.look = this.look; writeSave(this.save);
-    this._showMenu(this._lastResult, a);
+    if (this.matchSetup) this._showSelect(a);
+    else this._showMenu(this._lastResult, a);
   };
 
   // ───────────────────────── Match setup ─────────────────────────
   Duel.prototype._setupActors = function () {
-    var opp = this._opp(), dbl = this.mode === "doubles";
+    var opp = this._opp(), dbl = !this.daily && !this.drill && this.mode === "doubles";
     var hx = dbl ? (this.side === "left" ? -5 : 5) : 0;
     function actor(team, human, hx0, hy0, skill, pal, zone) {
       return { team: team, human: human, x: hx0, y: hy0, homeX: hx0, homeY: hy0, vx: 0, vy: 0, skill: skill, pal: pal, zone: zone,
@@ -838,7 +1338,7 @@
     }
     var A = [];
     var oppPal = Object.assign({}, opp.pal, LOOKS[opp.look % LOOKS.length]);
-    var humanPal = Object.assign({}, HUMAN_PAL, LOOKS[this.look], this._player().pal, this._plook(this._player()) || {});
+    var humanPal = Object.assign({}, HUMAN_PAL, LOOKS[this.look], this._player().pal, this._plook(this._player()) || {}, this._masteryPal(this._player()));
     var allyLook = LOOKS[(this.look + 3) % LOOKS.length];
     this.human = actor(0, true, hx, -15, null, humanPal, dbl ? (hx < 0 ? [-99, 0] : [0, 99]) : [-99, 99]);
     A.push(this.human);
@@ -856,22 +1356,35 @@
 
   Duel.prototype._startMatch = function () {
     this.panelEl.classList.remove("kr-duel-panel--on");
+    this._clearScreenTimers();
+    this.keys = {}; this.joy = null; this.swipe = null;
+    this._lastFault = "";
+    this._shotAttempt = null; this._shotFeedback = "";
+    this._coachSuccessUntil = 0;
     this._lastResult = null;
     this._lastDailyIdx = null;
-    this.capsule = null; this.capSpawnIn = null; this._rage = false; this._lastBoss = false; this._lastEarn = 0; this._coachHits = 0; this._coachKey = "";
-    this._m = { t0: Date.now(), maxRally: 0, caps: 0, powers: 0, pts: [] };
-    this._visitMatches = (this._visitMatches || 0) + 1;
-    this._track(this.daily ? "daily-start" : "duel-start");
-    if (this._visitMatches === 2) this._track("duel-second");
+    this._lastDailyResult = null;
+    this.capsule = null; this.capSpawnIn = null; this._rage = false; this._lastBoss = false; this._lastEarn = 0; this._coachKey = "";
+    this._m = null;
+    if (!this.drill) {
+      this._m = { t0: Date.now(), maxRally: 0, caps: 0, powers: 0, pts: [] };
+      this._visitMatches = (this._visitMatches || 0) + 1;
+      this._track(this.daily ? "daily-start" : "duel-start");
+      if (this._visitMatches === 2) this._track("duel-second");
+    }
     this.charge = this._player().startCharge || 0;
     this.power = null;
     RNG = this.daily ? seeded(this.daily.seed) : Math.random;
     this._setupActors();
-    this.serverTeam = 0;
+    this._guidedReturn = !this.drill && !this.daily && !this.save.coached;
+    this.serverTeam = this.drill || this._guidedReturn ? 1 : 0;
     this.serveTurn = [0, 0];
+    this.serverNum = (!this.drill && this._fmt().sideout && this.mode === "doubles") ? 2 : 1;   // official doubles starts "0-0-2"
     this._updateScore();
+    this._syncShotStyle();
     this._beginServe();
-    if (this._opp().boss) { this._banner((this.t.bossIntro || "FINAL BOSS: {name}").replace("{name}", this._opp().name), 2200, "bad"); this.shakeUntil = this.now + 0.3; }
+    if (!this.drill && this._opp().boss) { this._banner((this.t.bossIntro || "FINAL BOSS: {name}").replace("{name}", this._opp().name), 2200, "bad"); this.shakeUntil = this.now + 0.3; }
+    if (!this.drill) this._announce(this._opp().boss ? (this.t.announceBoss || "Final boss!") : (this.t.announceGo || "Play!"));
   };
 
   Duel.prototype._teamActors = function (team) { return this.actors.filter(function (a) { return a.team === team; }); };
@@ -887,12 +1400,32 @@
     this.capsule = null;
     this.ball = { x: srv.x + 1.2, y: srv.y, z: 3.4, vx: 0, vy: 0, vz: 0, live: false, held: true, lastHitTeam: srv.team, bounces: 0, hits: 0, isServe: true, id: (this.ballId = (this.ballId || 0) + 1) };
     if (this.fx) this.fx.trailClear();
-    this._banner(srv.human ? (this.t.yourServe || "Your serve — swing to serve") : "", 0);
+    if (this.drill) {
+      this.drill.mark = null;
+      if (this.drill.trialPower) {
+        this.power = null;
+        this.charge = this._chargeMax();
+      }
+      var message = this.drill.trialPower ? (this.t.shopTrialHelp || "Activate the charged super and try a return.") : (this.t.drillGoals || {})[this.drill.id] || "";
+      this._banner(message, 0);
+      return;
+    }
+    var instruction = this._isTouch ? (this.t.yourServeTouch || "Swipe up on the right, then release to serve.") :
+      (this.t.yourServe || "Press Space or click to serve.");
+    var call = this._scoreCall();
+    this._banner((call ? call + " \u00b7 " : "") + (srv.human ? instruction : ""), 0);
+    this._updateScore();
   };
 
   Duel.prototype._updateScore = function () {
-    var opp = this._opp();
-    this.scoreEl.innerHTML = '<span class="kr-duel-you">' + esc(this.t.you || "YOU") + '</span><b>' + this.score[0] + '</b><i>–</i><b>' + this.score[1] + '</b><span class="kr-duel-them">' + esc(opp.name) + '</span>';
+    if (this.drill) {
+      this.scoreEl.textContent = (this.t.drillScore || "{hits} targets · {attempts}/{total} balls")
+        .replace("{hits}", this.drill.hits).replace("{attempts}", this.drill.attempts).replace("{total}", DRILL_BALLS);
+      return;
+    }
+    var opp = this._opp(), call = this._scoreCall();
+    this.scoreEl.innerHTML = '<span class="kr-duel-you">' + esc(this.t.you || "YOU") + '</span><b>' + this.score[0] + '</b><i>–</i><b>' + this.score[1] + '</b><span class="kr-duel-them">' + esc(opp.name) + '</span>' +
+      (call ? '<small class="kr-duel-call">' + esc((this.t.callLabel || "Call: {c}").replace("{c}", call)) + '</small>' : "");
   };
 
   Duel.prototype._banner = function (text, ms, kind) {
@@ -909,6 +1442,7 @@
     if (k === "Escape" && down) { this.destroy(); return; }
     if (k === "m" && down && !e.repeat) { this._toggleSound(); return; }
     if (this.phase === "menu") return;
+    if (k === " " && e.target === this.shotStyleEl) return;
     if (k === "e" && down && !e.repeat) { this._activatePower(); return; }
     if (map[k]) { this.keys[map[k]] = down; e.preventDefault(); }
     if (k === " " && down && !e.repeat) { e.preventDefault(); this._swing((this.keys.r ? 1 : 0) - (this.keys.l ? 1 : 0), (this.keys.u ? 1 : 0) - (this.keys.d ? 1 : 0)); }
@@ -927,9 +1461,11 @@
       return;
     }
     try { this.canvas.setPointerCapture(e.pointerId); } catch (_) { }
-    if (this.timeScale < 0.7 && !this.swipe) this.swipe = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
-    else if (p.x < this.W / 2 && !this.joy) this.joy = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
-    else if (!this.swipe) this.swipe = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
+    if (p.x < this.W / 2) {
+      if (!this.joy) this.joy = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
+    } else if (!this.swipe) {
+      this.swipe = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
+    }
   };
   Duel.prototype._pMove = function (e) {
     var p = this._pos(e);
@@ -939,14 +1475,21 @@
   Duel.prototype._pUp = function (e, cancelled) {
     if (this.joy && this.joy.id === e.pointerId) this.joy = null;
     if (this.swipe && this.swipe.id === e.pointerId) {
-      var a = this._swipeAim();
+      if (!cancelled) {
+        var p = this._pos(e);
+        this.swipe.x = p.x; this.swipe.y = p.y;
+        var a = this._swipeAim();
+        this._swing(a.x, a.y);
+      }
       this.swipe = null;
-      if (!cancelled) this._swing(a.x, a.y);
     }
   };
   Duel.prototype._swipeAim = function () {
     var s = this.swipe; if (!s) return { x: 0, y: 0 };
-    return { x: clamp((s.x - s.ox) / 56, -1, 1), y: clamp((s.oy - s.y) / 56, -1, 1) };
+    var distance = clamp(this.W * 0.14, 42, 70);
+    var dx = s.x - s.ox, dy = s.oy - s.y;
+    if (Math.hypot(dx, dy) < 6) return { x: 0, y: 0 };
+    return { x: clamp(dx / distance, -1, 1), y: clamp(dy / distance, -1, 1) };
   };
   Duel.prototype._liveAim = function () {
     if (this.swipe) return this._swipeAim();
@@ -957,9 +1500,12 @@
     var h = this.human;
     if (this.phase !== "serve" && this.phase !== "rally") return;
     h.aimX = ax; h.aimY = ay;
+    h.shotStyle = this.drill && this.drill.style;
     h.swingUntil = this.now + 0.26;
     h.swingAnim = this.now + 0.3;
     h.swung = false;
+    this._shotFeedback = "";
+    this._shotAttempt = this.phase === "rally" && this.ball && this.ball.live && !this.ball.dead ? this.ball.id : null;
   };
 
   // ───────────────────────── Shots ─────────────────────────
@@ -970,10 +1516,20 @@
     return { tx: ax * 8.3, ty: dir * depth, speed: speed };
   }
 
+  Duel.prototype._returnShot = function (ax, ay, style) {
+    var shot = aimToShot(ax, ay, 1);
+    if (style) {
+      shot.speed = style === "touch" ? 23 : 45;
+      shot.loft = style === "touch";
+      shot.noSmash = true;
+    }
+    return shot;
+  };
+
   Duel.prototype._launch = function (a, shot, sigma, badness) {
     var b = this.ball, dir = a.team === 0 ? 1 : -1;
     var pw = a.human && this._pw("power"), pp = a.human && this._player().smash;
-    var smash = !shot.loft && b.z > (pw ? 4.2 : pp ? 4.8 : 5.4) && Math.abs(shot.ty) > 8 && !b.held;
+    var smash = !shot.noSmash && !shot.loft && b.z > (pw ? 4.2 : pp ? 4.8 : 5.4) && Math.abs(shot.ty) > 8 && !b.held;
     var speed = (smash ? 58 : shot.speed) * (pw ? 1.15 : pp ? 1.06 : 1);
     if (a.human && this._pw("precision")) sigma *= 0.45;
     // (Rally ramp is applied as the ball clock rate `b.rate`, set below: speeding up the shot itself cannot work
@@ -1000,7 +1556,14 @@
     b.live = true; b.held = false; b.lastHitTeam = a.team; b.bounces = 0; b.hits += 1; b.id = ++this.ballId;
     b.rate = 1 + clamp(Math.max(0, b.hits - 1) * 0.035, 0, 0.3);
     if (this._m) this._m.maxRally = Math.max(this._m.maxRally, b.hits);
-    if (a.human) { this._coachHits = (this._coachHits || 0) + 1; if (this._coachHits >= 4 && !this.daily && !this.save.coached) { this.save.coached = true; writeSave(this.save); this._track("tutorial-complete"); } }   // rally ramp: the ball runs up to 30% faster on the same arc
+    if (this._m) this._mission("rally", b.hits, true);
+    if (a.human && b.hits > 1 && !this.drill && !this.daily && !this.save.coached) {
+      this._guidedReturn = false;
+      this._coachSuccessUntil = this.now + 1.25;
+      this.save.coached = true;
+      writeSave(this.save);
+      this._track("tutorial-complete");
+    }
     b.isServe = b.hits === 1;
     a.swingAnim = this.now + 0.3; a.swung = true;
     a.side = b.x >= a.x ? 1 : -1;
@@ -1018,12 +1581,16 @@
     void dir;
   };
 
+  Duel.prototype._hitReach = function (a) {
+    return a.human ? 4.7 * this._pstat("reach") * (this._pw("reach") ? 1.35 : 1) : 3.4;
+  };
+
   Duel.prototype._tryHit = function (a, shot, sigma) {
     var b = this.ball;
     // A dead ball (point already awarded, e.g. into the net) must never be hit: that restarted the rally phase and froze the match.
     if (!b || !b.live || b.dead || b.lastHitTeam === a.team) return false;
     if (a.team === 0 ? b.y > 0.6 : b.y < -0.6) return false;
-    var reach = a.human ? 4.7 * this._pstat("reach") * (this._pw("reach") ? 1.35 : 1) : 3.4;   // generous for the human: balls bouncing wide were hard to catch
+    var reach = this._hitReach(a);
     var d = Math.hypot(b.x - a.x, b.y - a.y);
     if (d > reach || b.z > 8.6) return false;
     var volley = b.bounces === 0;
@@ -1102,19 +1669,35 @@
   // ───────────────────────── Rules ─────────────────────────
   Duel.prototype._point = function (team, reason) {
     if (this.phase === "point" || this.phase === "menu") return;
+    if (this.drill) { this._drillAttempt(false, reason); return; }
     var b = this.ball; if (b) b.live = false;
     this.phase = "point";
+    this._guidedReturn = false;
+    this._coachSuccessUntil = 0;
     this.phaseAt = this.now;
-    this.score[team] += 1;
+    var fmt = this._fmt(), scored = true;
+    if (fmt.sideout) {
+      // Official (side-out) scoring: only the serving side scores. In doubles a lost rally passes the serve to the partner (server 2), then to the other side.
+      if (team === this.serverTeam) this.score[team] += 1;
+      else {
+        scored = false;
+        if (this.mode === "doubles" && this.serverNum === 1) { this.serverNum = 2; this.serveTurn[this.serverTeam] += 1; }
+        else { this.serverTeam = team; this.serverNum = 1; this.serveTurn[team] += 1; }
+      }
+    } else {
+      this.score[team] += 1;
+      this.serveTurn[team] += (this.serverTeam === team) ? 0 : 1;
+      this.serverTeam = team;
+    }
     if (this._m && this._m.pts.length < 40) this._m.pts.push(team + ":" + reason);
     if (team === 0 && !this.daily && !this._pw("any")) this.charge = Math.min(this._chargeMax(), (this.charge || 0) + 1);
-    this.serveTurn[team] += (this.serverTeam === team) ? 0 : 1;
-    this.serverTeam = team;
+    if (team === 0 && scored) this._mission("points", 1);
     this._updateScore();
     var t = this.t, mine = team === 0;
+    if (!mine) this._lastFault = reason;
     var why = { out: t.out || "Out!", net: t.net || "Net!", twoBounce: t.twoBounce || "It had to bounce!", kitchen: t.kitchen || "Kitchen fault!", serveShort: t.serveShort || "Serve too short!", winner: "" }[reason] || "";
-    this._banner((why ? why + " " : "") + (mine ? (t.yourPoint || "Your point") : (t.theirPoint || "Their point")), 1300, mine ? "good" : "bad");
-    if (!mine && this._opp().boss && !this._rage && this.score[1] >= 3) { this._rage = true; this.shakeUntil = this.now + 0.4; this._banner(t.bossRage || "RAGE!", 1500, "bad"); }
+    this._banner((why ? why + " " : "") + (scored ? (mine ? (t.yourPoint || "Your point") : (t.theirPoint || "Their point")) : (t.sideOut || "Side out")), 1300, mine ? "good" : "bad");
+    if (!mine && this._opp().boss && !this._rage && this.score[1] >= Math.round(fmt.to * 0.55)) { this._rage = true; this.shakeUntil = this.now + 0.4; this._banner(t.bossRage || "RAGE!", 1500, "bad"); }
     this._sound(mine ? "milestone" : "fault");
     if (!mine) this._buzz("fault");
     if (mine && this.fx && b) { var p = this._project(b.x, b.y, b.z); this.fx.burst(p.x, p.y, ["#ffd60a", "#ffffff", "#3fd0ff"], 16, { speed: 300, up: 120, rect: true }); }
@@ -1122,13 +1705,18 @@
   };
 
   Duel.prototype._afterPoint = function () {
-    var s = this.score, lead = Math.abs(s[0] - s[1]);
-    if ((s[0] >= WIN_SCORE || s[1] >= WIN_SCORE) && lead >= 1) {
+    if (this.drill) {
+      if (this.drill.attempts >= DRILL_BALLS) this._finishDrill();
+      else this._beginServe();
+      return;
+    }
+    var s = this.score, lead = Math.abs(s[0] - s[1]), fmt = this._fmt();
+    if ((s[0] >= fmt.to || s[1] >= fmt.to) && lead >= fmt.by) {
       var won = s[0] > s[1], sv = this.save, idx = this._oppIdx(), isDaily = !!this.daily;
       this._lastScore = [s[0], s[1]];
       this._logMatch(won, s, isDaily);
       this._track(isDaily ? "daily-complete" : "duel-complete");
-      if (!isDaily && !sv.coached) sv.coached = true;
+      if (!isDaily && won && !sv.coached) sv.coached = true;
       this._lastBoss = won && !isDaily && !!this._opp().boss;
       // Coins: soft currency earned by playing (the Daily pays once a day, on the first attempt).
       var firstDaily = isDaily && (!sv.daily || sv.daily.key !== this.daily.key);
@@ -1137,20 +1725,30 @@
       if (isDaily) {
         // Daily Duel never touches the ladder; only the first attempt of the day is recorded.
         this._lastDailyIdx = this.daily.idx;
+        this._lastDailyResult = { key: this.daily.key, you: s[0], them: s[1], idx: this.daily.idx };
         if (!sv.daily || sv.daily.key !== this.daily.key) sv.daily = { key: this.daily.key, you: s[0], them: s[1], idx: this.daily.idx };
         this.daily = null; RNG = Math.random;
       } else {
         sv.history = (sv.history || []).concat([{ d: Date.now(), stage: this.stage, mode: this.mode, you: s[0], them: s[1] }]).slice(-HISTORY_MAX);
         if (won) { sv.beaten = sv.beaten || {}; sv.beaten[idx] = true; sv.bestMargin = Math.max(Number(sv.bestMargin) || 0, s[0] - s[1]); }
-        if (won) { this.stage += 1; this.save.stage = this.stage; this.save.wins = (Number(this.save.wins) || 0) + 1; }
+        if (won) {
+          var pid = this._player().id;
+          sv.mastery = sv.mastery || {}; sv.mastery[pid] = (sv.mastery[pid] || 0) + 1;
+          if (this._lastBoss) { sv.endings = sv.endings || {}; sv.endings[pid] = true; this._pendingEnding = pid; }
+          this.stage += 1; this.save.stage = this.stage; this.save.wins = (Number(this.save.wins) || 0) + 1;
+        }
       }
+      if (won) this._mission("win", 1);
       if (won) { if (this.fx) { this.fx.confetti(this.W, this.H); if (this._lastBoss) this.fx.confetti(this.W, this.H); } this._sound("newBest"); }
       else this._sound("gameOver");
       writeSave(this.save);
       this._lastResult = won ? "win" : "lose";
       this._banner("", 0);
       var self = this;
-      setTimeout(function () { if (self.root && self.phase === "menu") self._showSplash(self._lastResult); }, won ? 600 : 250);
+      this._splashT = setTimeout(function () {
+        self._splashT = 0;
+        if (self.root && self.phase === "menu") self._showSplash(self._lastResult);
+      }, won ? 600 : 250);
       this.phase = "menu";
       return;
     }
@@ -1174,9 +1772,18 @@
       if (b.dead) { if (b.bounces > 3) b.live = false; return; }
       this._sound("bounce");
       var p = this._project(b.x, b.y, 0);
-      if (this.fx) this.fx.ring(p.x, p.y, "rgba(255,255,255,0.9)", 22 * p.s / 10, 260);
+      if (this.fx) this.fx.ring(p.x, p.y, "rgba(255,255,255,0.9)", (b.bounces === 1 ? 3.2 : 2.2) * p.s, 260);
       var side = b.y < 0 ? 0 : 1, inCourt = Math.abs(b.x) <= CW + 0.15 && Math.abs(b.y) <= CL + 0.15;
       if (b.bounces === 1) {
+        if (this.drill && b.lastHitTeam === 0) {
+          var target = this._drillTarget();
+          var miss = b.y < target.near ? "short" : b.y > target.far ? "long" :
+            b.x < target.left ? "left" : b.x > target.right ? "right" : "";
+          var hit = side === 1 && inCourt && !miss;
+          this.drill.mark = { x: b.x, y: b.y, hit: hit };
+          this._drillAttempt(hit, miss);
+          return;
+        }
         if (side === b.lastHitTeam) this._point(1 - b.lastHitTeam, "net");
         else if (!inCourt) this._point(1 - b.lastHitTeam, "out");
         else if (b.isServe && Math.abs(b.y) < KIT) this._point(1 - b.lastHitTeam, "serveShort");
@@ -1207,16 +1814,27 @@
       if (srv.human) {
         if (this.now < h.swingUntil && !h.swung) { var sh = aimToShot(h.aimX, Math.max(-0.1, h.aimY), dir); sh.ty = dir * Math.max(10.5, Math.abs(sh.ty)); this._launch(h, sh, 0.7, 0.1); }
       } else if (this.now - this.phaseAt > 1.1) {
-        this._launch(srv, { tx: (rand() - 0.5) * 13, ty: dir * (12 + rand() * 6), speed: 34 * srv.skill.pace }, srv.skill.err * 0.6, 0.1);
+        if (this.drill) {
+          var cfg = DRILLS[this.drill.id];
+          this._launch(srv, { tx: h.homeX, ty: cfg.feed, speed: 26, loft: true }, 0, 0);
+        } else if (this._guidedReturn) this._launch(srv, { tx: h.homeX, ty: -14, speed: 26, loft: true }, 0, 0);
+        else this._launch(srv, { tx: (rand() - 0.5) * 13, ty: dir * (12 + rand() * 6), speed: 34 * srv.skill.pace }, srv.skill.err * 0.6, 0.1);
       }
       this.actors.forEach(function (a) { if (!a.human && a !== srv) self._ai(a, dt); });
       return;
     }
 
     if (this.phase === "rally" && this.now < h.swingUntil && !h.swung) {
-      if (this._tryHit(h, aimToShot(h.aimX, h.aimY, 1), 0.55)) h.swung = true;
+      if (this._tryHit(h, this._returnShot(h.aimX, h.aimY, h.shotStyle), 0.55)) h.swung = true;
     }
-    if (this.phase === "rally" || this.phase === "point") this.actors.forEach(function (a) { if (!a.human) self._ai(a, dt); });
+    if (this._shotAttempt != null && (h.swung || this.now >= h.swingUntil)) {
+      if (this.phase === "rally" && b.id === this._shotAttempt && !h.swung) {
+        this._shotFeedback = b.lastHitTeam !== 1 || b.y > 0.6 ? "shotEarly" : "shotReach";
+        this._shotFeedbackUntil = this.now + 1;
+      }
+      this._shotAttempt = null;
+    }
+    if (!this.drill && (this.phase === "rally" || this.phase === "point")) this.actors.forEach(function (a) { if (!a.human) self._ai(a, dt); });
     this._capsules(dt);
     var steps = 4; for (var i = 0; i < steps; i++) this._stepBall(dt / steps);
     // Watchdog: a rally whose ball is no longer live must end, otherwise the match would hang.
@@ -1263,57 +1881,85 @@
   };
 
   Duel.prototype._venueHtml = function () {
-    var t = this.t, sv = this.save, self = this, names = t.venues || {}, cur = this._venueId();
-    var sel = (sv.venue && (sv.venue === "auto" || hasVenue(sv.venue))) ? sv.venue : "auto";
+    var t = this.t, self = this, names = t.venues || {}, cur = this._venueId();
+    var sel = cur;
     function chip(id, label, locked, title, on, sw) {
       return '<button class="kr-duel-chip' + (on ? " kr-duel-chip--eq" : "") + '" data-duel="venue-' + id + '" aria-pressed="' + (on ? "true" : "false") + '"' + (locked ? ' aria-disabled="true"' : "") + (title ? ' title="' + esc(title) + '"' : "") + ">" + (sw || "") + esc(label) + "</button>";
     }
-    var chips = chip("auto", t.venueAuto || "Auto", false, "", sel === "auto", "");
+    var chips = "";
     VENUE_ORDER.forEach(function (id) {
       var V = VENUES[id], locked = self.stage < V.unlock;
       chips += chip(id, names[id] || id, locked, locked ? (t.venueLocked || "Reach opponent {n} to unlock").replace("{n}", V.unlock + 1) : "", sel === id,
-        '<i class="kr-duel-swatch" style="background:linear-gradient(135deg,' + V.sky[0] + "," + V.court + ')"></i>');
+        '<i class="kr-duel-swatch" style="background:linear-gradient(135deg,' + V.sky[0] + "," + V.ground[0] + ')"></i>');
     });
     return '<div class="kr-duel-venues" role="group" aria-label="' + esc(t.venueLabel || "Court") + '">' + chips + "</div>" +
       '<p class="kr-muted kr-duel-venuenow">' + esc(this.venueMsg || (t.venueNow || "Playing at: {name}").replace("{name}", names[cur] || cur)) + "</p>";
   };
 
-  // Scenery behind the stands (mostly visible in landscape and on tall screens).
+  // Draw the location behind the baseline. Court geometry and colors are shared.
   Duel.prototype._scene = function (g, V, W, H, horizon, rnd) {
-    var i, k;
+    var size = Math.min(W, H);
     if (V.scene === "skyline") {
-      var bx = 0;
-      while (bx < W) {
-        var bw = 14 + rnd() * 30, bh = 18 + rnd() * horizon * 0.5;
-        g.fillStyle = "#1a1038"; g.fillRect(bx, horizon - bh, bw, bh + 6);
-        g.fillStyle = "rgba(255,210,120,0.85)";
-        for (var wy = horizon - bh + 4; wy < horizon - 6; wy += 7) for (var wx = bx + 3; wx < bx + bw - 3; wx += 6) if (rnd() < 0.35) g.fillRect(wx, wy, 2.5, 3.5);
-        bx += bw + 2;
+      for (var x = -size * 0.05; x < W;) {
+        var width = size * (0.08 + rnd() * 0.11);
+        var height = size * (0.11 + rnd() * 0.27);
+        var top = horizon - height;
+        g.fillStyle = rnd() > 0.5 ? "#241b49" : "#342452";
+        g.fillRect(x, top, width, height + 5);
+        g.fillRect(x + width * 0.38, top - size * 0.04, width * 0.24, size * 0.04);
+        g.fillStyle = "#ffcb98";
+        for (var wy = top + 10; wy < horizon - 7; wy += 11) {
+          for (var wx = x + 7; wx < x + width - 5; wx += 12) {
+            if (rnd() > 0.36) g.fillRect(wx, wy, 4, 5);
+          }
+        }
+        x += width + 3;
       }
-    } else if (V.scene === "sea") {
-      g.fillStyle = "#1c8fc7"; g.fillRect(0, horizon * 0.7, W, horizon * 0.3 + 4);
-      g.fillStyle = "rgba(255,230,170,0.6)";
-      for (k = 0; k < 10; k++) { var sw = 70 - k * 5; g.fillRect(W / 2 - sw / 2, horizon * 0.72 + k * horizon * 0.028, sw, 2.5); }
-    } else if (V.scene === "lights") {
-      [[0.1, "180,210,255"], [0.9, "255,190,150"]].forEach(function (L) {
-        var lx = W * L[0], cone = g.createRadialGradient(lx, 0, 0, lx, 0, H * 0.7);
-        cone.addColorStop(0, "rgba(" + L[1] + ",0.5)"); cone.addColorStop(1, "rgba(" + L[1] + ",0)");
-        g.fillStyle = cone; g.fillRect(0, 0, W, H);
-      });
-    } else if (V.scene === "beams") {
-      for (i = 0; i < 4; i++) {
-        var x0 = W * (0.15 + 0.23 * i), dx = i % 2 ? 50 : -50;
-        g.fillStyle = "rgba(255,214,90,0.12)"; g.beginPath(); g.moveTo(x0 - 6, 0); g.lineTo(x0 + 6, 0); g.lineTo(x0 + dx + 60, horizon + 60); g.lineTo(x0 + dx - 60, horizon + 60); g.closePath(); g.fill();
-      }
-    } else if (V.scene === "gym") {
-      g.strokeStyle = "rgba(255,255,255,0.06)"; g.lineWidth = 1;
-      for (k = 6; k < horizon + 40; k += 14) { g.beginPath(); g.moveTo(0, k); g.lineTo(W, k); g.stroke(); }
-      for (i = 0; i < 4; i++) {
-        var lx = W * (0.1 + 0.22 * i), lg = g.createLinearGradient(0, 0, 0, horizon * 0.9);
-        lg.addColorStop(0, "rgba(255,244,200,0.55)"); lg.addColorStop(1, "rgba(255,244,200,0)");
-        g.fillStyle = lg; g.fillRect(lx, 0, W * 0.16, horizon * 0.9); g.fillStyle = "rgba(255,248,220,0.95)"; g.fillRect(lx, 3, W * 0.16, 4);
+      return;
+    }
+
+    if (V.scene === "park") {
+      g.fillStyle = "#459d84";
+      g.beginPath();
+      g.ellipse(W * 0.28, horizon + size * 0.09, W * 0.49, size * 0.25, 0, 0, Math.PI * 2);
+      g.ellipse(W * 0.82, horizon + size * 0.11, W * 0.43, size * 0.27, 0, 0, Math.PI * 2);
+      g.fill();
+    } else {
+      g.fillStyle = "#258bad";
+      g.fillRect(0, horizon - size * 0.12, W, size * 0.18);
+      g.fillStyle = "#edd49c";
+      g.fillRect(0, horizon + size * 0.015, W, size * 0.09);
+      g.fillStyle = "rgba(255,247,216,0.75)";
+      for (var wave = 0; wave < 15; wave++) {
+        var length = size * (0.025 + rnd() * 0.11);
+        g.fillRect(rnd() * W, horizon - size * (0.02 + rnd() * 0.09), length, 2);
       }
     }
+
+    [0.08, 0.24, 0.77, 0.93].forEach(function (fraction, index) {
+      var x = W * fraction, h = size * (index % 2 ? 0.20 : 0.29);
+      var base = horizon + h * 0.08, y = base - h;
+      g.strokeStyle = "#584530"; g.lineCap = "round"; g.lineWidth = h * 0.075;
+      g.beginPath(); g.moveTo(x, base);
+      if (V.scene === "park") {
+        g.lineTo(x, y + h * 0.24); g.stroke();
+        g.fillStyle = "#195e58";
+        g.beginPath(); g.arc(x, y + h * 0.23, h * 0.34, 0, Math.PI * 2); g.fill();
+        g.fillStyle = "#3aa176";
+        g.beginPath(); g.arc(x - h * 0.13, y + h * 0.12, h * 0.23, 0, Math.PI * 2); g.fill();
+      } else {
+        var tip = x + (index < 2 ? h * 0.22 : -h * 0.22);
+        g.quadraticCurveTo(x, y + h * 0.38, tip, y); g.stroke();
+        g.strokeStyle = "#175750"; g.lineWidth = h * 0.062;
+        [-1, 1].forEach(function (dir) {
+          for (var leaf = 0; leaf < 3; leaf++) {
+            g.beginPath(); g.moveTo(tip, y);
+            g.quadraticCurveTo(tip + dir * h * 0.28, y - h * (0.23 - leaf * 0.08), tip + dir * h * (0.40 - leaf * 0.07), y + h * leaf * 0.14);
+            g.stroke();
+          }
+        });
+      }
+    });
   };
 
   Duel.prototype._drawBackground = function (previewId) {
@@ -1341,11 +1987,11 @@
     }
     this._scene(g, V, W, H, horizon, rnd);
     // Grandstand behind the far baseline
-    var st0 = this._project(-CW - 14, CL + 9, 0), st1 = this._project(CW + 14, CL + 9, 0), sh = Math.max(46, 15 * st0.s);
+    var st0 = this._project(-CW - 11, CL + 9, 0), st1 = this._project(CW + 11, CL + 9, 0), sh = Math.max(25, 8 * st0.s);
     var sg = g.createLinearGradient(0, st0.y - sh, 0, st0.y);
     sg.addColorStop(0, V.stand[0]); sg.addColorStop(1, V.stand[1]);
     g.fillStyle = sg; g.beginPath(); g.roundRect ? g.roundRect(st0.x, st0.y - sh, st1.x - st0.x, sh, 10) : g.rect(st0.x, st0.y - sh, st1.x - st0.x, sh); g.fill();
-    var cols = V.crowd, rows = 7, dot = Math.max(1.8, sh / 24);
+    var cols = V.crowd, rows = 4, dot = Math.max(1.8, sh / 24);
     for (var r = 0; r < rows; r++) for (var x = st0.x + dot * 2; x < st1.x - dot * 2; x += dot * 2.7) {
       g.fillStyle = cols[Math.floor(rnd() * cols.length)];
       g.beginPath(); g.arc(x + (r % 2) * dot * 1.3, st0.y - sh + dot * 2 + r * (sh - dot * 3) / rows + rnd() * 2, dot, 0, 7); g.fill();
@@ -1359,17 +2005,17 @@
     var name = String(this.opts.appName || "KITCHEN RUSH").toUpperCase();
     for (var bi = -1; bi <= 1; bi++) g.fillText(name, W / 2 + bi * (bd1.x - bd0.x) / 3, bd0.y - bh / 2);
     // Court apron + playing surface
-    this._quad(g, -CW - 3, -CL - 4.5, CW + 3, CL + 4.5, V.apron);
-    this._quad(g, -CW, -CL, CW, CL, V.court);
-    this._quad(g, -CW, -KIT, CW, 0, V.kitN);
-    this._quad(g, -CW, 0, CW, KIT, V.kitF);
+    this._quad(g, -CW - 3, -CL - 4.5, CW + 3, CL + 4.5, COURT_COLORS.apron);
+    this._quad(g, -CW, -CL, CW, CL, COURT_COLORS.court);
+    this._quad(g, -CW, -KIT, CW, 0, COURT_COLORS.kitN);
+    this._quad(g, -CW, 0, CW, KIT, COURT_COLORS.kitF);
     // Soft light falloff toward the far end
     var a = this._project(0, -CL, 0), b = this._project(0, CL, 0);
     var sheen = g.createLinearGradient(0, b.y, 0, a.y);
     sheen.addColorStop(0, "rgba(10,20,60,0.22)"); sheen.addColorStop(0.5, "rgba(255,255,255,0)"); sheen.addColorStop(1, "rgba(255,255,255,0.10)");
     this._quad(g, -CW - 3, -CL - 4.5, CW + 3, CL + 4.5, sheen);
     // Lines
-    g.strokeStyle = V.line; g.lineCap = "round";
+    g.strokeStyle = COURT_COLORS.line; g.lineCap = "round";
     var L = 0.28;
     this._line(g, -CW, -CL, CW, -CL, L); this._line(g, -CW, CL, CW, CL, L);
     this._line(g, -CW, -CL, -CW, CL, L); this._line(g, CW, -CL, CW, CL, L);
@@ -1460,9 +2106,22 @@
     var serving = this.phase === "serve" && this.server === h;
     var incoming = this.phase === "rally" && b.live && !b.dead && b.lastHitTeam === 1;
     if (!serving && !incoming) return;
+    if (this._guidedReturn && incoming && !b.bounces) {
+      var bounce = this._project(h.homeX, -14, 0);
+      g.save();
+      g.translate(bounce.x, bounce.y);
+      g.strokeStyle = "#ffffff";
+      g.fillStyle = "rgba(255,214,10,0.28)";
+      g.lineWidth = 2;
+      g.beginPath(); g.ellipse(0, 0, 2.1 * bounce.s, bounce.s, 0, 0, Math.PI * 2);
+      g.fill(); g.stroke();
+      g.restore();
+      return;
+    }
     var a = this._liveAim(), sh = aimToShot(a.x, serving ? Math.max(-0.1, a.y) : a.y, 1);
     if (serving) sh.ty = Math.max(10.5, sh.ty);
-    var p = this._project(sh.tx, sh.ty, 0), r = 1.7 * p.s, pulse = 1 + Math.sin(this.now * 8) * 0.08;
+    var extension = incoming ? clamp((Math.hypot(b.x - h.x, b.y - h.y) - 1.4) / (this._hitReach(h) - 1.4), 0, 1) : 0;
+    var p = this._project(sh.tx, sh.ty, 0), r = (1.7 + 1.8 * extension) * p.s, pulse = 1 + Math.sin(this.now * 8) * 0.08;
     g.save(); g.translate(p.x, p.y); g.scale(1, 0.55);
     g.strokeStyle = "rgba(255,255,255,0.95)"; g.lineWidth = 2.5; g.setLineDash([6, 5]);
     g.beginPath(); g.arc(0, 0, r * pulse, 0, 7); g.stroke(); g.setLineDash([]);
@@ -1483,7 +2142,7 @@
   };
 
   Duel.prototype._capsules = function (dt) {
-    if (this.daily || this.phase !== "rally") return;
+    if (this.drill || this.daily || this.phase !== "rally") return;
     var c = this.capsule, h = this.human, b = this.ball;
     if (!c) {
       if (this.capSpawnIn == null) this.capSpawnIn = this._capDelay(3 + rand() * 3);
@@ -1499,6 +2158,7 @@
   Duel.prototype._collectCapsule = function () {
     var c = this.capsule; if (!c) return;
     if (this._m) this._m.caps++;
+    this._mission("caps", 1);
     this.charge = Math.min(this._chargeMax(), (this.charge || 0) + 1);
     this.capsule = null; this.capSpawnIn = 6 + rand() * 5;
     this.flashUntil = this.now + 0.2; this._flashKey = c.kind;
@@ -1627,8 +2287,8 @@
   };
 
   // ───────────────────────── Focus time (slow motion at contact) ─────────────────────────
-  Duel.prototype._slowScale = function () { var v = clamp(0.16 + this.stage * 0.035, 0.16, 0.4); return this._pw("touch") ? v * 0.7 : v; };
-  Duel.prototype._slowBudget = function () { return clamp(1.1 - this.stage * 0.1, 0.5, 1.1) * (this._pw("touch") ? 1.8 : 1) * this._pstat("focus") * ((!this.daily && !this.save.coached && this.stage === 0) ? 1.6 : 1); };   // real seconds per ball
+  Duel.prototype._slowScale = function () { var v = clamp(0.16 + ((this.daily || this.drill) ? 0 : this.stage) * 0.035, 0.16, 0.4); return this._pw("touch") ? v * 0.7 : v; };
+  Duel.prototype._slowBudget = function () { return clamp(1.1 - ((this.daily || this.drill) ? 0 : this.stage) * 0.1, 0.5, 1.1) * (this._pw("touch") ? 1.8 : 1) * this._pstat("focus") * (this.daily ? 1 : DIFFICULTIES[this.drill ? DRILLS[this.drill.id].difficulty : this.save.difficulty].focus) * ((!this.daily && !this.drill && !this.save.coached && this.stage === 0) ? 1.6 : 1); };   // real seconds per ball
 
   Duel.prototype._wantSlow = function (realDt) {
     var b = this.ball, h = this.human;
@@ -1679,7 +2339,7 @@
       g.strokeStyle = "rgba(255,214,10,0.9)"; g.lineWidth = 5; g.lineCap = "round";
       g.beginPath(); g.moveTo(this.swipe.ox, this.swipe.oy); g.lineTo(this.swipe.x, this.swipe.y); g.stroke();
     }
-    if (!this.joy && !this.swipe && this.phase === "serve") {
+    if (!this.joy && !this.swipe && (this.phase === "serve" || (this.phase === "rally" && this.timeScale < 0.7))) {
       g.font = "700 13px system-ui, sans-serif"; g.textAlign = "center"; g.fillStyle = "rgba(255,255,255,0.85)";
       g.fillText(String(t.hintMove || "MOVE"), W * 0.25, H - 34);
       g.fillText(String(t.hintHit || "SWIPE TO HIT"), W * 0.75, H - 34);
@@ -1712,6 +2372,10 @@
     var z = this.fx ? this.fx.getZoom(this.now * 1000) : 1;
     if (z !== 1) { g.translate(W / 2, H * 0.55); g.scale(z, z); g.translate(-W / 2, -H * 0.55); }
 
+    if (this.drill) {
+      this._drawDrillTarget(g);
+      this._drawDrillBounce(g);
+    }
     this._drawAim(g);
     this._drawPowerFx(g);
     this._drawCapsule(g);
@@ -1734,6 +2398,15 @@
 
   window.KR_DUEL = {
     start: function (opts) { return new Duel(opts || {}); },
+    renderLandingCast: renderLandingCast,
+    hasPlayed: function () {
+      var save = loadSave();
+      return save.history.length > 0 || !!save.daily;
+    },
+    entry: function () {
+      var entry = new URLSearchParams(location.search).get("duel");
+      return entry === "daily" || entry === "deep" ? entry : "";
+    },
     ladder: LADDER,
     _test: { seeded: seeded, dailyInfo: dailyInfo, aimToShot: aimToShot, POWERS: POWERS, cast: PLAYERS }
   };

@@ -691,3 +691,17 @@ npm run build:fr       # regenerate fr.html and manifest.fr.json after changing 
 - Copy: `selectTitle`, `selectOk`, `selectOpen`, `superLine`, `versusVs`, `versusTap`, `splashWin`, `splashBoss`, `splashLose` (EN base + `duelFr`). Tests: 3 new rule tests; `duel-smoke` and `a11y` click through the new screens.
 - Not done: character voice or announcer sounds, a "press start" intro, animated victory poses, a screen to compare characters side by side. Those are the next steps toward the fighting-game feel.
 - Research gap: no dedicated research on Street Fighter or Hearthstone was done for this (general knowledge and the owner's description only). Validate the flow with real players.
+
+## Real scoring, missions, streak, endings, mastery (ported onto the drills/shop work of PR #17)
+Two sessions worked on this branch at the same time; this block is the work of the second one, re-applied on top of the first one's drills, Rush Tokens,
+power shop, difficulty levels and selection screens (those stay as they were). Work on this branch from ONE session at a time.
+- **Scoring, the owner's "mixed" formula** (`_fmt`): first guided match first to 5; Daily and ladder steps 1-4 rally scoring to 7, win by 2; steps 5-6 rally scoring to 11,
+  win by 2; the final boss, or every match with the "Official match" toggle on (`save.official`, play tab): real side-out scoring to 11, win by 2 (only the serving side
+  scores; doubles starts "0-0-2", server 1, then server 2, then side out). The call ("4-2-1") shows under the score and in the serve banner (`_scoreCall`).
+  Simplification: servers do not swap court sides after a point. Boss rage now starts at 55% of the target (6 points of 11).
+- **Retention**: 3 daily missions from `MISSIONS` (same for everyone each UTC day, +15 Rush Tokens each, not in drills); day streak (`_checkStreak`: +5 tokens per day in a row,
+  max +35, a gap restarts); "next unlock" line; mastery (wins per character: 3 = gold band, 10 = gold trim, shown in the Progress tab); character endings
+  (beating the boss with a character shows its ending on the result screen, `wording.duel.endings`, Progress shows n/6).
+- **Feel**: announcer through the browser's speech voice (`_announce`, only with sound on): "Play!", "Final boss!", the result title. Victory pose on the result portrait (`_animatePose`, off with reduced motion).
+- Save fields added (sanitised): `official`, `endings`, `mastery`, `streak`, `missions`. Tests: 9 new rule tests (65); the smoke test allows 4 minutes per match.
+- To measure: match length under the new formats (`sec` in the exported playtest log) before tuning `_fmt`.

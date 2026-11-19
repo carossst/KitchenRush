@@ -28,7 +28,7 @@ async function run(browser, mode, who) {
   await page.click('[data-duel="versus-go"]');   // skip the VS screen
   let last = "", lastAt = Date.now(), ended = null;
   const t0 = Date.now();
-  while (Date.now() - t0 < 110000) {
+  while (Date.now() - t0 < 240000) {
     await page.waitForTimeout(33);
     const r = await page.evaluate((bot) => {
       const d = window.__ui._duel; if (!d) return { gone: 1 };

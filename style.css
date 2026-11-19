@@ -1956,12 +1956,21 @@ a:focus-visible {
   font-weight: 700;
 }
 
-.kr-duel-power {
+.kr-duel-controls {
   position: absolute;
-  left: 50%;
+  inset-inline: 0;
   bottom: calc(var(--gap-3) + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%);
   z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.kr-duel-controls button { pointer-events: auto; }
+
+.kr-duel-power {
   min-height: 44px;
   padding: var(--space-6) var(--gap-3);
   border-radius: var(--r-pill);
@@ -2092,11 +2101,6 @@ button.kr-duel-chip.kr-duel-chip--pick {
 }
 
 .kr-duel-coach {
-  position: absolute;
-  left: 50%;
-  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%);
-  z-index: 4;
   width: min(92%, 420px);
   padding: var(--space-10) var(--gap-3);
   border-radius: var(--r-card);
@@ -2260,7 +2264,8 @@ body:has(.kr-duel) #update-toast {
 .kr-duel-vs-side--r { animation: kr-duel-in-r 0.45s ease-out both; }
 .kr-duel-vs-mid { font-size: 2.4rem; font-weight: 900; font-style: italic; color: rgb(var(--accent-warm)); animation: kr-duel-pop 0.5s 0.35s ease-out both; }
 .kr-duel-vs-foot { grid-column: 1 / -1; margin-top: var(--space-3); opacity: 0.85; text-align: center; }
-.kr-duel-splash { justify-items: center; gap: var(--space-3); }
+.kr-duel-splash { justify-items: center; gap: var(--space-3); cursor: default; }
+.kr-duel-result-note { margin: 0; text-align: center; }
 .kr-duel-splash-title { font-size: 2rem; font-weight: 900; font-style: italic; animation: kr-duel-pop 0.5s ease-out both; }
 .kr-duel-splash--win .kr-duel-splash-title { color: rgb(var(--accent-warm)); }
 .kr-duel-splash canvas { width: 130px; height: auto; }
@@ -2269,7 +2274,8 @@ body:has(.kr-duel) #update-toast {
 @keyframes kr-duel-pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .kr-duel-vs-side--l, .kr-duel-vs-side--r, .kr-duel-vs-mid, .kr-duel-splash-title { animation: none; } }
 
-.kr-duel-court-roster { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.kr-duel-court-roster { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kr-duel-court-roster button { overflow-wrap: anywhere; }
 .kr-duel-court-roster canvas { width: 100%; height: auto; display: block; border-radius: var(--r-card); }
 .kr-duel-court-roster .kr-duel-tile:disabled { cursor: default; }
 
@@ -2337,3 +2343,76 @@ body:has(.kr-duel) #update-toast {
 }
 
 .kr-duel-vs-action { grid-column: 1 / -1; }
+
+.kr-duel-difficulty { display: grid; gap: var(--space-2); }
+.kr-duel-difficulty strong { font-size: var(--fs-sm); }
+
+.kr-duel-training article {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--gap-2);
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--r-md);
+}
+.kr-duel-training p { margin: 0; }
+
+.kr-duel-shot-style {
+  min-height: 44px;
+}
+
+
+.kr-duel-shot-style[hidden] { display: none; }
+
+.kr-duel-result-portrait {
+  display: block;
+  width: 82px;
+  height: auto;
+  margin-inline: auto;
+}
+
+.kr-screen--welcome .kr-landing-header-row { justify-content: flex-end; }
+
+.kr-landing-cast {
+  display: flex;
+  width: min(100%, 480px);
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--space-2);
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.kr-landing-player {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  flex: 0 0 clamp(88px, 26vw, 112px);
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--r-md);
+  background: radial-gradient(ellipse at 50% 20%, color-mix(in srgb, var(--player-color) 55%, transparent), transparent 70%),
+    rgb(var(--surface));
+  scroll-snap-align: start;
+}
+
+.kr-landing-player canvas { display: block; width: 65px; height: auto; }
+.kr-landing-player strong { font-size: var(--fs-sm); line-height: 1.1; }
+.kr-landing-player span { font-size: var(--fs-xs); color: rgb(var(--text)); }
+
+/* ── Duel: missions, streak, next unlock, official toggle, score call, endings ── */
+.kr-duel-official { width: 100%; }
+.kr-duel-missions { padding: var(--gap-2); border-radius: var(--r-md); background: rgb(var(--bg) / var(--kr-a-40)); }
+.kr-duel-missions ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.kr-duel-missions li { display: flex; justify-content: space-between; gap: var(--space-3); }
+.kr-duel-mission--done { opacity: 0.7; }
+.kr-duel-mission--done b { color: rgb(var(--accent-warm)); }
+.kr-duel-unlock { margin: 0; text-align: center; color: rgb(var(--accent-warm)); font-weight: 600; }
+.kr-duel-score { flex-wrap: wrap; justify-content: center; }
+.kr-duel-call { display: block; width: 100%; text-align: center; font-size: 0.75rem; opacity: 0.85; }
+.kr-duel-ending { padding: var(--gap-2); border-radius: var(--r-md); background: rgb(var(--bg) / var(--kr-a-40)); text-align: center; }
+.kr-duel-ending-text { margin: 0.4em 0; line-height: 1.45; }

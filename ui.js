@@ -362,6 +362,7 @@ void function () {
     if (!window.KR_DUEL || this._duel) return;
     var self = this;
     this._duel = window.KR_DUEL.start({
+      entry: window.KR_DUEL.entry ? window.KR_DUEL.entry() : "",
       wording: this.wording,
       appName: (this.config.identity && this.config.identity.appName) || "",
       sound: function (name) { self._playSound(name); },
@@ -388,7 +389,12 @@ void function () {
       case "checkout-standard": this.checkout("standard"); break;
       case "share":             this.copyShareText(); break;
       case "share-email":       this.sendShareViaEmail(); break;
-      case "lang":              location.href = location.pathname + "?lang=" + (window.KR_LANG === "fr" ? "en" : "fr"); break;
+      case "lang": {
+        var languageUrl = new URL(location.href);
+        languageUrl.searchParams.set("lang", window.KR_LANG === "fr" ? "en" : "fr");
+        location.href = languageUrl.href;
+        break;
+      }
       case "howto":             this.openHowToModal(); break;
       case "redeem":            this.openRedeemModal(); break;
       case "support":           this.openSupportModal(); break;
