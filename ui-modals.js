@@ -85,6 +85,29 @@
       if (this._runtime) this._runtime.modalPreviousFocus = null;
     };
 
+    UIModule.prototype.openPlayerProfile = function (playerId) {
+      var duel = window.KR_DUEL;
+      var w = this.wording || {};
+      var lang = window.KR_LANG === "fr" ? "fr" : "en";
+      var profile = duel && duel.getPlayerProfile ? duel.getPlayerProfile(playerId, w, lang) : null;
+      if (!profile) return;
+      var labels = w.duel || {};
+      if (lang === "fr") labels = Object.assign({}, labels, w.duelFr || {});
+      var h = '<div class="kr-player-profile">';
+      h += '<canvas class="kr-player-profile-portrait" width="180" height="200" aria-hidden="true"></canvas>';
+      h += '<h2 class="kr-h2">' + escapeHtml(profile.name) + '</h2>';
+      h += '<p class="kr-player-profile-slogan">“' + escapeHtml(profile.slogan) + '”</p>';
+      h += '<dl class="kr-player-profile-facts">';
+      h += '<div><dt>' + escapeHtml(labels.playerProfilePower || "Power") + '</dt><dd>' + escapeHtml(profile.power) + '</dd></div>';
+      h += '<div><dt>' + escapeHtml(labels.weaknessLabel || "Weakness") + '</dt><dd>' + escapeHtml(profile.weakness) + '</dd></div>';
+      h += '</dl><p class="kr-muted">' + escapeHtml(profile.skill) + '</p>';
+      h += '<button data-action="close-modal" class="kr-btn kr-btn--secondary">' + escapeHtml(labels.playerProfileClose || w.system?.close || "Close") + '</button>';
+      h += '</div>';
+      this.openModal(h);
+      var canvas = document.querySelector(".kr-player-profile-portrait");
+      if (duel.paintProfilePortrait) duel.paintProfilePortrait(canvas, profile.id, lang);
+    };
+
     UIModule.prototype.openHowToModal = function () {
       var w = this.wording?.howto || {};
       var premium = !!(this._store("isPremium"));
