@@ -151,7 +151,7 @@
         ? escapeHtml(lw.ctaPlayAfterFirstRun || lw.ctaPlay || "")
         : escapeHtml(lw.ctaPlay || "");
 
-      var showPowerBall = !simpleLanding && !isFirstLanding && this._canShowPowerBall(STATES.LANDING);
+      var showPowerBall = false; // Keep the landing focused on the single Play action.
       var solved = !!(this._store("hasPowerBallHintSolved"));
       var powerBallHtml = showPowerBall
         ? '<button class="kr-btn-icon' + (solved ? "" : " kr-btn-icon--tease") + '" data-kr-secret="power-ball" aria-label="' + escapeHtml((w?.sprint || {}).chestAria || "") + '">\uD83D\uDFE1</button>' : "";
