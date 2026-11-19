@@ -1029,7 +1029,10 @@
   Duel.prototype._showSplash = function (result) {
     this._clearScreenTimers();
     var t = this.t, won = result === "win", sc = this._lastScore, daily = this._lastDailyIdx != null;
-    var title = won ? (this._lastBoss ? (t.splashBoss || "BOSS DEFEATED!") : (t.splashWin || "VICTORY!")) : (t.splashLose || "Not this time");\n    var matchTotal = this._lastScore ? Number(this._lastScore[0] || 0) + Number(this._lastScore[1] || 0) : 0;\n    var previousBest = Number(this.save.bestScore || 0);\n    var isNewBest = matchTotal > previousBest;\n    if (isNewBest) { this.save.bestScore = matchTotal; writeSave(this.save); }
+    var title = won ? (this._lastBoss ? (t.splashBoss || "BOSS DEFEATED!") : (t.splashWin || "VICTORY!")) : (t.splashLose || "Not this time");
+    var matchTotal = this._lastScore ? Number(this._lastScore[0] || 0) + Number(this._lastScore[1] || 0) : 0;
+    var previousBest = Number(this.save.bestScore || 0);
+    var isNewBest = matchTotal > previousBest;\n    if (isNewBest) { this.save.bestScore = matchTotal; writeSave(this.save); }
     var me = daily ? DAILY_PLAYER : this._player();
     var advice = !won && !daily ? this._matchAdvice() : null;
     var drill = advice ? advice.drill : "";
