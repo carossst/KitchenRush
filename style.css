@@ -2449,3 +2449,18 @@ body:has(.kr-duel) #update-toast {
   .kr-duel-hero canvas { width: 8.5rem; }
   .kr-duel-vs-side canvas { width: min(30vw, 7.5rem); }
 }
+
+
+/* Arcade readability pass: keep the rally readable on small screens. */
+.kr-duel-hud { text-shadow: 0 2px 8px rgb(0 0 0 / .55); }
+.kr-duel-score { font-size: clamp(1.2rem, 4vw, 2rem); font-weight: 900; }
+.kr-duel-coach { max-width: 30rem; margin-inline: auto; border: 1px solid rgb(255 255 255 / .22); background: rgb(8 14 38 / .82); box-shadow: 0 12px 28px rgb(0 0 0 / .28); }
+.kr-duel-power--ready { animation: kr-power-pulse 1.1s ease-in-out infinite; }
+@keyframes kr-power-pulse { 50% { transform: scale(1.04); box-shadow: 0 0 0 6px rgb(var(--accent-warm) / .18), 0 0 28px rgb(var(--accent-warm) / .35); } }
+.kr-duel-coins, .kr-duel-earn { font-weight: 800; color: rgb(var(--accent-warm)); }
+@media (max-width: 520px) {
+  .kr-duel-hud { padding-inline: .5rem; }
+  .kr-duel-controls button { min-height: 3rem; min-width: 3rem; }
+  .kr-duel-coach { font-size: .9rem; padding: .6rem .75rem; }
+}
+@media (prefers-reduced-motion: reduce) { .kr-duel-power--ready { animation: none; } }
