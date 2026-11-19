@@ -782,9 +782,9 @@
     var skills = locale.castSkills || {};
     host.setAttribute("aria-label", locale.castLabel || "Duel players");
     host.innerHTML = PLAYERS.map(function (p) {
-      return '<li class="kr-landing-player" style="--player-color:' + esc(p.pal.jerseyB) + '">' +
+      return '<li><button type="button" class="kr-landing-player" style="--player-color:' + esc(p.pal.jerseyB) + '" data-action="player-profile" data-player-id="' + esc(p.id) + '">' +
         '<canvas width="128" height="132" aria-hidden="true"></canvas><strong>' + esc(playerName(p, lang)) + '</strong>' +
-        '<span>' + esc(skills[p.id] || "") + '</span></li>';
+        '<span>' + esc(skills[p.id] || "") + '</span></button></li>';
     }).join("");
     var canvases = host.querySelectorAll("canvas");
     PLAYERS.forEach(function (p, index) {
@@ -805,6 +805,25 @@
     ["pointerdown", "wheel", "focusin"].forEach(function (event) {
       host.addEventListener(event, function () { clearInterval(timer); }, { once: true });
     });
+  }
+  function getPlayerProfile(id, wording, lang) {
+    var p = PLAYERS.find(function (entry) { return entry.id === id; }) || PLAYERS[0];
+    var locale = lang === "fr" ? Object.assign({}, wording.duel, wording.duelFr) : wording.duel || {};
+    var powerIndex = POWERS.indexOf(p.sup);
+    return {
+      id: p.id,
+      name: playerName(p, lang),
+      skill: (locale.playerSkill || {})[p.id] || "",
+      power: (locale.powerDescs || [])[powerIndex] || "",
+      slogan: (locale.playerSlogan || {})[p.id] || "",
+      weakness: (locale.playerWeakness || {})[p.id] || "",
+      palette: Object.assign({}, HUMAN_PAL, LOOKS[0], p.pal, playerLook(p, lang) || {})
+    };
+  }
+  function paintProfilePortrait(canvas, id, lang) {
+    if (!canvas) return;
+    var p = PLAYERS.find(function (entry) { return entry.id === id; }) || PLAYERS[0];
+    paintPortrait(canvas, Object.assign({}, HUMAN_PAL, LOOKS[0], p.pal, playerLook(p, lang) || {}), "player");
   }
   Duel.prototype._drawPortrait = Duel.prototype._paintPortraits;
 
@@ -2420,6 +2439,8 @@
   window.KR_DUEL = {
     start: function (opts) { return new Duel(opts || {}); },
     renderLandingCast: renderLandingCast,
+    getPlayerProfile: getPlayerProfile,
+    paintProfilePortrait: paintProfilePortrait,
     hasPlayed: function () {
       var save = loadSave();
       return save.history.length > 0 || !!save.daily;
