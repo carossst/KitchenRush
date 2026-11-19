@@ -1576,6 +1576,7 @@
     this._sound("smash");
     if (a.human && smash) this._buzz("smash");
     var p = this._project(b.x, b.y, b.z);
+    this._hitPulse = { x: p.x, y: p.y, t: this.now, smash: !!smash };
     if (this.fx) {
       this.fx.burst(p.x, p.y, smash ? ["#ffd60a", "#ffffff", "#ff8a3d"] : ["#ffffff", "#e8ff3a"], smash ? 20 : 8, { speed: smash ? 380 : 200, up: 40 });
       this.fx.ring(p.x, p.y, smash ? "#ffd60a" : "#ffffff", smash ? 70 : 34);
@@ -2105,6 +2106,15 @@
       var gl = g.createRadialGradient(p.x, p.y, r * 0.4, p.x, p.y, r * 2.8);
       gl.addColorStop(0, "rgba(" + prgb + ",0.6)"); gl.addColorStop(1, "rgba(" + prgb + ",0)");
       g.fillStyle = gl; g.beginPath(); g.arc(p.x, p.y, r * 2.8, 0, 7); g.fill(); g.restore();
+    }
+    var pulse = this._hitPulse;
+    if (pulse) {
+      var age = this.now - pulse.t;
+      if (age < 0.34) {
+        var q = age / 0.34, pr = r * (1.4 + q * (pulse.smash ? 5.2 : 3.4));
+        g.save(); g.globalAlpha = (1 - q) * 0.9; g.strokeStyle = pulse.smash ? "#ffd60a" : "#f4ff8a"; g.lineWidth = Math.max(2, r * 0.28);
+        g.beginPath(); g.arc(p.x, p.y, pr, 0, Math.PI * 2); g.stroke(); g.restore();
+      } else this._hitPulse = null;
     }
     var gr = g.createRadialGradient(p.x - r * 0.35, p.y - r * 0.4, r * 0.1, p.x, p.y, r);
     gr.addColorStop(0, "#fdffb8"); gr.addColorStop(0.6, "#e6ff2e"); gr.addColorStop(1, "#a6c400");
