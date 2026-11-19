@@ -73,8 +73,9 @@
     version: "22",
     // Optional anonymous statistics (GoatCounter, no cookies). Empty = off. Read HANDOFF.md ("Analytics") before enabling.
     analytics: { goatcounterUrl: "" },
-    // Duel character names: "neutral" (invented names, default) or "fun" (pun names). See HANDOFF.md before switching.
-    duelNames: "neutral",
+    // The playful roster is the only player-facing naming mode.
+    // Keep the neutral roster in duel.js for save compatibility, but do not expose a switch.
+    duelNames: "fun",
 
     // Storage schema version (localStorage).
     // Change ONLY if you accept a migration/wipe.
