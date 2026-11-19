@@ -928,7 +928,7 @@
   Duel.prototype._showSelect = function (focusAction) {
     this._clearScreenTimers();
     this.phase = "menu";
-    var t = this.t, sv = this.save, cur = this._player(), self = this, coins = sv.coins || 0, sk = t.playerSkill || {}, slogans = t.playerSlogan || {};
+    var t = this.t, sv = this.save, cur = this._player(), self = this, coins = sv.coins || 0, sk = t.playerSkill || {}, slogans = t.playerSlogan || {}, weaknesses = t.playerWeakness || {};
     var P = cur; PLAYERS.forEach(function (p) { if (p.id === (self.previewPlayer || cur.id)) P = p; });
     var tiles = PLAYERS.map(function (p) {
       var owned = p.cost === 0 || !!(sv.owned && sv.owned[p.id]), on = P.id === p.id;
@@ -948,7 +948,7 @@
       '<p class="kr-duel-coins">' + esc((t.coins || "Coins: {n}").replace("{n}", coins)) + '</p>' +
       '<div class="kr-duel-hero" style="--duel-player-color:' + P.pal.jerseyB + '"><canvas width="240" height="260" aria-hidden="true" data-portrait="' + P.id + '"></canvas><div class="kr-duel-hero-info">' +
       '<strong class="kr-duel-hero-name">' + esc(this._pname(P)) + '</strong>' +
-      '<p class="kr-duel-super">' + esc(sup) + '</p><p class="kr-duel-shirt-slogan">“' + esc(slogans[P.id] || "") + '”</p>' +
+      '<p class="kr-duel-super">' + esc(sup) + '</p><p class="kr-duel-shirt-slogan">“' + esc(slogans[P.id] || "") + '”</p><p class="kr-duel-weakness"><strong>' + esc(t.weaknessLabel || "Weakness") + ':</strong> ' + esc(weaknesses[P.id] || "") + '</p>' +
       '<p class="kr-muted">' + esc(sk[P.id] || "") + '</p>' +
       (this.matchSetup && equipped ? '<p class="kr-duel-equipped">' + esc(label) + '</p>' :
         '<button class="kr-btn kr-btn--secondary" data-duel="selact-' + P.id + '"' + ((equipped || (!owned && !afford)) ? " disabled" : "") + '>' + esc(label) + '</button>') + '</div></div>' +
