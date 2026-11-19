@@ -434,12 +434,11 @@
       (opp.trait && t.traits ? '<p class="kr-muted kr-duel-trait">' + esc((t.traitLabel || "Style: {x}").replace("{x}", t.traits[opp.trait] || "")) + '</p>' : "") +
       '<div class="kr-duel-tabs" role="tablist">' + tabs.map(tabBtn).join("") + '</div>' +
       panel("play", this._goalHtml(result) + this._streakHtml() +
-        this._modeHtml() + this._officialHtml() + this._difficultyHtml() + this._dailyHtml() + this._missionsHtml() + this._nextUnlockHtml() +
+        this._modeHtml() + this._officialHtml() + this._difficultyHtml() + this._nextUnlockHtml() +
         (this.save.picked ? '<button class="kr-btn kr-btn--secondary" data-duel="resume">' +
           esc((t.resumeMatch || "Resume: {player} · {court}").replace("{player}", this._pname(this._player()))
             .replace("{court}", (t.venues || {})[this._venueId()] || this._venueId())) + '</button>' : '') +
-        '<button class="kr-btn kr-btn--secondary" data-duel="practice">' + esc(t.practiceTitle || "Drills") + '</button>' +
-        '<button class="kr-btn kr-btn--ghost" data-duel="shop">' + esc(t.shopTitle || "Power shop") + '</button>' +
+
         '<p class="kr-duel-how">' + esc(touch ? (t.howTouch || "Drag to move. When time slows, swipe toward where you want the ball.") : (t.howKeys || "Arrows / WASD: move. When time slows, hold a direction and press Space, or click where you want the ball.")) + '</p>' +
         '<p class="kr-duel-how">' + esc(t.capsuleHint || "Grab the falling capsules for a short power.") + '</p>' +
         '<p class="kr-duel-how">' + esc(this._fmtText()) + '</p>' +
