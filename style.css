@@ -2386,12 +2386,18 @@ body:has(.kr-duel) #update-toast {
   scrollbar-width: thin;
 }
 
+.kr-landing-cast > li {
+  flex: 0 0 clamp(88px, 26vw, 112px);
+  min-width: 0;
+  list-style: none;
+}
+
 .kr-landing-player {
   display: grid;
   justify-items: center;
   align-content: start;
-  flex: 0 0 clamp(88px, 26vw, 112px);
-  min-width: 0;
+  width: 100%;
+  min-height: 120px;
   padding: var(--space-2);
   border: 1px solid rgb(var(--border));
   border-radius: var(--r-md);
@@ -2401,6 +2407,15 @@ body:has(.kr-duel) #update-toast {
 }
 
 .kr-landing-player canvas { display: block; width: 65px; height: auto; }
+.kr-landing-player:focus-visible { outline: 3px solid rgb(var(--accent-warm)); outline-offset: 3px; }
+.kr-player-profile { display: grid; justify-items: center; gap: var(--space-3); text-align: center; }
+.kr-player-profile-portrait { width: 150px; height: auto; }
+.kr-player-profile h2, .kr-player-profile p { margin: 0; }
+.kr-player-profile-slogan { color: rgb(var(--accent-warm)); font-weight: 800; }
+.kr-player-profile-facts { display: grid; gap: var(--space-3); width: 100%; margin: 0; text-align: start; }
+.kr-player-profile-facts div { padding: var(--space-3); border-radius: var(--r-md); background: rgb(var(--bg) / var(--kr-a-40)); }
+.kr-player-profile-facts dt { font-size: var(--fs-xs); font-weight: 800; color: rgb(var(--text-muted)); }
+.kr-player-profile-facts dd { margin: var(--space-1) 0 0; }
 .kr-landing-player strong { font-size: var(--fs-sm); line-height: 1.1; }
 .kr-landing-player span { font-size: var(--fs-xs); color: rgb(var(--text)); }
 
