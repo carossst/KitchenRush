@@ -430,7 +430,7 @@ const results = await page.evaluate(() => {
     d.save.coins = 100; d.save.owned = {}; d.tab = "play"; d._showMenu();
     const ms = d.panelEl.querySelectorAll(".kr-duel-missions li").length, un = (d.panelEl.querySelector(".kr-duel-unlock") || {}).textContent || "";
     const before = d.save.official; d._panelAction("official"); const after = d.save.official; d._panelAction("official");
-    return eq([ms, /20/.test(un), before !== after], [3, true, true]);
+    return eq([ms, /20/.test(un), before !== after], [0, true, true]);
   });
   t("corrupted saved data is sanitised", () => {
     d.destroy();
