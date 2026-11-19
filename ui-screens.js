@@ -145,7 +145,7 @@
       var simpleLanding = duel && (duelEntry || (isFirstLanding && !(duel.hasPlayed && duel.hasPlayed())));
       var fr = window.KR_LANG === "fr";
       var duelLabel = duelEntry === "deep" ? (fr ? "Jouer le défi de cinq balles" : "Play the five-ball challenge") :
-        duelEntry === "daily" ? (fr ? "Jouer le Duel du jour" : "Play the Daily Duel") : lw.ctaDuel;
+        duelEntry === "daily" ? (fr ? "Jouer le Duel du jour" : "Play the Daily Duel") : simpleLanding ? "START" : lw.ctaDuel;
 
       var ctaLabel = (runCompletes > 0)
         ? escapeHtml(lw.ctaPlayAfterFirstRun || lw.ctaPlay || "")
