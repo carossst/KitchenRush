@@ -2021,11 +2021,7 @@
     this._line(g, -CW, -CL, -CW, CL, L); this._line(g, CW, -CL, CW, CL, L);
     this._line(g, -CW, -KIT, CW, -KIT, L); this._line(g, -CW, KIT, CW, KIT, L);
     this._line(g, 0, -CL, 0, -KIT, L); this._line(g, 0, KIT, 0, CL, L);
-    // Kitchen labels
-    g.fillStyle = "rgba(255,255,255,0.33)";
-    var kl = this._project(0, -KIT / 2, 0);
-    g.font = "800 " + Math.round(2.1 * kl.s) + "px system-ui, sans-serif";
-    g.fillText(String(this.t.kitchen2 || "KITCHEN"), kl.x, kl.y);
+    // Keep the kitchen zone readable through its court markings only; no large word on the surface.
     if (previewId) return c;
     this._bgVenue = id;
     this._bg = c;
