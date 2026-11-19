@@ -149,7 +149,7 @@ const results = await page.evaluate(() => {
   });
   t("a locked court explains itself when tapped and is not selected", () => {
     d.stage = 0; d.save.venue = "auto"; d._showMenu(); d._panelAction("venue-rooftop");
-    const msg = d.panelEl.textContent.includes("4 to unlock"), kept = d.save.venue;
+    const msg = d.panelEl.textContent.includes(d.t.venueLocked.replace("{n}", 4)), kept = d.save.venue;
     d._panelAction("venue-auto"); return eq([msg, kept], [true, "auto"]);
   });
   t("playtest log: one entry per match, exportable, capped", () => {
