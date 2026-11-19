@@ -940,7 +940,7 @@
     var owned = P.cost === 0 || !!(sv.owned && sv.owned[P.id]), equipped = cur.id === P.id, afford = coins >= P.cost;
     var label = equipped ? (t.playerEquipped || "Equipped") : owned ? (t.playerEquip || "Equip") : afford ? (t.playerBuy || "Buy for {n} coins").replace("{n}", P.cost) : (t.playerMissing || "Need {n} more coins").replace("{n}", P.cost - coins);
     var pi = POWERS.indexOf(P.sup);
-    var sup = (t.superLine || "Super: {name} \u2014 {desc}").replace("{name}", this._powerName(P.sup)).replace("{desc}", (t.powerDescs || [])[pi] || "");
+    var sup = "⚡ " + (t.superLine || "Super: {name} \u2014 {desc}").replace("{name}", this._powerName(P.sup)).replace("{desc}", (t.powerDescs || [])[pi] || "");
     this.panelEl.innerHTML =
       '<div class="kr-duel-card kr-duel-select" role="group" aria-label="' + esc(t.selectTitle || "Choose your player") + '">' +
       (this.matchSetup ? this._setupSteps(0) : '') +
@@ -1045,6 +1045,7 @@
       (!daily && note ? '<p class="kr-duel-result-note">' + esc(note) + '</p>' : '') +
       (this._endingHtml()) +
       (unlocked ? '<p class="kr-duel-result-note">' + esc((t.courtUnlocked || "Court unlocked: {name}").replace("{name}", (t.venues || {})[unlocked] || unlocked)) + '</p>' : '') +
+      (won && !daily ? this._nextUnlockHtml() : '') +
       (daily ? '<p class="kr-duel-result-note">' + esc(this._dailyResetLabel()) + '</p>' : '') +
       (canShare ? '<button class="kr-btn kr-btn--primary" data-duel="share">' + esc(t.shareDaily || "Share the challenge") + '</button>' +
         '<button class="kr-btn kr-btn--secondary" data-duel="card">' + esc(t.saveImage || "Save image") + '</button>' : '') +
