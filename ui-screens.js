@@ -414,7 +414,7 @@
             (simpleLanding ? '' : '<p class="kr-subtitle">' + escapeHtml(lw.subtitle || "") + '</p>') +
             (duel && String(duelLabel || "").trim()
               ? '<div class="kr-actions kr-actions--primary-zone"><button class="kr-btn kr-btn--primary kr-btn--duel" data-action="play-duel">' + escapeHtml(duelLabel) + '</button></div>' +
-                (!simpleLanding && String(lw.arcadeLabel || "").trim() ? '<p class="kr-landing-divider">' + escapeHtml(lw.arcadeLabel) + '</p>' : '')
+                ''
               : '') +
             (duel ? "" : firstLandingHtml) +
           '</div>' +
