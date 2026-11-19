@@ -35,6 +35,7 @@
       this._runtime = this._runtime || {};
       this._runtime.modalPreviousFocus = previousFocus || null;
       content.innerHTML = html;
+      overlay.classList.remove("kr-hidden");
       overlay.classList.add("kr-modal--visible");
       overlay.setAttribute("aria-hidden", "false");
 
@@ -76,6 +77,7 @@
           this._runtime.modalKeydownHandler = null;
         }
         overlay.classList.remove("kr-modal--visible");
+        overlay.classList.add("kr-hidden");
         overlay.setAttribute("aria-hidden", "true");
       }
       var previousFocus = this._runtime && this._runtime.modalPreviousFocus;
