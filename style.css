@@ -2464,3 +2464,14 @@ body:has(.kr-duel) #update-toast {
   .kr-duel-coach { font-size: .9rem; padding: .6rem .75rem; }
 }
 @media (prefers-reduced-motion: reduce) { .kr-duel-power--ready { animation: none; } }
+
+
+/* Landing CTA: calmer arcade green, less neon. */
+.kr-screen--landing {
+  --primary: 38 190 112;
+  --primary-dark: 27 148 86;
+  --primary-depth: 18 104 62;
+}
+.kr-screen--landing .kr-btn--primary {
+  box-shadow: 0 4px 0 rgb(var(--primary-depth)), 0 8px 18px rgb(var(--primary) / .22), inset 0 1px 0 rgb(255 255 255 / .28);
+}
