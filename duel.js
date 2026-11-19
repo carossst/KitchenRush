@@ -1032,7 +1032,8 @@
     var title = won ? (this._lastBoss ? (t.splashBoss || "BOSS DEFEATED!") : (t.splashWin || "VICTORY!")) : (t.splashLose || "Not this time");
     var matchTotal = this._lastScore ? Number(this._lastScore[0] || 0) + Number(this._lastScore[1] || 0) : 0;
     var previousBest = Number(this.save.bestScore || 0);
-    var isNewBest = matchTotal > previousBest;\n    if (isNewBest) { this.save.bestScore = matchTotal; writeSave(this.save); }
+    var isNewBest = matchTotal > previousBest;
+    if (isNewBest) { this.save.bestScore = matchTotal; writeSave(this.save); }
     var me = daily ? DAILY_PLAYER : this._player();
     var advice = !won && !daily ? this._matchAdvice() : null;
     var drill = advice ? advice.drill : "";
