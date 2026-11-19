@@ -953,7 +953,6 @@
         '<button class="kr-btn kr-btn--secondary" data-duel="selact-' + P.id + '"' + ((equipped || (!owned && !afford)) ? " disabled" : "") + '>' + esc(label) + '</button>') + '</div></div>' +
       '<div class="kr-duel-roster" role="group" aria-label="' + esc(t.playerLabel || "My player") + '">' + tiles + '</div>' +
       (this.matchSetup && sv.shopPower ? this._powerLine() : '') +
-      (this.matchSetup ? this._modeHtml() + this._difficultyHtml() : '') +
       '<button class="kr-btn kr-btn--primary kr-duel-go" data-duel="selok"' + (this.matchSetup && !equipped ? ' disabled' : '') + '>' + esc(this.matchSetup ? (t.setupNextCourt || "Choose court") : (t.selectOk || "Continue")) + '</button>' +
       (this.matchSetup ? '<button class="kr-btn kr-btn--ghost" data-duel="setup-cancel">' + esc(t.home || "Back to menu") + '</button>' : '') + '</div>';
     this.panelEl.classList.add("kr-duel-panel--on");
