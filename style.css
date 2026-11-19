@@ -2475,3 +2475,6 @@ body:has(.kr-duel) #update-toast {
 .kr-screen--landing .kr-btn--primary {
   box-shadow: 0 4px 0 rgb(var(--primary-depth)), 0 8px 18px rgb(var(--primary) / .22), inset 0 1px 0 rgb(255 255 255 / .28);
 }
+
+
+.kr-duel-shirt-slogan { margin: .35rem 0 0; padding: .3rem .55rem; border-radius: .45rem; background: rgb(var(--duel-player-color, 80 100 180) / .28); color: rgb(var(--text-strong)); font-size: .78rem; font-weight: 800; line-height: 1.2; text-align: center; }
