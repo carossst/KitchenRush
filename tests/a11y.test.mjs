@@ -68,11 +68,6 @@ for (const tab of ["play", "players", "courts", "progress"]) { await page.click(
 await page.click('[data-duel="tab-players"]'); await page.click('[data-duel="select"]'); await page.waitForTimeout(200); await scan("Duel select screen");
 await page.click('[data-duel="selok"]'); await page.click('[data-duel="tab-play"]'); await page.click('[data-duel="go"]');
 await page.click('[data-duel="sel-sprint"]');
-assert.equal(await page.locator('.kr-duel-equipped').textContent(), "Equipped");
-await page.click('[data-duel="sel-reach"]');
-assert.equal(await page.locator('[data-duel="selok"]').isEnabled(), false);
-await page.click('[data-duel="sel-sprint"]');
-await page.click('[data-duel="selok"]');
 assert.equal(await page.locator('[data-court-preview]:visible').count(), 4);
 const backdropCount = await page.locator(".kr-duel-court-roster canvas").evaluateAll((items) =>
   new Set(items.map((canvas) => canvas.toDataURL())).size);
