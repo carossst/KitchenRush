@@ -205,6 +205,7 @@
       shotReach: "Out of reach — move closer to the ball.",
       nextRival: "Next opponent: {name}",
       resultMenu: "Match menu",
+      newRecord: "New best score!",
       retryTips: {
         net: "On the next return, aim deeper to clear the net.",
         out: "Aim toward the middle to leave room for error.",
@@ -397,6 +398,7 @@
       shotReach: "Hors de portée. Rapprochez-vous de la balle.",
       nextRival: "Prochain adversaire : {name}",
       resultMenu: "Menu du match",
+      newRecord: "Nouveau meilleur score !",
       retryTips: {
         net: "Au prochain retour, visez plus long pour franchir le filet.",
         out: "Visez le milieu pour laisser de la marge.",
