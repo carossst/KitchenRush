@@ -102,7 +102,7 @@
 
 
     duel: {
-      canvasAria: "Duel court",
+      canvasAria: "Match court",
       exit: "Exit match",
       you: "YOU",
       stageLabel: "Opponent {n}",
@@ -187,7 +187,7 @@
         net: "Into the net", winner: "The ball bounced twice", twoBounce: "Wait for the bounce", kitchen: "Volley in the kitchen"
       },
       shopNative: "Use character super",
-      shopRule: "Equip one super for classic Duel. Bought powers can be equipped again for free.",
+      shopRule: "Equip one super for classic matches. Bought powers can be equipped again for free.",
       drillStart: "Practise",
       drillNames: { deep: "Deep return", angle: "Placement", soft: "Short shot" },
       drillGoals: { deep: "Return deep into the marked zone.", angle: "Aim for the highlighted side.", soft: "Land a soft shot in the kitchen." },
@@ -198,12 +198,12 @@
       drillHit: "Target hit!",
       drillMiss: "Target missed",
       drillResult: "Targets hit: {n}/{total}",
-      difficultyLabel: "Duel difficulty",
+      difficultyLabel: "Match difficulty",
       difficultyLevels: { relaxed: "Relaxed", standard: "Standard", challenge: "Challenge" },
       shotEarly: "Too early — wait for the ball to come to your side.",
       shotReach: "Out of reach — move closer to the ball.",
       nextRival: "Next opponent: {name}",
-      resultMenu: "Duel menu",
+      resultMenu: "Match menu",
       retryTips: {
         net: "On the next return, aim deeper to clear the net.",
         out: "Aim toward the middle to leave room for error.",
