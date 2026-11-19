@@ -16,6 +16,10 @@ const SW_VERSION = (() => {
 const CACHE_PREFIX = "kr";
 const CACHE_NAME = `${CACHE_PREFIX}-cache-v2-${SW_VERSION}`;
 
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
+});
+
 const ASSET_GROUPS = {
   shell: [
     "./",
