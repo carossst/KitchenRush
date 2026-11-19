@@ -31,8 +31,14 @@
   }
 
   var FR = {
+    footer: {
+      contact: "Contact",
+      privacy: "Confidentialité",
+      terms: "Conditions"
+    },
     system: {
       close: "Fermer",
+      skipToContent: "Aller au contenu principal",
       home: "Accueil",
       monthsShort: ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."],
       updateAvailable: "Mise à jour disponible.",

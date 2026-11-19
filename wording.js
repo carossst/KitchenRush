@@ -13,6 +13,7 @@
 
     system: {
       close: "Close",
+      skipToContent: "Skip to main content",
       home: "Home",
       versionPrefix: "v",
 
