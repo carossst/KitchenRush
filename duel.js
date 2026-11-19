@@ -1029,7 +1029,7 @@
   Duel.prototype._showSplash = function (result) {
     this._clearScreenTimers();
     var t = this.t, won = result === "win", sc = this._lastScore, daily = this._lastDailyIdx != null;
-    var title = won ? (this._lastBoss ? (t.splashBoss || "BOSS DEFEATED!") : (t.splashWin || "VICTORY!")) : (t.splashLose || "Not this time");
+    var title = won ? (this._lastBoss ? (t.splashBoss || "BOSS DEFEATED!") : (t.splashWin || "VICTORY!")) : (t.splashLose || "Not this time");\n    var matchTotal = this._lastScore ? Number(this._lastScore[0] || 0) + Number(this._lastScore[1] || 0) : 0;\n    var previousBest = Number(this.save.bestScore || 0);\n    var isNewBest = matchTotal > previousBest;\n    if (isNewBest) { this.save.bestScore = matchTotal; writeSave(this.save); }
     var me = daily ? DAILY_PLAYER : this._player();
     var advice = !won && !daily ? this._matchAdvice() : null;
     var drill = advice ? advice.drill : "";
@@ -1040,7 +1040,7 @@
     this.panelEl.innerHTML =
       '<div class="kr-duel-card kr-duel-splash-card"><div class="kr-duel-splash kr-duel-splash--' + (won ? "win" : "lose") + '">' +
       '<span class="kr-duel-splash-title">' + esc(title) + '</span>' +
-      '<span class="kr-duel-splash-score">' + (sc ? sc[0] + '\u2013' + sc[1] : "") + (this._lastEarn ? " \u00b7 " + esc((t.earned || "+{n} coins").replace("{n}", this._lastEarn)) : "") + '</span></div>' +
+      '<span class="kr-duel-splash-score">' + (sc ? sc[0] + '\u2013' + sc[1] : "") + (this._lastEarn ? " \u00b7 " + esc((t.earned || "+{n} coins").replace("{n}", this._lastEarn)) : "") + '</span>' + (isNewBest ? '<p class="kr-duel-result-note kr-duel-new-record">' + esc(t.newRecord || "New best score!") + '</p>' : '') + '</div>' +
       (!daily && note ? '<p class="kr-duel-result-note">' + esc(note) + '</p>' : '') +
       (this._endingHtml()) +
       (unlocked ? '<p class="kr-duel-result-note">' + esc((t.courtUnlocked || "Court unlocked: {name}").replace("{name}", (t.venues || {})[unlocked] || unlocked)) + '</p>' : '') +
