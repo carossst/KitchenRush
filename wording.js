@@ -469,7 +469,7 @@
       playerNeed: "Pas assez de jetons Rush ({n})",
       castLabel: "Joueurs du Duel",
       castSkills: { touch: "Ralenti", sprint: "Vitesse", reach: "Portée", precision: "Précision", power: "Smash", pass: "Capsules" },
-      playerSkill: { touch: "Ma\u00eetre du ralenti : +40 % de ralenti.", sprint: "Jambes vives : +12 % de vitesse.", reach: "Bras longs : +15 % de port\u00e9e.", precision: "Oeil de lynx : d\u00e9marre chaque match avec 1 charge.", power: "Frappeur : smashs plus faciles et plus rapides.", pass: "Cuisinier chanceux : capsules plus t\u00f4t, plus longtemps, plus faciles \u00e0 attraper." },
+      playerSkill: { touch: "Polyvalent droitier : ralenti de 40 % pour s\u2019adapter \u00e0 chaque \u00e9change.", sprint: "Sprinteur droitier : +12 % de vitesse et jeu de jambes.", reach: "D\u00e9fenseur droitier : +15 % de port\u00e9e pour les retours profonds.", precision: "Placeuse droiti\u00e8re : 1 charge au d\u00e9but et vise les coins.", power: "Attaquante droiti\u00e8re : smashs plus faciles et frappes puissantes.", pass: "Soutien droitier : capsules plus t\u00f4t, plus longtemps et plus faciles \u00e0 attraper." },
       worldLabel: "Monde {w}",
       worldUp: "Monde {w} d\u00e9bloqu\u00e9 : adversaires plus forts",
       rallyLabel: "\u00c9CHANGE {n}",
