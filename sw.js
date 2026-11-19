@@ -14,7 +14,7 @@ const SW_VERSION = (() => {
 })();
 
 const CACHE_PREFIX = "kr";
-const CACHE_NAME = `${CACHE_PREFIX}-cache-${SW_VERSION}`;
+const CACHE_NAME = `${CACHE_PREFIX}-cache-v2-${SW_VERSION}`;
 
 const ASSET_GROUPS = {
   shell: [
@@ -106,12 +106,9 @@ self.addEventListener("install", (event) => {
         okByUrl.set(ASSETS_TO_CACHE[i], results[i]?.status === "fulfilled");
       }
       const criticalOk = CRITICAL_ASSETS.every((u) => okByUrl.get(u) === true);
-      if (criticalOk) {
-        await self.skipWaiting();
-      }
-    })().catch(() => {
-      // Fail-closed: don't block the existing SW.
-    })
+      if (!criticalOk) throw new Error("Incomplete offline cache");
+      await self.skipWaiting();
+    })()
   );
 });
 
@@ -134,7 +131,7 @@ function isStripeRequest(href) {
   return href.includes("stripe.com") || href.includes("buy.stripe.com");
 }
 
-// Fetch: cache-first for same-origin, skip Stripe
+// Refresh app code online and keep cached assets available offline.
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
@@ -146,19 +143,21 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(
     (async () => {
-      const cached = await caches.match(req);
-      if (cached) return cached;
+      const cache = await caches.open(CACHE_NAME);
+      const refresh = req.mode === "navigate" || /\.(?:js|css|html)$/.test(url.pathname);
+      const cached = await cache.match(req);
+      if (cached && !refresh) return cached;
 
       try {
         const res = await fetch(req, { cache: "reload" });
         if (res && res.ok) {
-          const cache = await caches.open(CACHE_NAME);
-          await cache.put(req, res.clone());
+          try { await cache.put(req, res.clone()); } catch (_) { /* Online response remains usable. */ }
         }
         return res;
       } catch (_) {
+        if (cached) return cached;
         if (req.mode === "navigate") {
-          const shell = await caches.match("./index.html");
+          const shell = await cache.match(url.pathname.endsWith("/fr.html") ? "./fr.html" : "./index.html");
           return shell || new Response("Offline", { status: 503 });
         }
         return new Response("", { status: 504 });
