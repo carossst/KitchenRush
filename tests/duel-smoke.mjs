@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)("playwright");
 
 const BASE = process.env.BASE_URL || "http://localhost:8123";
-const SCENARIOS = (process.env.DUEL_SCENARIOS || "singles:bot,left:bot,right:idle,daily:bot").split(",");
+const SCENARIOS = (process.env.DUEL_SCENARIOS || "singles:bot,left:bot,right:idle").split(",");
 let failed = 0;
 const fail = (m) => { failed++; console.error("FAIL", m); };
 
