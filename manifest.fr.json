@@ -2,7 +2,7 @@
   "name": "Kitchen Rush",
   "short_name": "Kitchen Rush",
   "id": "./fr.html",
-  "description": "Une arcade inspirée du pickleball. Visez chaque coup, maîtrisez la cuisine, battez le boss.",
+  "description": "A fast arcade game inspired by pickleball. Smash balls, stay out of the Kitchen.",
   "start_url": "./fr.html",
   "scope": "./",
   "display": "standalone",
@@ -14,6 +14,12 @@
   ],
   "lang": "fr",
   "icons": [
+    {
+      "src": "./icons/kr-favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
     {
       "src": "./icons/kr-icon-192x192.png",
       "sizes": "192x192",
