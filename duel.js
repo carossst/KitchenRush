@@ -1023,7 +1023,7 @@
     this._paintPortraits();
     this._sound("milestone");
     var b = this.panelEl.querySelector(".kr-duel-versus"); if (b) try { b.focus({ preventScroll: true }); } catch (_) { }
-    if (this.daily) this._versusT = setTimeout(function () { self._versusT = 0; if (self.root && self.phase === "menu") self._startMatch(); }, reduced ? 900 : 1900);
+    this._versusT = setTimeout(function () { self._versusT = 0; if (self.root && self.phase === "menu") self._startMatch(); }, reduced ? 900 : 1900);
   };
 
   // Short victory (or defeat) splash after a match, then the menu.
