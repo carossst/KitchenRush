@@ -396,6 +396,7 @@ void function () {
         break;
       }
       case "howto":             this.openHowToModal(); break;
+      case "player-profile":    this.openPlayerProfile(actionEl.getAttribute("data-player-id")); break;
       case "redeem":            this.openRedeemModal(); break;
       case "support":           this.openSupportModal(); break;
       case "install":           this.promptInstall(); break;
