@@ -1269,8 +1269,13 @@
     if (a.indexOf("sel-") === 0) {
       var previewId = a.slice(4);
       this.previewPlayer = previewId;
-      if (this.matchSetup && (previewId === PLAYERS[0].id || this.save.owned[previewId])) this._buyOrEquip(previewId);
-      this._showSelect(a);
+      if (this.matchSetup && (previewId === PLAYERS[0].id || this.save.owned[previewId])) {
+        this._buyOrEquip(previewId);
+        // Selecting an available player is the action: continue straight to the court step.
+        this._showCourtSelect();
+      } else {
+        this._showSelect(a);
+      }
       return;
     }
     if (a.indexOf("selact-") === 0) { var sid = a.slice(7); this._buyOrEquip(sid); this._showSelect("sel-" + sid); return; }
