@@ -279,7 +279,7 @@
       playerNeed: "Not enough Rush Tokens ({n})",
       castLabel: "Duel players",
       castSkills: { touch: "Slow motion", sprint: "Fast footwork", reach: "Long reach", precision: "Precision", power: "Smash", pass: "Capsules" },
-      playerSkill: { touch: "Slow-motion master: +40% slow motion.", sprint: "Quick legs: +12% speed.", reach: "Long arms: +15% reach.", precision: "Sharp eye: starts each match with 1 charge.", power: "Heavy hitter: smashes are easier and faster.", pass: "Lucky cook: capsules come sooner, last longer, easier to catch." },
+      playerSkill: { touch: "Right-handed all-rounder: slows time by 40% to adapt to every rally.", sprint: "Right-handed speedster: +12% movement and fast footwork.", reach: "Right-handed defender: +15% reach for deep returns and counters.", precision: "Right-handed placer: starts each match with 1 charge and targets corners.", power: "Right-handed attacker: easier, faster smashes and powerful drives.", pass: "Right-handed support player: capsules arrive sooner, last longer and are easier to catch." },
       worldLabel: "World {w}",
       worldUp: "World {w} unlocked: tougher opponents",
       rallyLabel: "RALLY {n}",
