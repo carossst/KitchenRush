@@ -18,7 +18,7 @@ async function open(path, setup, reducedMotion = 'no-preference') {
 let t = await open("/fr.html");
 ok(await t.page.evaluate(() => document.documentElement.lang === "fr" && window.KR_LANG === "fr"), "fr.html opens in French");
 ok((await t.page.innerText("body")).includes("L'arcade du pickleball"), "fr.html shows the French landing text");
-ok(await t.page.getByRole("button", { name: "Jouer", exact: true }).count() === 1, "first landing has a clear Play button");
+ok(await t.page.getByRole("button", { name: "START", exact: true }).count() === 1, "first landing has a single START button");
 ok(await t.page.locator('.kr-landing-body button[data-action]').count() === 1 &&
   await t.page.locator('[data-action="howto"]').count() === 0, "first landing shows one game action and no help button");
 ok(await t.page.locator(".kr-landing-cast li:has(canvas):has(strong):has(span)").count() === 6 &&

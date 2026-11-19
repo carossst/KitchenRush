@@ -102,7 +102,7 @@
 
 
     duel: {
-      canvasAria: "Duel court",
+      canvasAria: "Match court",
       exit: "Exit match",
       you: "YOU",
       stageLabel: "Opponent {n}",
@@ -187,7 +187,7 @@
         net: "Into the net", winner: "The ball bounced twice", twoBounce: "Wait for the bounce", kitchen: "Volley in the kitchen"
       },
       shopNative: "Use character super",
-      shopRule: "Equip one super for classic Duel. Bought powers can be equipped again for free.",
+      shopRule: "Equip one super for classic matches. Bought powers can be equipped again for free.",
       drillStart: "Practise",
       drillNames: { deep: "Deep return", angle: "Placement", soft: "Short shot" },
       drillGoals: { deep: "Return deep into the marked zone.", angle: "Aim for the highlighted side.", soft: "Land a soft shot in the kitchen." },
@@ -198,12 +198,12 @@
       drillHit: "Target hit!",
       drillMiss: "Target missed",
       drillResult: "Targets hit: {n}/{total}",
-      difficultyLabel: "Duel difficulty",
+      difficultyLabel: "Match difficulty",
       difficultyLevels: { relaxed: "Relaxed", standard: "Standard", challenge: "Challenge" },
       shotEarly: "Too early — wait for the ball to come to your side.",
       shotReach: "Out of reach — move closer to the ball.",
       nextRival: "Next opponent: {name}",
-      resultMenu: "Duel menu",
+      resultMenu: "Match menu",
       retryTips: {
         net: "On the next return, aim deeper to clear the net.",
         out: "Aim toward the middle to leave room for error.",
@@ -292,7 +292,7 @@
 
     // French overrides for `duel` (keys missing here fall back to English).
     duelFr: {
-      canvasAria: "Terrain de duel",
+      canvasAria: "Terrain de match",
       exit: "Quitter le match",
       you: "VOUS",
       stageLabel: "Adversaire {n}",
@@ -377,7 +377,7 @@
         net: "Balle dans le filet", winner: "La balle a rebondi deux fois", twoBounce: "Attendez le rebond", kitchen: "Volée dans la cuisine"
       },
       shopNative: "Utiliser le super du personnage",
-      shopRule: "Équipez un seul super pour le Duel classique. Un pouvoir acheté peut être rééquipé gratuitement.",
+      shopRule: "Équipez un seul super pour un match classique. Un pouvoir acheté peut être rééquipé gratuitement.",
       drillStart: "S’entraîner",
       drillNames: { deep: "Retour profond", angle: "Placement latéral", soft: "Balle courte" },
       drillGoals: { deep: "Renvoyez au fond, dans la zone marquée.", angle: "Visez le côté indiqué.", soft: "Déposez une balle douce dans la cuisine." },
@@ -388,12 +388,12 @@
       drillHit: "Cible atteinte !",
       drillMiss: "Cible manquée",
       drillResult: "Cibles atteintes : {n}/{total}",
-      difficultyLabel: "Difficulté du Duel",
+      difficultyLabel: "Difficulté du match",
       difficultyLevels: { relaxed: "Détente", standard: "Standard", challenge: "Défi" },
       shotEarly: "Trop tôt. Attendez que la balle arrive de votre côté.",
       shotReach: "Hors de portée. Rapprochez-vous de la balle.",
       nextRival: "Prochain adversaire : {name}",
-      resultMenu: "Menu du Duel",
+      resultMenu: "Menu du match",
       retryTips: {
         net: "Au prochain retour, visez plus long pour franchir le filet.",
         out: "Visez le milieu pour laisser de la marge.",
@@ -438,7 +438,7 @@
       setupNextCourt: "Choisir le décor",
       setupStepPlayer: "Joueur",
       setupStepMatch: "Match",
-      setupNextMatch: "Voir le duel",
+      setupNextMatch: "Commencer le match",
       setupCourtTitle: "Choisissez le décor",
       setupBackPlayer: "Revenir au choix du joueur",
       selectOpen: "Ouvrir l\u2019\u00e9cran de choix",

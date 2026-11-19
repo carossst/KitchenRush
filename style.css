@@ -2416,3 +2416,36 @@ body:has(.kr-duel) #update-toast {
 .kr-duel-call { display: block; width: 100%; text-align: center; font-size: 0.75rem; opacity: 0.85; }
 .kr-duel-ending { padding: var(--gap-2); border-radius: var(--r-md); background: rgb(var(--bg) / var(--kr-a-40)); text-align: center; }
 .kr-duel-ending-text { margin: 0.4em 0; line-height: 1.45; }
+
+
+/* Match flow polish: one obvious action, stronger fighting-game hierarchy. */
+.kr-duel-panel .kr-duel-go,
+.kr-duel-panel [data-duel="selok"],
+.kr-duel-panel [data-duel="court-ok"] {
+  min-height: 3.25rem;
+  padding-inline: 1.5rem;
+  border-radius: 999px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  box-shadow: 0 10px 24px rgb(0 0 0 / .22), 0 0 0 2px rgb(var(--accent-warm) / .22);
+}
+.kr-duel-select, .kr-duel-court-select { position: relative; }
+.kr-duel-select::before, .kr-duel-court-select::before {
+  content: "";
+  display: block;
+  width: 4rem;
+  height: .25rem;
+  margin: 0 auto var(--space-2);
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgb(var(--accent-warm)), rgb(var(--accent-cool)));
+  opacity: .9;
+}
+.kr-duel-vs-mid { text-shadow: 0 0 18px rgb(var(--accent-warm) / .55); }
+.kr-duel-vs-foot { font-weight: 700; }
+@media (max-width: 520px) {
+  .kr-duel-roster { gap: .45rem; }
+  .kr-duel-tile { min-height: 4.5rem; padding: .35rem .2rem; }
+  .kr-duel-tile canvas { width: 3.2rem; }
+  .kr-duel-hero canvas { width: 8.5rem; }
+  .kr-duel-vs-side canvas { width: min(30vw, 7.5rem); }
+}
