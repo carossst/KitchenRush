@@ -2481,3 +2481,7 @@ body:has(.kr-duel) #update-toast {
 
 .kr-duel-weakness { margin: .25rem 0 0; font-size: .75rem; line-height: 1.2; opacity: .8; }
 @media (max-width: 520px) { .kr-duel-shirt-slogan { max-width: 18rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }
+
+.kr-duel-tile--on canvas { animation: kr-character-bob .65s ease-out both; }
+@keyframes kr-character-bob { 0% { transform: translateY(8px) scale(.96); opacity: .65; } 60% { transform: translateY(-3px) scale(1.03); } 100% { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .kr-duel-tile--on canvas { animation: none; } }
