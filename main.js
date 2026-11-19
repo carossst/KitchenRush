@@ -178,6 +178,12 @@
             });
           }
 
+          navigator.serviceWorker.addEventListener("controllerchange", () => {
+            if (window.__KR_SW_RELOADED__) return;
+            window.__KR_SW_RELOADED__ = true;
+            window.location.reload();
+          });
+
         })
         .catch((err) => {
           Logger.warn("Service Worker registration failed:", err?.message || err);
