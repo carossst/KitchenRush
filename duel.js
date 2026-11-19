@@ -782,9 +782,9 @@
     var skills = locale.castSkills || {};
     host.setAttribute("aria-label", locale.castLabel || "Duel players");
     host.innerHTML = PLAYERS.map(function (p) {
-      return '<li><button type="button" class="kr-landing-player" style="--player-color:' + esc(p.pal.jerseyB) + '" data-action="player-profile" data-player-id="' + esc(p.id) + '">' +
+      return '<li><a href="#player-profile" class="kr-landing-player" style="--player-color:' + esc(p.pal.jerseyB) + '" data-action="player-profile" data-player-id="' + esc(p.id) + '">' +
         '<canvas width="128" height="132" aria-hidden="true"></canvas><strong>' + esc(playerName(p, lang)) + '</strong>' +
-        '<span>' + esc(skills[p.id] || "") + '</span></button></li>';
+        '<span>' + esc(skills[p.id] || "") + '</span></a></li>';
     }).join("");
     var canvases = host.querySelectorAll("canvas");
     PLAYERS.forEach(function (p, index) {
