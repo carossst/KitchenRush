@@ -490,8 +490,8 @@
       title: "Kitchen Rush",
       tagline: "Fast pickleball arcade.",
       subtitle: "Aim your shots, own the Kitchen, climb the ladder.",
-      ctaDuel: "Play",
-      duelExplain: "Singles or doubles against six opponents.",
+      ctaDuel: "Play a match",
+      duelExplain: "Choose your player and court, then return the ball to beat six opponents.",
       arcadeLabel: "Arcade modes",
 
       // Daily challenge badge (shown when daily.enabled)
