@@ -322,7 +322,7 @@ void function () {
       var actionEl = t.closest("[data-action]");
       if (actionEl) {
         e.preventDefault();
-        self._dispatchAction(String(actionEl.getAttribute("data-action") || "").trim());
+        self._dispatchAction(String(actionEl.getAttribute("data-action") || "").trim(), actionEl);
         return;
       }
 
@@ -375,7 +375,7 @@ void function () {
   // ============================================
   // Action dispatch
   // ============================================
-  UI.prototype._dispatchAction = function (action) {
+  UI.prototype._dispatchAction = function (action, actionEl) {
     switch (action) {
       case "play-duel":         this._startDuel(); break;
       case "play":              this._handlePlay("classic"); break;
