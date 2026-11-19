@@ -1924,7 +1924,19 @@
       g.ellipse(W * 0.28, horizon + size * 0.09, W * 0.49, size * 0.25, 0, 0, Math.PI * 2);
       g.ellipse(W * 0.82, horizon + size * 0.11, W * 0.43, size * 0.27, 0, 0, Math.PI * 2);
       g.fill();
+      // A few distant city blocks make the park feel urban without competing with the rally.
+      g.fillStyle = "rgba(40,75,105,0.48)";
+      [0.42, 0.50, 0.58].forEach(function (fraction, index) {
+        var bw = size * (0.07 + index * 0.018), bh = size * (0.12 + index * 0.05);
+        g.fillRect(W * fraction, horizon - bh, bw, bh);
+        g.fillStyle = "rgba(255,224,140,0.45)";
+        g.fillRect(W * fraction + bw * .22, horizon - bh * .72, bw * .12, bh * .08);
+        g.fillStyle = "rgba(40,75,105,0.48)";
+      });
     } else {
+      // Sunset marker keeps the beach readable and gives the venue a clear identity.
+      g.fillStyle = "rgba(255,224,140,0.95)";
+      g.beginPath(); g.arc(W * 0.78, horizon - size * 0.10, size * 0.065, 0, Math.PI * 2); g.fill();
       g.fillStyle = "#258bad";
       g.fillRect(0, horizon - size * 0.12, W, size * 0.18);
       g.fillStyle = "#edd49c";
