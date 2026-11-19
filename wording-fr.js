@@ -78,7 +78,7 @@
       classicUnlockHint: "Le Classique est toujours disponible.",
       ctaPlayDaily: "Jouer le défi du jour",
       ctaPlay: "Jouer en Classique",
-      ctaPlayAfterFirstRun: "Rejouer en Classique",
+      ctaPlayAfterFirstRun: "Rejouer",
       bestLabel: "Record",
       bestAriaTemplate: "Record personnel : {best} frappes",
       bestTargetTemplate: "Pouvez-vous atteindre {target} ?",
