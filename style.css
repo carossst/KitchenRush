@@ -2274,7 +2274,8 @@ body:has(.kr-duel) #update-toast {
 @keyframes kr-duel-pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .kr-duel-vs-side--l, .kr-duel-vs-side--r, .kr-duel-vs-mid, .kr-duel-splash-title { animation: none; } }
 
-.kr-duel-court-roster { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.kr-duel-court-roster { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kr-duel-court-roster button { overflow-wrap: anywhere; }
 .kr-duel-court-roster canvas { width: 100%; height: auto; display: block; border-radius: var(--r-card); }
 .kr-duel-court-roster .kr-duel-tile:disabled { cursor: default; }
 

@@ -43,16 +43,14 @@
       pal: { jerseyA: "#ffd66e", jerseyB: "#b8860b", shorts: "#1a1a1a", hair: "#101018", band: "#ff3b3b", paddle: "#ff3b3b", trim: "#ff3b3b" } }
   ];
   // Courts ("levels" you can also pick from the menu). `unlock` = opponent index you must have reached.
-  var VENUE_ORDER = ["park", "beach", "night", "gym", "rooftop", "stadium"];
-  var AUTO = ["park", "park", "beach", "night", "gym", "rooftop", "stadium"];   // venue per ladder step (same length as LADDER)
+  var VENUE_ORDER = ["park", "beach", "rooftop"];
+  var AUTO = ["park", "park", "beach", "rooftop", "park", "rooftop", "rooftop"];   // venue per ladder step (same length as LADDER)
   var VENUES = {
-    park:    { unlock: 0, sky: ["#2f8cff", "#aee4ff"], glow: [0.82, 0.25, "255,240,170", 0.5], clouds: true, stand: ["#24407a", "#16264f"], crowd: ["#ff5d8f", "#ffd60a", "#3fd0ff", "#ffffff", "#9bffb0", "#ff8a3d", "#c9a6ff"], ground: ["#2fa862", "#37b36b"], board: ["#0e1b3d", "#ffd60a"], apron: "#1f7fd1", court: "#2f6fed", kitN: "#ff7a45", kitF: "#ff8d5c", line: "#ffffff" },
-    beach:   { unlock: 2, sky: ["#ff8a5c", "#ffe0a8"], glow: [0.5, 0.62, "255,214,140", 0.7], scene: "sea", stand: ["#7a4b2a", "#5a361d"], crowd: ["#ffffff", "#ffcf6b", "#ff6b6b", "#2ec4b6", "#ffe8b0"], ground: ["#dcbc78", "#e6c98a"], board: ["#2a1a10", "#ffcf6b"], apron: "#0c8f91", court: "#14b8b2", kitN: "#ff6b4a", kitF: "#ff8466", line: "#ffffff" },
-    night:   { unlock: 3, sky: ["#050818", "#1b1f55"], glow: [0.2, 0.3, "200,220,255", 0.35], stars: true, scene: "lights", stand: ["#1a1440", "#0d0a26"], crowd: ["#ff2fa0", "#3fd0ff", "#9bffb0", "#ffffff", "#c9a6ff"], ground: ["#0f2a3a", "#12313f"], board: ["#05060f", "#3fd0ff"], apron: "#1a2f7a", court: "#2b3fd9", kitN: "#ff2fa0", kitF: "#ff4db3", line: "#9ff0ff" },
-    gym:     { unlock: 4, sky: ["#4a4f63", "#2d3142"], scene: "gym", stand: ["#3a2f2a", "#241c18"], crowd: ["#e9c46a", "#ffffff", "#e76f51", "#2a9d8f"], ground: ["#bd8745", "#c8924f"], board: ["#1b1f2e", "#ff9d3c"], apron: "#1f5a3d", court: "#2e8b57", kitN: "#e9c46a", kitF: "#f0d27f", line: "#ffffff" },
-    rooftop: { unlock: 5, sky: ["#3a1c71", "#ff9f68"], glow: [0.7, 0.8, "255,180,120", 0.6], scene: "skyline", stand: ["#1e1b3a", "#14122b"], crowd: ["#ffffff", "#ff9f68", "#c9a6ff", "#ff7a9c"], ground: ["#6b6f80", "#737788"], board: ["#14122b", "#ff7a9c"], apron: "#2f2e63", court: "#3d6fb5", kitN: "#ff9f43", kitF: "#ffb26b", line: "#ffffff" },
-    stadium: { unlock: 6, sky: ["#0a0a14", "#2a1a05"], stars: true, scene: "beams", stand: ["#2b2108", "#14100a"], crowd: ["#ffd23f", "#ffffff", "#ff9f1c", "#f4f1de"], ground: ["#1b1b24", "#20202b"], board: ["#14100a", "#ffd23f"], apron: "#7a5c12", court: "#1d3a8a", kitN: "#c0392b", kitF: "#d9503f", line: "#ffd23f" }
+    park:    { unlock: 0, sky: ["#2f8cff", "#aee4ff"], glow: [0.82, 0.25, "255,240,170", 0.5], clouds: true, scene: "park", stand: ["#24407a", "#16264f"], crowd: ["#ff5d8f", "#ffd60a", "#3fd0ff", "#ffffff", "#9bffb0", "#ff8a3d", "#c9a6ff"], ground: ["#2fa862", "#37b36b"], board: ["#0e1b3d", "#ffd60a"] },
+    beach:   { unlock: 0, sky: ["#ff8a5c", "#ffe0a8"], glow: [0.5, 0.62, "255,214,140", 0.7], scene: "sea", stand: ["#7a4b2a", "#5a361d"], crowd: ["#ffffff", "#ffcf6b", "#ff6b6b", "#2ec4b6", "#ffe8b0"], ground: ["#dcbc78", "#e6c98a"], board: ["#2a1a10", "#ffcf6b"] },
+    rooftop: { unlock: 3, sky: ["#3a1c71", "#ff9f68"], glow: [0.7, 0.8, "255,180,120", 0.6], scene: "skyline", stand: ["#1e1b3a", "#14122b"], crowd: ["#ffffff", "#ff9f68", "#c9a6ff", "#ff7a9c"], ground: ["#6b6f80", "#737788"], board: ["#14122b", "#ff7a9c"] },
   };
+  var COURT_COLORS = { apron: "#1f7fd1", court: "#2f6fed", kitN: "#ff7a45", kitF: "#ff8d5c", line: "#ffffff" };
   function hasVenue(id) { return Object.prototype.hasOwnProperty.call(VENUES, id); }
   // The cast: 6 characters, identical in both editions (same stats, same super power, same unlock order and price).
   // Only the display name (and, where it matters, the drawn look) depends on the language. Soft currency only.
@@ -163,6 +161,9 @@
     if (d.beaten && typeof d.beaten === "object") Object.keys(d.beaten).forEach(function (k) { var i = Number(k); if (i >= 0 && i < 999 && d.beaten[k] === true) beaten[Math.floor(i)] = true; });
     d.beaten = beaten;
     d.equipped = POWERS.indexOf(d.equipped) >= 0 ? d.equipped : "";
+    if (d.venue === "night") d.venue = "beach";
+    else if (d.venue === "gym") d.venue = "park";
+    else if (d.venue === "stadium") d.venue = "rooftop";
     d.venue = (d.venue === "auto" || (typeof d.venue === "string" && hasVenue(d.venue))) ? d.venue : "auto";
     d.bestMargin = clamp(Math.floor(Number(d.bestMargin) || 0), 0, 99);
     d.lang = (d.lang === "fr" || d.lang === "en") ? d.lang : "";
@@ -911,7 +912,7 @@
     this.drillReturn = false;
     this.matchSetup = true;
     this.previewPlayer = null;
-    this.previewVenue = this.save.venue || "auto";
+    this.previewVenue = this._venueId();
     this._showSelect();
   };
 
@@ -968,23 +969,21 @@
 
   Duel.prototype._showCourtSelect = function (focusAction) {
     var t = this.t, self = this, names = t.venues || {}, selected = this.previewVenue;
-    var current = selected === "auto" ? AUTO[this.stage % AUTO.length] : selected;
-    var cards = ["auto"].concat(VENUE_ORDER).map(function (id) {
-      var actual = id === "auto" ? AUTO[self.stage % AUTO.length] : id;
-      var locked = id !== "auto" && self.stage < VENUES[id].unlock;
-      var name = id === "auto" ? (t.venueAuto || "Auto") + " · " + (names[actual] || actual) : (names[id] || id);
+    var cards = VENUE_ORDER.map(function (id) {
+      var locked = self.stage < VENUES[id].unlock;
+      var name = names[id] || id;
       var note = locked ? (t.venueLocked || "Reach opponent {n} to unlock").replace("{n}", VENUES[id].unlock + 1) : "";
       return '<button class="kr-duel-tile' + (selected === id ? ' kr-duel-tile--on' : '') +
         '" data-duel="court-' + id + '" aria-pressed="' + (selected === id) + '"' + (locked ? ' disabled' : '') + '>' +
-        '<canvas width="144" height="96" aria-hidden="true" data-court-preview="' + actual + '"></canvas>' +
+        '<canvas width="144" height="96" aria-hidden="true" data-court-preview="' + id + '"></canvas>' +
         '<span class="kr-duel-tile-name">' + esc(name) + '</span>' +
         (note ? '<span class="kr-duel-tile-sub">' + esc(note) + '</span>' : '') + '</button>';
     }).join("");
     this.panelEl.innerHTML =
       '<div class="kr-duel-card kr-duel-select">' + this._setupSteps(1) +
       '<h2 class="kr-duel-name" tabindex="-1">' + esc(t.setupCourtTitle || "Choose a court") + '</h2>' +
-      '<figure class="kr-duel-court-hero"><canvas width="480" height="240" aria-hidden="true" data-court-preview="' + current + '"></canvas>' +
-      '<figcaption>' + esc(names[current] || current) + '</figcaption></figure>' +
+      '<figure class="kr-duel-court-hero"><canvas width="480" height="240" aria-hidden="true" data-court-preview="' + selected + '"></canvas>' +
+      '<figcaption>' + esc(names[selected] || selected) + '</figcaption></figure>' +
       '<div class="kr-duel-roster kr-duel-court-roster" role="group" aria-label="' + esc(t.venueLabel || "Court") + '">' + cards + '</div>' +
       '<button class="kr-btn kr-btn--primary" data-duel="court-ok">' + esc(t.setupNextMatch || "See the matchup") + '</button>' +
       '<button class="kr-btn kr-btn--ghost" data-duel="setup-back">' + esc(t.setupBackPlayer || "Back to player selection") + '</button></div>';
@@ -997,7 +996,9 @@
       if (!g) return;
       var ratio = Math.max(canvas.width / preview.width, canvas.height / preview.height);
       var width = preview.width * ratio, height = preview.height * ratio;
-      g.drawImage(preview, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+      var backdrop = self._project(0, CL + 16, 0).y / self.H;
+      var offset = clamp(canvas.height * 0.53 - backdrop * height, canvas.height - height, 0);
+      g.drawImage(preview, (canvas.width - width) / 2, offset, width, height);
     });
     var target = focusAction && this.panelEl.querySelector('[data-duel="' + focusAction + '"]');
     (target || this.panelEl.querySelector("h2")).focus();
@@ -1880,57 +1881,85 @@
   };
 
   Duel.prototype._venueHtml = function () {
-    var t = this.t, sv = this.save, self = this, names = t.venues || {}, cur = this._venueId();
-    var sel = (sv.venue && (sv.venue === "auto" || hasVenue(sv.venue))) ? sv.venue : "auto";
+    var t = this.t, self = this, names = t.venues || {}, cur = this._venueId();
+    var sel = cur;
     function chip(id, label, locked, title, on, sw) {
       return '<button class="kr-duel-chip' + (on ? " kr-duel-chip--eq" : "") + '" data-duel="venue-' + id + '" aria-pressed="' + (on ? "true" : "false") + '"' + (locked ? ' aria-disabled="true"' : "") + (title ? ' title="' + esc(title) + '"' : "") + ">" + (sw || "") + esc(label) + "</button>";
     }
-    var chips = chip("auto", t.venueAuto || "Auto", false, "", sel === "auto", "");
+    var chips = "";
     VENUE_ORDER.forEach(function (id) {
       var V = VENUES[id], locked = self.stage < V.unlock;
       chips += chip(id, names[id] || id, locked, locked ? (t.venueLocked || "Reach opponent {n} to unlock").replace("{n}", V.unlock + 1) : "", sel === id,
-        '<i class="kr-duel-swatch" style="background:linear-gradient(135deg,' + V.sky[0] + "," + V.court + ')"></i>');
+        '<i class="kr-duel-swatch" style="background:linear-gradient(135deg,' + V.sky[0] + "," + V.ground[0] + ')"></i>');
     });
     return '<div class="kr-duel-venues" role="group" aria-label="' + esc(t.venueLabel || "Court") + '">' + chips + "</div>" +
       '<p class="kr-muted kr-duel-venuenow">' + esc(this.venueMsg || (t.venueNow || "Playing at: {name}").replace("{name}", names[cur] || cur)) + "</p>";
   };
 
-  // Scenery behind the stands (mostly visible in landscape and on tall screens).
+  // Draw the location behind the baseline. Court geometry and colors are shared.
   Duel.prototype._scene = function (g, V, W, H, horizon, rnd) {
-    var i, k;
+    var size = Math.min(W, H);
     if (V.scene === "skyline") {
-      var bx = 0;
-      while (bx < W) {
-        var bw = 14 + rnd() * 30, bh = 18 + rnd() * horizon * 0.5;
-        g.fillStyle = "#1a1038"; g.fillRect(bx, horizon - bh, bw, bh + 6);
-        g.fillStyle = "rgba(255,210,120,0.85)";
-        for (var wy = horizon - bh + 4; wy < horizon - 6; wy += 7) for (var wx = bx + 3; wx < bx + bw - 3; wx += 6) if (rnd() < 0.35) g.fillRect(wx, wy, 2.5, 3.5);
-        bx += bw + 2;
+      for (var x = -size * 0.05; x < W;) {
+        var width = size * (0.08 + rnd() * 0.11);
+        var height = size * (0.11 + rnd() * 0.27);
+        var top = horizon - height;
+        g.fillStyle = rnd() > 0.5 ? "#241b49" : "#342452";
+        g.fillRect(x, top, width, height + 5);
+        g.fillRect(x + width * 0.38, top - size * 0.04, width * 0.24, size * 0.04);
+        g.fillStyle = "#ffcb98";
+        for (var wy = top + 10; wy < horizon - 7; wy += 11) {
+          for (var wx = x + 7; wx < x + width - 5; wx += 12) {
+            if (rnd() > 0.36) g.fillRect(wx, wy, 4, 5);
+          }
+        }
+        x += width + 3;
       }
-    } else if (V.scene === "sea") {
-      g.fillStyle = "#1c8fc7"; g.fillRect(0, horizon * 0.7, W, horizon * 0.3 + 4);
-      g.fillStyle = "rgba(255,230,170,0.6)";
-      for (k = 0; k < 10; k++) { var sw = 70 - k * 5; g.fillRect(W / 2 - sw / 2, horizon * 0.72 + k * horizon * 0.028, sw, 2.5); }
-    } else if (V.scene === "lights") {
-      [[0.1, "180,210,255"], [0.9, "255,190,150"]].forEach(function (L) {
-        var lx = W * L[0], cone = g.createRadialGradient(lx, 0, 0, lx, 0, H * 0.7);
-        cone.addColorStop(0, "rgba(" + L[1] + ",0.5)"); cone.addColorStop(1, "rgba(" + L[1] + ",0)");
-        g.fillStyle = cone; g.fillRect(0, 0, W, H);
-      });
-    } else if (V.scene === "beams") {
-      for (i = 0; i < 4; i++) {
-        var x0 = W * (0.15 + 0.23 * i), dx = i % 2 ? 50 : -50;
-        g.fillStyle = "rgba(255,214,90,0.12)"; g.beginPath(); g.moveTo(x0 - 6, 0); g.lineTo(x0 + 6, 0); g.lineTo(x0 + dx + 60, horizon + 60); g.lineTo(x0 + dx - 60, horizon + 60); g.closePath(); g.fill();
-      }
-    } else if (V.scene === "gym") {
-      g.strokeStyle = "rgba(255,255,255,0.06)"; g.lineWidth = 1;
-      for (k = 6; k < horizon + 40; k += 14) { g.beginPath(); g.moveTo(0, k); g.lineTo(W, k); g.stroke(); }
-      for (i = 0; i < 4; i++) {
-        var lx = W * (0.1 + 0.22 * i), lg = g.createLinearGradient(0, 0, 0, horizon * 0.9);
-        lg.addColorStop(0, "rgba(255,244,200,0.55)"); lg.addColorStop(1, "rgba(255,244,200,0)");
-        g.fillStyle = lg; g.fillRect(lx, 0, W * 0.16, horizon * 0.9); g.fillStyle = "rgba(255,248,220,0.95)"; g.fillRect(lx, 3, W * 0.16, 4);
+      return;
+    }
+
+    if (V.scene === "park") {
+      g.fillStyle = "#459d84";
+      g.beginPath();
+      g.ellipse(W * 0.28, horizon + size * 0.09, W * 0.49, size * 0.25, 0, 0, Math.PI * 2);
+      g.ellipse(W * 0.82, horizon + size * 0.11, W * 0.43, size * 0.27, 0, 0, Math.PI * 2);
+      g.fill();
+    } else {
+      g.fillStyle = "#258bad";
+      g.fillRect(0, horizon - size * 0.12, W, size * 0.18);
+      g.fillStyle = "#edd49c";
+      g.fillRect(0, horizon + size * 0.015, W, size * 0.09);
+      g.fillStyle = "rgba(255,247,216,0.75)";
+      for (var wave = 0; wave < 15; wave++) {
+        var length = size * (0.025 + rnd() * 0.11);
+        g.fillRect(rnd() * W, horizon - size * (0.02 + rnd() * 0.09), length, 2);
       }
     }
+
+    [0.08, 0.24, 0.77, 0.93].forEach(function (fraction, index) {
+      var x = W * fraction, h = size * (index % 2 ? 0.20 : 0.29);
+      var base = horizon + h * 0.08, y = base - h;
+      g.strokeStyle = "#584530"; g.lineCap = "round"; g.lineWidth = h * 0.075;
+      g.beginPath(); g.moveTo(x, base);
+      if (V.scene === "park") {
+        g.lineTo(x, y + h * 0.24); g.stroke();
+        g.fillStyle = "#195e58";
+        g.beginPath(); g.arc(x, y + h * 0.23, h * 0.34, 0, Math.PI * 2); g.fill();
+        g.fillStyle = "#3aa176";
+        g.beginPath(); g.arc(x - h * 0.13, y + h * 0.12, h * 0.23, 0, Math.PI * 2); g.fill();
+      } else {
+        var tip = x + (index < 2 ? h * 0.22 : -h * 0.22);
+        g.quadraticCurveTo(x, y + h * 0.38, tip, y); g.stroke();
+        g.strokeStyle = "#175750"; g.lineWidth = h * 0.062;
+        [-1, 1].forEach(function (dir) {
+          for (var leaf = 0; leaf < 3; leaf++) {
+            g.beginPath(); g.moveTo(tip, y);
+            g.quadraticCurveTo(tip + dir * h * 0.28, y - h * (0.23 - leaf * 0.08), tip + dir * h * (0.40 - leaf * 0.07), y + h * leaf * 0.14);
+            g.stroke();
+          }
+        });
+      }
+    });
   };
 
   Duel.prototype._drawBackground = function (previewId) {
@@ -1958,11 +1987,11 @@
     }
     this._scene(g, V, W, H, horizon, rnd);
     // Grandstand behind the far baseline
-    var st0 = this._project(-CW - 14, CL + 9, 0), st1 = this._project(CW + 14, CL + 9, 0), sh = Math.max(46, 15 * st0.s);
+    var st0 = this._project(-CW - 11, CL + 9, 0), st1 = this._project(CW + 11, CL + 9, 0), sh = Math.max(25, 8 * st0.s);
     var sg = g.createLinearGradient(0, st0.y - sh, 0, st0.y);
     sg.addColorStop(0, V.stand[0]); sg.addColorStop(1, V.stand[1]);
     g.fillStyle = sg; g.beginPath(); g.roundRect ? g.roundRect(st0.x, st0.y - sh, st1.x - st0.x, sh, 10) : g.rect(st0.x, st0.y - sh, st1.x - st0.x, sh); g.fill();
-    var cols = V.crowd, rows = 7, dot = Math.max(1.8, sh / 24);
+    var cols = V.crowd, rows = 4, dot = Math.max(1.8, sh / 24);
     for (var r = 0; r < rows; r++) for (var x = st0.x + dot * 2; x < st1.x - dot * 2; x += dot * 2.7) {
       g.fillStyle = cols[Math.floor(rnd() * cols.length)];
       g.beginPath(); g.arc(x + (r % 2) * dot * 1.3, st0.y - sh + dot * 2 + r * (sh - dot * 3) / rows + rnd() * 2, dot, 0, 7); g.fill();
@@ -1976,17 +2005,17 @@
     var name = String(this.opts.appName || "KITCHEN RUSH").toUpperCase();
     for (var bi = -1; bi <= 1; bi++) g.fillText(name, W / 2 + bi * (bd1.x - bd0.x) / 3, bd0.y - bh / 2);
     // Court apron + playing surface
-    this._quad(g, -CW - 3, -CL - 4.5, CW + 3, CL + 4.5, V.apron);
-    this._quad(g, -CW, -CL, CW, CL, V.court);
-    this._quad(g, -CW, -KIT, CW, 0, V.kitN);
-    this._quad(g, -CW, 0, CW, KIT, V.kitF);
+    this._quad(g, -CW - 3, -CL - 4.5, CW + 3, CL + 4.5, COURT_COLORS.apron);
+    this._quad(g, -CW, -CL, CW, CL, COURT_COLORS.court);
+    this._quad(g, -CW, -KIT, CW, 0, COURT_COLORS.kitN);
+    this._quad(g, -CW, 0, CW, KIT, COURT_COLORS.kitF);
     // Soft light falloff toward the far end
     var a = this._project(0, -CL, 0), b = this._project(0, CL, 0);
     var sheen = g.createLinearGradient(0, b.y, 0, a.y);
     sheen.addColorStop(0, "rgba(10,20,60,0.22)"); sheen.addColorStop(0.5, "rgba(255,255,255,0)"); sheen.addColorStop(1, "rgba(255,255,255,0.10)");
     this._quad(g, -CW - 3, -CL - 4.5, CW + 3, CL + 4.5, sheen);
     // Lines
-    g.strokeStyle = V.line; g.lineCap = "round";
+    g.strokeStyle = COURT_COLORS.line; g.lineCap = "round";
     var L = 0.28;
     this._line(g, -CW, -CL, CW, -CL, L); this._line(g, -CW, CL, CW, CL, L);
     this._line(g, -CW, -CL, -CW, CL, L); this._line(g, CW, -CL, CW, CL, L);

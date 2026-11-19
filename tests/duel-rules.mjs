@@ -148,7 +148,7 @@ const results = await page.evaluate(() => {
     return eq([r1, r2, r3], [["pass", true, 0], false, [true, 20, "pass"]]);
   });
   t("a locked court explains itself when tapped and is not selected", () => {
-    d.stage = 0; d.save.venue = "auto"; d._showMenu(); d._panelAction("venue-stadium");
+    d.stage = 0; d.save.venue = "auto"; d._showMenu(); d._panelAction("venue-rooftop");
     const msg = d.panelEl.textContent.includes("7 to unlock"), kept = d.save.venue;
     d._panelAction("venue-auto"); return eq([msg, kept], [true, "auto"]);
   });
@@ -237,7 +237,7 @@ const results = await page.evaluate(() => {
     d._panelAction("selok"); d._panelAction("court-park"); d._panelAction("court-ok");
     const vs = [!!d.panelEl.querySelector(".kr-duel-versus"), d.phase, d.panelEl.querySelectorAll("canvas").length];
     d._panelAction("versus-go"); d.paused = true;
-    return eq([players, courts, back, d.save.venue, vs, d.panelEl.classList.contains("kr-duel-panel--on"), d.phase === "serve" || d.phase === "rally"], [6, 8, true, "park", [true, "menu", 2], false, true]);
+    return eq([players, courts, back, d.save.venue, vs, d.panelEl.classList.contains("kr-duel-panel--on"), d.phase === "serve" || d.phase === "rally"], [6, 4, true, "park", [true, "menu", 2], false, true]);
   });
   t("defeat offers immediate rematch and keeps the chosen player and court", () => {
     fresh(); d.daily = null; d.save.venue = "park"; d._lastFault = "out";

@@ -76,7 +76,10 @@ await page.click('[data-duel="sel-reach"]');
 assert.equal(await page.locator('[data-duel="selok"]').isEnabled(), false);
 await page.click('[data-duel="sel-sprint"]');
 await page.click('[data-duel="selok"]');
-assert.equal(await page.locator('[data-court-preview]:visible').count(), 8);
+assert.equal(await page.locator('[data-court-preview]:visible').count(), 4);
+const backdropCount = await page.locator(".kr-duel-court-roster canvas").evaluateAll((items) =>
+  new Set(items.map((canvas) => canvas.toDataURL())).size);
+assert.equal(backdropCount, 3);
 assert.equal(await page.locator('.kr-duel-steps [aria-current="step"]').textContent(), "Court");
 await page.click('[data-duel="court-park"]');
 assert.equal(await page.locator('.kr-duel-court-hero canvas').getAttribute("data-court-preview"), "park");
