@@ -19,8 +19,9 @@ The intended feel is:
 
 ## Core mode hierarchy
 
-- Classic is the main game.
-- Daily Challenge is one shared Classic run per UTC day.
+- Duel is the main game: choose a player and court, then play a short match against the ladder.
+- Daily Challenge is the shared daily Duel variation.
+- Classic is an alternative mode for players who want a freer replay loop.
 - Power Run is the short high-pressure side mode.
 - Waitlist, house ads, stats sharing, and similar systems are always secondary to play.
 
@@ -371,9 +372,9 @@ First visit rule:
 
 - show the title
 - show the short subtitle
-- show only `Daily Challenge` as the primary CTA when Daily is enabled
-- if Daily is disabled, fall back to `Play Classic`
-- do not show `Play Classic` alongside `Daily Challenge` on the first visit
+- show only `Play a match` as the primary CTA
+- the CTA opens the Duel flow: player, court, matchup, then match
+- do not show Daily, Classic, or Power Run alongside the primary CTA on the first visit
 - do not show progression copy, best score, sparks, `Power Ball`, or extra discovery nudges on the first visit
 - use the same vertical slot for `Daily Challenge` on mobile and desktop
 - on the first visit, `Daily Challenge` should look like the main primary button, not a badge
